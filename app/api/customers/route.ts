@@ -11,7 +11,7 @@ export async function GET(request: Request) {
         COUNT(w.id) AS history_count, MAX(w.work_date) AS last_work_date
       FROM customers c LEFT JOIN work_logs w ON w.customer_id = c.id
       WHERE (? = '' OR c.id LIKE ? OR c.name LIKE ? OR c.notes LIKE ?)
-      GROUP BY c.id ORDER BY COALESCE(MAX(w.work_date), c.updated_at) DESC, c.name LIMIT 200
+      GROUP BY c.id ORDER BY COALESCE(MAX(w.work_date), c.updated_at) DESC, c.name LIMIT 1000
     `).bind(q, like, like, like).all();
     return Response.json({ customers: rows.results });
   } catch (error) {

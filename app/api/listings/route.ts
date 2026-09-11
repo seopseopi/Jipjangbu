@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     }
     const rows = await getD1().prepare(`
       SELECT * FROM listings WHERE ${where.join(" AND ")}
-      ORDER BY CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, building_name, building_dong, unit_number LIMIT 300
+      ORDER BY CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, building_name, building_dong, unit_number LIMIT 1000
     `).bind(...binds).all();
     return Response.json({ listings: rows.results });
   } catch (error) {
