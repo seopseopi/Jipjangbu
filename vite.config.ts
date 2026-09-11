@@ -18,7 +18,7 @@ const localBindingConfig = {
     ? [
         {
           binding: d1,
-          database_name: "helper-work-manager-d1",
+          database_name: "jipjangbu-d1",
           database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
         },
       ]
@@ -27,7 +27,7 @@ const localBindingConfig = {
     ? [
         {
           binding: r2,
-          bucket_name: "helper-work-manager-r2",
+          bucket_name: "jipjangbu-r2",
         },
       ]
     : [],
