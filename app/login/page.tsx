@@ -37,7 +37,7 @@ export default function LoginPage() {
 
   return <main className="login-shell">
     <section className="login-card" aria-labelledby="login-title">
-      <Link className="login-brand" href="/" aria-label="집장부 홈">
+      <Link className="login-brand" href="/" prefetch={false} aria-label="집장부 홈">
         <span className="login-logo" aria-hidden="true" />
         <span><strong>집장부</strong><small>부동산 업무를 한곳에</small></span>
       </Link>
