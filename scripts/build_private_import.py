@@ -149,7 +149,8 @@ def build_work_data(work_rows, known_customer_ids: set[str]):
                 if work_type in EVENT_WORK_TYPES and property_type and building_name and unit_number:
                     key = listing_key((property_type, building_name, building_dong, unit_number))
                     events.append((
-                        f"excel-event-{detail_id}", key, work_id, detail_id, work_date, work_type,
+                        f"excel-event-{detail_id}", key, work_id, detail_id, work_date,
+                        (legacy_id * 100) + sequence, work_type,
                         property_type, building_name, building_dong, unit_number, size_type,
                         sale_price, jeonse_price, monthly_rent, source, content, 0, created_at,
                     ))
@@ -196,10 +197,11 @@ def build_listings(workbook) -> list[tuple[Any, ...]]:
         registered_at = date_text(winner[0])
         closed_at = date_text(winner[1])
         updated_date = closed_at or registered_at or "2000-01-01"
+        source_notes = "\n".join(notes)
         listings.append((
             f"excel-listing-{winner_number}", key, registered_at, closed_at, clean(winner[2]),
             clean(winner[3]), clean(winner[4]), clean(winner[5]), clean(winner[6]), clean(winner[7]),
-            clean(winner[8]), clean(winner[9]), clean(winner[10]), "\n".join(notes), 0,
+            clean(winner[8]), clean(winner[9]), clean(winner[10]), source_notes, source_notes, 0,
             f"{updated_date} 00:00:00",
         ))
     return listings
@@ -229,8 +231,8 @@ def build_migration(workbook_path: Path) -> tuple[str, dict[str, int]]:
     statements += insert_chunks("customers", ["id", "name", "notes", "is_demo", "created_at", "updated_at"], customers)
     statements += insert_chunks("work_logs", ["id", "legacy_id", "work_date", "customer_id", "work_type", "content", "is_demo", "created_at", "updated_at"], work_logs)
     statements += insert_chunks("work_log_properties", ["id", "work_log_id", "sequence", "property_type", "building_name", "building_dong", "unit_number", "size_type", "sale_price", "jeonse_price", "monthly_rent", "source"], details)
-    statements += insert_chunks("listing_events", ["id", "listing_key", "work_log_id", "detail_id", "event_date", "status", "property_type", "building_name", "building_dong", "unit_number", "size_type", "sale_price", "jeonse_price", "monthly_rent", "source", "notes", "is_demo", "created_at"], events, 25)
-    statements += insert_chunks("listings", ["id", "identity_key", "registered_at", "closed_at", "status", "property_type", "building_name", "building_dong", "unit_number", "size_type", "sale_price", "jeonse_price", "monthly_rent", "notes", "is_demo", "updated_at"], listings, 25)
+    statements += insert_chunks("listing_events", ["id", "listing_key", "work_log_id", "detail_id", "event_date", "event_order", "status", "property_type", "building_name", "building_dong", "unit_number", "size_type", "sale_price", "jeonse_price", "monthly_rent", "source", "notes", "is_demo", "created_at"], events, 25)
+    statements += insert_chunks("listings", ["id", "identity_key", "registered_at", "closed_at", "status", "property_type", "building_name", "building_dong", "unit_number", "size_type", "sale_price", "jeonse_price", "monthly_rent", "notes", "source_notes", "is_demo", "updated_at"], listings, 25)
     migration = "-- Private one-time Excel import. Do not commit this file to GitHub.\n" + BREAK.join(statements) + "\n"
     counts = {
         "customers": len(customers),

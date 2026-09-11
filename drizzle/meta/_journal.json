@@ -15,6 +15,13 @@
       "when": 1789103021277,
       "tag": "0001_slim_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789104864279,
+      "tag": "0002_smart_doctor_doom",
+      "breakpoints": true
     }
   ]
 }

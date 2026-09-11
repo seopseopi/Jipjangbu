@@ -1,7 +1,13 @@
 /** Cloudflare Worker entry point for 집장부. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-import { addSecurityHeaders, handleSecurityRequest, isPublicAsset, SecurityEnv } from "./security";
+import {
+  addSecurityHeaders,
+  handleSecurityRequest,
+  isPublicAsset,
+  schedulePostMutationBackup,
+  SecurityEnv,
+} from "./security";
 
 interface Env extends SecurityEnv {
   ASSETS: Fetcher;
@@ -44,6 +50,7 @@ const worker = {
     }
 
     const response = await handler.fetch(request, env, ctx);
+    schedulePostMutationBackup(request, response, env, ctx);
     return isPublicAsset(url.pathname, request.method) ? addSecurityHeaders(response, false) : addSecurityHeaders(response);
   },
 };

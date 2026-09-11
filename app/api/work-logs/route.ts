@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { apiError, ready } from "../_shared";
+import { apiError, integerQueryParam, ready } from "../_shared";
 import { InputError, saveWorkLog, WorkLogPayload } from "./data";
 
 const summarySql = `
@@ -27,8 +27,8 @@ export async function GET(request: Request) {
     const customerId = params.get("customerId")?.trim() ?? "";
     const from = params.get("from")?.trim() ?? "";
     const to = params.get("to")?.trim() ?? "";
-    const limit = Math.min(Math.max(Number(params.get("limit") || 100), 1), 1000);
-    const offset = Math.max(Number(params.get("offset") || 0), 0);
+    const limit = integerQueryParam(params.get("limit"), 100, 1, 1000);
+    const offset = integerQueryParam(params.get("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
     const where = ["(? = '' OR w.work_type = ?)", "(? = '' OR w.customer_id = ?)", "(? = '' OR substr(w.work_date,1,7) = ?)", "(? = '' OR w.work_date >= ?)", "(? = '' OR w.work_date <= ?)"];
     const binds: unknown[] = [workType, workType, customerId, customerId, month, month, from, from, to, to];
     if (q) {

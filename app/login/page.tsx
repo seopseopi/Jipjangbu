@@ -2,11 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-
-function safeReturnTo(value: string | null): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/login")) return "/";
-  return value;
-}
+import { safeReturnTo } from "../../worker/return-to.js";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");

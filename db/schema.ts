@@ -59,6 +59,7 @@ export const listings = sqliteTable("listings", {
   jeonsePrice: text("jeonse_price").notNull().default(""),
   monthlyRent: text("monthly_rent").notNull().default(""),
   notes: text("notes").notNull().default(""),
+  sourceNotes: text("source_notes").notNull().default(""),
   isDemo: integer("is_demo", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
@@ -73,6 +74,7 @@ export const listingEvents = sqliteTable("listing_events", {
   workLogId: text("work_log_id").notNull().references(() => workLogs.id, { onDelete: "cascade" }),
   detailId: text("detail_id").notNull(),
   eventDate: text("event_date").notNull(),
+  eventOrder: integer("event_order").notNull().default(0),
   status: text("status").notNull(),
   propertyType: text("property_type").notNull(),
   buildingName: text("building_name").notNull(),
@@ -89,6 +91,7 @@ export const listingEvents = sqliteTable("listing_events", {
 }, (table) => [
   uniqueIndex("idx_listing_events_detail").on(table.detailId),
   index("idx_listing_events_key_date").on(table.listingKey, table.eventDate),
+  index("idx_listing_events_key_date_order").on(table.listingKey, table.eventDate, table.eventOrder),
   index("idx_listing_events_work_log").on(table.workLogId),
 ]);
 

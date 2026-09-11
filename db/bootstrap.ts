@@ -58,11 +58,13 @@ const schemaStatements = [
     property_type TEXT NOT NULL, building_name TEXT NOT NULL, building_dong TEXT NOT NULL DEFAULT '',
     unit_number TEXT NOT NULL DEFAULT '', size_type TEXT NOT NULL DEFAULT '', sale_price TEXT NOT NULL DEFAULT '',
     jeonse_price TEXT NOT NULL DEFAULT '', monthly_rent TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '',
-    is_demo INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    source_notes TEXT NOT NULL DEFAULT '', is_demo INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   )`,
   `CREATE TABLE IF NOT EXISTS listing_events (
     id TEXT PRIMARY KEY, listing_key TEXT NOT NULL, work_log_id TEXT NOT NULL, detail_id TEXT NOT NULL UNIQUE,
-    event_date TEXT NOT NULL, status TEXT NOT NULL, property_type TEXT NOT NULL, building_name TEXT NOT NULL,
+    event_date TEXT NOT NULL, event_order INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL,
+    property_type TEXT NOT NULL, building_name TEXT NOT NULL,
     building_dong TEXT NOT NULL DEFAULT '', unit_number TEXT NOT NULL DEFAULT '', size_type TEXT NOT NULL DEFAULT '',
     sale_price TEXT NOT NULL DEFAULT '', jeonse_price TEXT NOT NULL DEFAULT '', monthly_rent TEXT NOT NULL DEFAULT '',
     source TEXT NOT NULL DEFAULT '', notes TEXT NOT NULL DEFAULT '', is_demo INTEGER NOT NULL DEFAULT 0,
@@ -136,8 +138,8 @@ async function seedDemo(db: D1Database) {
     db.prepare("INSERT OR IGNORE INTO work_log_properties (id, work_log_id, sequence, property_type, building_name, building_dong, unit_number, size_type, jeonse_price, source) VALUES ('demo-detail-today-1','demo-today-1',1,'아파트','아이파크1차','101','1203','33','2억 7,000','단독')"),
     db.prepare("INSERT OR IGNORE INTO work_log_properties (id, work_log_id, sequence, property_type, building_name, building_dong, unit_number, size_type, sale_price, source) VALUES ('demo-detail-today-3','demo-today-3',1,'아파트','힐스테이트1차','204','802','40','6억 2,000','우리동네부동산')"),
     db.prepare("INSERT OR IGNORE INTO work_log_properties (id, work_log_id, sequence, property_type, building_name, building_dong, unit_number, size_type, sale_price, source) VALUES ('demo-detail-upcoming-1','demo-upcoming-1',1,'아파트','우방2차','103','501','35','4억 8,000','공동중개')"),
-    db.prepare("INSERT OR IGNORE INTO listing_events (id, listing_key, work_log_id, detail_id, event_date, status, property_type, building_name, building_dong, unit_number, size_type, jeonse_price, source, notes, is_demo) VALUES ('demo-event-reg-1','아파트|아이파크1차|101|1203','demo-reg-1','demo-detail-reg-1',date('now','+9 hours','-20 days'),'매물등록','아파트','아이파크1차','101','1203','33','2억 7,000','단독','전세 매물 등록',1)"),
-    db.prepare("INSERT OR IGNORE INTO listing_events (id, listing_key, work_log_id, detail_id, event_date, status, property_type, building_name, building_dong, unit_number, size_type, sale_price, source, notes, is_demo) VALUES ('demo-event-today-3','아파트|힐스테이트1차|204|802','demo-today-3','demo-detail-today-3',date('now','+9 hours'),'매물등록','아파트','힐스테이트1차','204','802','40','6억 2,000','우리동네부동산','신규 매매 매물 등록',1)"),
+    db.prepare("INSERT OR IGNORE INTO listing_events (id, listing_key, work_log_id, detail_id, event_date, event_order, status, property_type, building_name, building_dong, unit_number, size_type, jeonse_price, source, notes, is_demo) VALUES ('demo-event-reg-1','아파트|아이파크1차|101|1203','demo-reg-1','demo-detail-reg-1',date('now','+9 hours','-20 days'),1,'매물등록','아파트','아이파크1차','101','1203','33','2억 7,000','단독','전세 매물 등록',1)"),
+    db.prepare("INSERT OR IGNORE INTO listing_events (id, listing_key, work_log_id, detail_id, event_date, event_order, status, property_type, building_name, building_dong, unit_number, size_type, sale_price, source, notes, is_demo) VALUES ('demo-event-today-3','아파트|힐스테이트1차|204|802','demo-today-3','demo-detail-today-3',date('now','+9 hours'),2,'매물등록','아파트','힐스테이트1차','204','802','40','6억 2,000','우리동네부동산','신규 매매 매물 등록',1)"),
   ];
   await db.batch(statements);
 

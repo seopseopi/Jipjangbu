@@ -1,3 +1,5 @@
+import { safeReturnTo } from "./return-to.js";
+
 const COOKIE_NAME = "jipjangbu_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -93,7 +95,7 @@ export async function handleSecurityRequest(
 
   if (isBusinessMutation(pathname, request.method)) {
     try {
-      await createBackup(env, "changes", `${request.method.toLowerCase()}-${mutationArea(pathname)}`);
+      await createBackup(env, "changes", `pre-${request.method.toLowerCase()}-${mutationArea(pathname)}`);
     } catch (error) {
       console.error("Pre-change backup failed", error);
       return jsonResponse({ error: "안전 백업을 만들지 못해 변경을 중단했습니다. 잠시 뒤 다시 시도해 주세요." }, 503);
@@ -101,6 +103,21 @@ export async function handleSecurityRequest(
   }
 
   return null;
+}
+
+export function schedulePostMutationBackup(
+  request: Request,
+  response: Response,
+  env: SecurityEnv,
+  ctx: WorkerContext,
+): void {
+  const pathname = new URL(request.url).pathname;
+  if (!isBusinessMutation(pathname, request.method) || response.status < 200 || response.status >= 300) return;
+
+  const reason = `post-${request.method.toLowerCase()}-${mutationArea(pathname)}`;
+  ctx.waitUntil(createBackup(env, "changes", reason).catch((error) => {
+    console.error("Post-change backup failed", error);
+  }));
 }
 
 export function isPublicAsset(pathname: string, method: string): boolean {
@@ -129,8 +146,11 @@ async function handleLogin(request: Request, env: SecurityEnv): Promise<Response
   }
 
   await ensureAuthTable(env.DB);
-  const attemptKey = await loginAttemptKey(request, env.APP_SESSION_SECRET!);
   const now = Math.floor(Date.now() / 1000);
+  await env.DB.prepare(
+    "DELETE FROM auth_attempts WHERE updated_at < ? AND blocked_until <= ?",
+  ).bind(now - LOGIN_WINDOW_SECONDS, now).run();
+  const attemptKey = await loginAttemptKey(request, env.APP_SESSION_SECRET!);
   const previous = await env.DB.prepare(
     "SELECT attempts, blocked_until, updated_at FROM auth_attempts WHERE key = ?",
   ).bind(attemptKey).first<{ attempts: number; blocked_until: number; updated_at: number }>();
@@ -209,7 +229,7 @@ async function readSession(request: Request, env: SecurityEnv): Promise<SessionP
     const verified = await crypto.subtle.verify(
       "HMAC",
       key,
-      fromBase64Url(encodedSignature),
+      toArrayBuffer(fromBase64Url(encodedSignature)),
       encoder.encode(encodedPayload),
     );
     if (!verified) return null;
@@ -238,7 +258,7 @@ async function verifyPassword(password: string, stored: string): Promise<boolean
   if (!salt.length || !expected.length) return false;
   const sourceKey = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveBits"]);
   const derived = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations },
+    { name: "PBKDF2", hash: "SHA-256", salt: toArrayBuffer(salt), iterations },
     sourceKey,
     expected.length * 8,
   );
@@ -266,19 +286,32 @@ function authConfigurationReady(env: SecurityEnv): boolean {
 async function handleBackupList(env: SecurityEnv): Promise<Response> {
   try {
     requireBackupConfiguration(env);
-    const listed = await env.BACKUPS.list({ limit: 100, include: ["customMetadata"] });
-    const backups: BackupSummary[] = listed.objects.map((object) => ({
-      key: object.key,
-      kind: backupKindFromKey(object.key),
-      createdAt: object.customMetadata?.createdAt ?? object.uploaded.toISOString(),
-      size: object.size,
-      reason: object.customMetadata?.reason ?? backupKindFromKey(object.key),
-    })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const backups = await listBackupSummaries(env.BACKUPS);
     return jsonResponse({ backups });
   } catch (error) {
     console.error("Backup list failed", error);
     return jsonResponse({ error: "백업 목록을 불러오지 못했습니다." }, 500);
   }
+}
+
+export async function listBackupSummaries(bucket: R2Bucket): Promise<BackupSummary[]> {
+  const objects: R2Object[] = [];
+  let cursor: string | undefined;
+  do {
+    const listed = await bucket.list({ limit: 1000, cursor, include: ["customMetadata"] });
+    objects.push(...listed.objects);
+    if (!listed.truncated) break;
+    if (!listed.cursor || listed.cursor === cursor) throw new Error("Backup pagination cursor did not advance");
+    cursor = listed.cursor;
+  } while (cursor);
+
+  return objects.map((object: R2Object) => ({
+    key: object.key,
+    kind: backupKindFromKey(object.key),
+    createdAt: object.customMetadata?.createdAt ?? object.uploaded.toISOString(),
+    size: object.size,
+    reason: object.customMetadata?.reason ?? backupKindFromKey(object.key),
+  })).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
 async function handleManualBackup(env: SecurityEnv): Promise<Response> {
@@ -359,7 +392,11 @@ async function createBackup(
 async function encryptBackup(payload: Uint8Array, secret: string): Promise<Uint8Array> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await importAesKey(secret);
-  const encrypted = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, payload));
+  const encrypted = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
+    key,
+    toArrayBuffer(payload),
+  ));
   const output = new Uint8Array(BACKUP_MAGIC.length + iv.length + encrypted.length);
   output.set(BACKUP_MAGIC, 0);
   output.set(iv, BACKUP_MAGIC.length);
@@ -373,7 +410,11 @@ async function decryptBackup(value: ArrayBuffer, secret: string): Promise<ArrayB
   const iv = bytes.slice(4, 16);
   const encrypted = bytes.slice(16);
   const key = await importAesKey(secret);
-  return crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+  return crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: toArrayBuffer(iv) },
+    key,
+    toArrayBuffer(encrypted),
+  );
 }
 
 async function removeExpiredBackups(bucket: R2Bucket): Promise<void> {
@@ -395,11 +436,11 @@ function requireBackupConfiguration(env: SecurityEnv): void {
 async function importHmacKey(secret: string): Promise<CryptoKey> {
   const bytes = hexToBytes(secret);
   if (bytes.length < 32) throw new Error("Session key must be at least 32 bytes");
-  return crypto.subtle.importKey("raw", bytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
+  return crypto.subtle.importKey("raw", toArrayBuffer(bytes), { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]);
 }
 
 async function importAesKey(secret: string): Promise<CryptoKey> {
-  return crypto.subtle.importKey("raw", hexToBytes(secret), "AES-GCM", false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", toArrayBuffer(hexToBytes(secret)), "AES-GCM", false, ["encrypt", "decrypt"]);
 }
 
 function isBusinessMutation(pathname: string, method: string): boolean {
@@ -424,11 +465,6 @@ function seoulDay(): string {
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
-}
-
-function safeReturnTo(value: string): string {
-  if (!value.startsWith("/") || value.startsWith("//") || value.startsWith("/login") || value.startsWith("/api/auth")) return "/";
-  return value;
 }
 
 function redirectResponse(path: string, request: Request): Response {
@@ -471,4 +507,10 @@ function fromBase64Url(value: string): Uint8Array {
   const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
   const binary = atob(padded);
   return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
 }

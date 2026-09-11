@@ -26,13 +26,17 @@ export async function POST(request: Request) {
     const name = body.name?.trim();
     if (!name) return badRequest("추가할 이름을 입력해 주세요.");
     const db = getD1();
+    let result;
     if (body.kind === "workType") {
-      await db.prepare("INSERT OR IGNORE INTO work_types (name, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM work_types))").bind(name).run();
+      result = await db.prepare("INSERT OR IGNORE INTO work_types (name, sort_order) VALUES (?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM work_types))").bind(name).run();
     } else if (body.kind === "building" && body.propertyType?.trim()) {
-      await db.prepare("INSERT OR IGNORE INTO property_buildings (id, property_type, building_name, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM property_buildings WHERE property_type = ?))")
+      result = await db.prepare("INSERT OR IGNORE INTO property_buildings (id, property_type, building_name, sort_order) VALUES (?, ?, ?, (SELECT COALESCE(MAX(sort_order),0)+1 FROM property_buildings WHERE property_type = ?))")
         .bind(crypto.randomUUID(), body.propertyType.trim(), name, body.propertyType.trim()).run();
     } else {
       return badRequest("분류 종류를 확인해 주세요.");
+    }
+    if (!result.meta.changes) {
+      return Response.json({ error: "이미 등록된 분류입니다." }, { status: 409 });
     }
     return Response.json({ ok: true }, { status: 201 });
   } catch (error) {
