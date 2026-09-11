@@ -1,10 +1,10 @@
 /** Cloudflare Worker entry point for 집장부. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
+import { addSecurityHeaders, handleSecurityRequest, isPublicAsset, SecurityEnv } from "./security";
 
-interface Env {
+interface Env extends SecurityEnv {
   ASSETS: Fetcher;
-  DB: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -29,6 +29,9 @@ const worker = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
+    const securityResponse = await handleSecurityRequest(request, env, ctx);
+    if (securityResponse) return securityResponse;
+
     if (url.pathname === "/_vinext/image") {
       const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
       return handleImageOptimization(request, {
@@ -40,7 +43,8 @@ const worker = {
       }, allowedWidths);
     }
 
-    return handler.fetch(request, env, ctx);
+    const response = await handler.fetch(request, env, ctx);
+    return isPublicAsset(url.pathname, request.method) ? addSecurityHeaders(response, false) : addSecurityHeaders(response);
   },
 };
 

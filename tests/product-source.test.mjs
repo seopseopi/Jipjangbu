@@ -5,7 +5,7 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("집장부 핵심 화면과 데이터 기능이 연결되어 있다", async () => {
-  const [page, manager, schema, hosting, workRoute, customerRoute, listingRoute] = await Promise.all([
+  const [page, manager, schema, hosting, workRoute, customerRoute, listingRoute, worker, security, login, layout] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/work-manager.tsx", root), "utf8"),
     readFile(new URL("db/schema.ts", root), "utf8"),
@@ -13,6 +13,10 @@ test("집장부 핵심 화면과 데이터 기능이 연결되어 있다", async
     readFile(new URL("app/api/work-logs/route.ts", root), "utf8"),
     readFile(new URL("app/api/customers/route.ts", root), "utf8"),
     readFile(new URL("app/api/listings/route.ts", root), "utf8"),
+    readFile(new URL("worker/index.ts", root), "utf8"),
+    readFile(new URL("worker/security.ts", root), "utf8"),
+    readFile(new URL("app/login/page.tsx", root), "utf8"),
+    readFile(new URL("app/layout.tsx", root), "utf8"),
   ]);
 
   assert.match(page, /<WorkManager \/>/);
@@ -23,6 +27,7 @@ test("집장부 핵심 화면과 데이터 기능이 연결되어 있다", async
     assert.match(schema, new RegExp(`sqliteTable\\("${table}"`));
   }
   assert.equal(JSON.parse(hosting).d1, "DB");
+  assert.equal(JSON.parse(hosting).r2, "BACKUPS");
   assert.doesNotMatch(manager, /react-loading-skeleton|_sites-preview/);
   assert.match(manager, /집장부 홈으로 이동/);
   assert.match(manager, /<strong>집장부<\/strong>/);
@@ -33,4 +38,13 @@ test("집장부 핵심 화면과 데이터 기능이 연결되어 있다", async
   assert.match(workRoute, /COUNT\(\*\) AS total/);
   assert.match(customerRoute, /sort === "history"/);
   assert.match(listingRoute, /sort === "recent"/);
+  assert.match(worker, /handleSecurityRequest/);
+  assert.match(security, /HttpOnly.*SameSite=Strict/);
+  assert.match(security, /MAX_LOGIN_ATTEMPTS = 5/);
+  assert.match(security, /AES-GCM/);
+  assert.match(security, /BACKUP_RETENTION_MS = 90/);
+  assert.match(login, /관리자 전용/);
+  assert.match(manager, /지금 백업/);
+  assert.match(manager, /로그아웃/);
+  assert.match(layout, /jipjangbu-icon-bright\.png/);
 });

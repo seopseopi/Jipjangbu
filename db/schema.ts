@@ -105,3 +105,10 @@ export const propertyBuildings = sqliteTable("property_buildings", {
 }, (table) => [
   uniqueIndex("idx_property_buildings_unique").on(table.propertyType, table.buildingName),
 ]);
+
+export const authAttempts = sqliteTable("auth_attempts", {
+  key: text("key").primaryKey(),
+  attempts: integer("attempts").notNull().default(0),
+  blockedUntil: integer("blocked_until").notNull().default(0),
+  updatedAt: integer("updated_at").notNull().default(0),
+});

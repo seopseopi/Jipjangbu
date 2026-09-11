@@ -74,6 +74,10 @@ const schemaStatements = [
     id TEXT PRIMARY KEY, property_type TEXT NOT NULL, building_name TEXT NOT NULL, sort_order INTEGER NOT NULL DEFAULT 0,
     UNIQUE(property_type, building_name)
   )`,
+  `CREATE TABLE IF NOT EXISTS auth_attempts (
+    key TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0,
+    blocked_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0
+  )`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_date ON work_logs(work_date)`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_customer ON work_logs(customer_id)`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_type_date ON work_logs(work_type, work_date)`,
