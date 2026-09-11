@@ -154,7 +154,13 @@ async function handleLogin(request: Request, env: SecurityEnv): Promise<Response
   const username = typeof body.username === "string" ? body.username.trim() : "";
   const password = typeof body.password === "string" ? body.password : "";
   const usernameMatches = constantTimeEqual(encoder.encode(username), encoder.encode(env.APP_ADMIN_USERNAME!));
-  const passwordMatches = password.length > 0 && await verifyPassword(password, env.APP_ADMIN_PASSWORD_HASH!);
+  let passwordMatches = false;
+  try {
+    passwordMatches = password.length > 0 && await verifyPassword(password, env.APP_ADMIN_PASSWORD_HASH!);
+  } catch (error) {
+    console.error("Password verification failed", error);
+    return jsonResponse({ error: "로그인 설정을 확인하고 있습니다. 잠시 뒤 다시 시도해 주세요." }, 503);
+  }
 
   if (!usernameMatches || !passwordMatches) {
     const inWindow = (previous?.updated_at ?? 0) >= now - LOGIN_WINDOW_SECONDS;
