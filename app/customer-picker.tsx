@@ -1,10 +1,11 @@
 "use client";
 
 import { useId, useMemo, useState } from "react";
-
-type CustomerOption = { id: string; name: string };
-const normalize = (value: string) =>
-  value.toLocaleLowerCase("ko-KR").replace(/[\s()-]/g, "");
+import {
+  indexCustomers,
+  matchCustomers,
+  type CustomerOption,
+} from "./customer-matches";
 
 export function CustomerPicker({
   customers,
@@ -22,22 +23,11 @@ export function CustomerPicker({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const selected = customers.find((customer) => customer.id === value);
-  const matches = useMemo(() => {
-    const term = normalize(query);
-    const rank = (customer: CustomerOption) => {
-      const values = [normalize(customer.name), normalize(customer.id)];
-      if (!term) return 0;
-      if (values.some((text) => text === term)) return 0;
-      return values.some((text) => text.startsWith(term)) ? 1 : 2;
-    };
-    return customers
-      .filter(
-        (customer) =>
-          !term || normalize(`${customer.name} ${customer.id}`).includes(term),
-      )
-      .sort((left, right) => rank(left) - rank(right))
-      .slice(0, 12);
-  }, [customers, query]);
+  const searchIndex = useMemo(() => indexCustomers(customers), [customers]);
+  const matches = useMemo(
+    () => matchCustomers(searchIndex, query),
+    [searchIndex, query],
+  );
   function choose(customer: CustomerOption) {
     onChange(customer.id);
     setQuery("");

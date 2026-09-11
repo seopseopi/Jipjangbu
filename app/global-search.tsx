@@ -65,6 +65,7 @@ type SearchStatus = "idle" | "loading" | "success" | "error";
 
 export type GlobalSearchProps = {
   open: boolean;
+  refreshKey?: number;
   onClose: () => void;
   onOpenWork: (id: string) => void;
   onOpenCustomer: (customer: GlobalSearchCustomer) => void;
@@ -104,11 +105,12 @@ async function searchRequest(query: string, signal: AbortSignal): Promise<Search
   };
 }
 
-export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpenListing }: GlobalSearchProps) {
+export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpenCustomer, onOpenListing }: GlobalSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResponse>(emptyResults);
   const [status, setStatus] = useState<SearchStatus>("idle");
   const [error, setError] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const controllerRef = useRef<AbortController | null>(null);
@@ -162,6 +164,8 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
       requestController = controller;
       controllerRef.current?.abort();
       controllerRef.current = controller;
+      setStatus("loading");
+      setError("");
       try {
         const nextResults = await searchRequest(trimmedQuery, controller.signal);
         if (controller.signal.aborted || sequence !== requestSequence.current) return;
@@ -169,6 +173,12 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
         setStatus("success");
       } catch (searchError) {
         if (controller.signal.aborted || sequence !== requestSequence.current) return;
+        // A save elsewhere can invalidate a shared read without closing this
+        // dialog. Retry after the normal debounce instead of staying "loading".
+        if (searchError instanceof Error && searchError.name === "AbortError") {
+          setRetryKey((value) => value + 1);
+          return;
+        }
         setError(searchError instanceof Error ? searchError.message : "검색 결과를 불러오지 못했습니다.");
         setStatus("error");
       }
@@ -177,7 +187,7 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
       window.clearTimeout(timer);
       requestController?.abort();
     };
-  }, [open, trimmedQuery]);
+  }, [open, trimmedQuery, refreshKey, retryKey]);
 
   useEffect(() => () => controllerRef.current?.abort(), []);
 

@@ -158,7 +158,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
       const response = await clientJsonFetch<FollowUpsResponse>(`/api/follow-ups?${params}`, { signal: controller.signal });
       if (!controller.signal.aborted) setData(response);
     } catch (loadError) {
-      if (!controller.signal.aborted) setError(errorText(loadError));
+      if (!controller.signal.aborted && !(loadError instanceof Error && loadError.name === "AbortError")) setError(errorText(loadError));
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -166,15 +166,10 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
 
   useEffect(() => {
     const timer = window.setTimeout(() => { void reload(); }, 0);
-    const onFocus = () => { void reload(); };
-    const onVisibility = () => { if (document.visibilityState === "visible") void reload(); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
+    // The workspace coalesces focus/visibility refreshes for all active views.
     return () => {
       window.clearTimeout(timer);
       request.current?.abort();
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [reload, refreshKey]);
 

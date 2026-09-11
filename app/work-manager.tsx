@@ -2,6 +2,8 @@
 
 import {
   FormEvent,
+  lazy,
+  Suspense,
   type ReactNode,
   useCallback,
   useEffect,
@@ -9,16 +11,42 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  GlobalSearch,
-  type GlobalSearchCustomer as SearchCustomer,
-  type GlobalSearchListing as SearchListing,
+import type {
+  GlobalSearchCustomer as SearchCustomer,
+  GlobalSearchListing as SearchListing,
 } from "./global-search";
-import { InsightsView } from "./insights-view";
 import { FollowUpsView } from "./follow-ups";
 import { CustomerPicker } from "./customer-picker";
 import { Icon, workTypeIcon } from "./icons";
-import { clientJsonFetch as jsonFetch } from "./client-api";
+import { canAppendPage } from "./client-paging";
+import {
+  clientJsonFetch as jsonFetch,
+  clearClientReadCache,
+} from "./client-api";
+
+const GlobalSearch = lazy(() =>
+  import("./global-search").then((module) => ({
+    default: module.GlobalSearch,
+  })),
+);
+const InsightsView = lazy(() =>
+  import("./insights-view").then((module) => ({
+    default: module.InsightsView,
+  })),
+);
+
+function isAborted(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function useSearchDelay(value: string) {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSettled(value), value ? 250 : 0);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  return settled;
+}
 
 type View =
   | "today"
@@ -181,6 +209,7 @@ const seoulDate = () =>
 
 async function fetchAllWorkLogs(
   params: URLSearchParams,
+  signal?: AbortSignal,
 ): Promise<WorkSummary[]> {
   const rows: WorkSummary[] = [];
   let offset = 0;
@@ -191,6 +220,7 @@ async function fetchAllWorkLogs(
     pageParams.set("offset", String(offset));
     const page = await jsonFetch<{ workLogs: WorkSummary[]; total: number }>(
       `/api/work-logs?${pageParams}`,
+      { signal },
     );
     rows.push(...page.workLogs);
     total = Number(page.total || 0);
@@ -283,6 +313,11 @@ export function WorkManager() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [workFirstPageLoading, setWorkFirstPageLoading] = useState(false);
+  const [loadedWorkQuery, setLoadedWorkQuery] = useState<string | null>(null);
+  const loadedWorkQueryRef = useRef<string | null>(null);
+  const workFirstRequest = useRef<number | null>(null);
+  const workMorePending = useRef(false);
   const [notice, setNotice] = useState("");
   const [queries, setQueries] = useState<Record<SearchView, string>>({
     journal: "",
@@ -307,24 +342,55 @@ export function WorkManager() {
   const [followUpRefreshKey, setFollowUpRefreshKey] = useState(0);
   const [readable, setReadable] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchLoaded, setGlobalSearchLoaded] = useState(false);
   const [insightsRefreshKey, setInsightsRefreshKey] = useState(0);
+  const lastFocusRefresh = useRef(0);
   const requestVersion = useRef({
+    dashboard: 0,
+    references: 0,
     work: 0,
     calendar: 0,
     listings: 0,
     customers: 0,
   });
+  const journalSearch = useSearchDelay(queries.journal);
+  const listingsSearch = useSearchDelay(queries.listings);
+  const customersSearch = useSearchDelay(queries.customers);
+  const workQueryKey = JSON.stringify([
+    queries.journal,
+    workTypeFilter,
+    ...periodBounds(workPeriod),
+  ]);
+  const showGlobalSearch = useCallback(() => {
+    setGlobalSearchLoaded(true);
+    setGlobalSearchOpen(true);
+  }, []);
+  const showLoadError = useCallback((error: unknown) => {
+    if (!isAborted(error)) setNotice((error as Error).message);
+  }, []);
 
-  const refreshBase = useCallback(async () => {
-    const [dash, lookupData, customerData] = await Promise.all([
-      jsonFetch<Dashboard>("/api/bootstrap"),
+  const loadReferenceData = useCallback(async () => {
+    const version = ++requestVersion.current.references;
+    const [lookupData, customerData] = await Promise.all([
       jsonFetch<Lookups>("/api/lookups"),
       jsonFetch<{ customers: Customer[] }>("/api/customers?sort=recent"),
     ]);
-    setDashboard(dash);
+    if (version !== requestVersion.current.references) return;
     setLookups(lookupData);
     setCustomers(customerData.customers);
   }, []);
+  const refreshDashboard = useCallback(async () => {
+    const version = ++requestVersion.current.dashboard;
+    try {
+      const dash = await jsonFetch<Dashboard>("/api/bootstrap");
+      if (version === requestVersion.current.dashboard) setDashboard(dash);
+    } finally {
+      if (version === requestVersion.current.dashboard) setLoading(false);
+    }
+  }, []);
+  const refreshBase = useCallback(async () => {
+    await Promise.all([refreshDashboard(), loadReferenceData()]);
+  }, [refreshDashboard, loadReferenceData]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
@@ -355,67 +421,113 @@ export function WorkManager() {
     setFollowUpDraft(draft);
     setHistoryModal(null);
   }
-  const loadWorkLogs = useCallback(async () => {
-    const version = ++requestVersion.current.work;
-    const params = new URLSearchParams({ limit: "100" });
-    if (queries.journal) params.set("q", queries.journal);
-    if (workTypeFilter) params.set("workType", workTypeFilter);
-    const [from, to] = periodBounds(workPeriod);
-    if (from) params.set("from", from);
-    if (to) params.set("to", to);
-    const data = await jsonFetch<{ workLogs: WorkSummary[]; total: number }>(
-      `/api/work-logs?${params}`,
-    );
-    if (version !== requestVersion.current.work) return;
-    setWorkLogs(data.workLogs);
-    setWorkTotal(data.total);
-  }, [queries.journal, workTypeFilter, workPeriod]);
-  const loadCalendar = useCallback(async () => {
-    const version = ++requestVersion.current.calendar;
-    const params = new URLSearchParams({ month: calendarMonth });
-    if (calendarWorkType) params.set("workType", calendarWorkType);
-    const rows = await fetchAllWorkLogs(params);
-    if (version === requestVersion.current.calendar)
-      setCalendarLogs(
-        rows.filter((item) => item.work_date.startsWith(calendarMonth)),
+  const loadWorkLogs = useCallback(
+    async (signal?: AbortSignal) => {
+      const version = ++requestVersion.current.work;
+      workFirstRequest.current = version;
+      setWorkFirstPageLoading(true);
+      const params = new URLSearchParams({ limit: "100" });
+      if (journalSearch) params.set("q", journalSearch);
+      if (workTypeFilter) params.set("workType", workTypeFilter);
+      const [from, to] = periodBounds(workPeriod);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      const queryKey = JSON.stringify([
+        journalSearch,
+        workTypeFilter,
+        from,
+        to,
+      ]);
+      try {
+        const data = await jsonFetch<{
+          workLogs: WorkSummary[];
+          total: number;
+        }>(`/api/work-logs?${params}`, { signal });
+        if (version !== requestVersion.current.work) return;
+        loadedWorkQueryRef.current = queryKey;
+        setLoadedWorkQuery(queryKey);
+        setWorkLogs(data.workLogs);
+        setWorkTotal(data.total);
+      } finally {
+        if (workFirstRequest.current === version) {
+          workFirstRequest.current = null;
+          setWorkFirstPageLoading(false);
+        }
+      }
+    },
+    [journalSearch, workTypeFilter, workPeriod],
+  );
+  const loadCalendar = useCallback(
+    async (signal?: AbortSignal) => {
+      const version = ++requestVersion.current.calendar;
+      const params = new URLSearchParams({ month: calendarMonth });
+      if (calendarWorkType) params.set("workType", calendarWorkType);
+      const rows = await fetchAllWorkLogs(params, signal);
+      if (version === requestVersion.current.calendar)
+        setCalendarLogs(
+          rows.filter((item) => item.work_date.startsWith(calendarMonth)),
+        );
+    },
+    [calendarMonth, calendarWorkType],
+  );
+  const loadListings = useCallback(
+    async (signal?: AbortSignal) => {
+      const version = ++requestVersion.current.listings;
+      const params = new URLSearchParams({
+        state: listingState,
+        sort: listingSort,
+      });
+      if (listingsSearch) params.set("q", listingsSearch);
+      if (propertyTypeFilter) params.set("type", propertyTypeFilter);
+      const data = await jsonFetch<{ listings: Listing[] }>(
+        `/api/listings?${params}`,
+        { signal },
       );
-  }, [calendarMonth, calendarWorkType]);
-  const loadListings = useCallback(async () => {
-    const version = ++requestVersion.current.listings;
-    const params = new URLSearchParams({
-      state: listingState,
-      sort: listingSort,
-    });
-    if (queries.listings) params.set("q", queries.listings);
-    if (propertyTypeFilter) params.set("type", propertyTypeFilter);
-    const data = await jsonFetch<{ listings: Listing[] }>(
-      `/api/listings?${params}`,
-    );
-    if (version === requestVersion.current.listings) setListings(data.listings);
-  }, [listingState, propertyTypeFilter, listingSort, queries.listings]);
-  const loadCustomers = useCallback(async () => {
-    const version = ++requestVersion.current.customers;
-    const params = new URLSearchParams({ sort: customerSort });
-    if (queries.customers) params.set("q", queries.customers);
-    const data = await jsonFetch<{ customers: Customer[] }>(
-      `/api/customers?${params}`,
-    );
-    if (version === requestVersion.current.customers)
-      setCustomerResults(data.customers);
-  }, [customerSort, queries.customers]);
+      if (version === requestVersion.current.listings)
+        setListings(data.listings);
+    },
+    [listingState, propertyTypeFilter, listingSort, listingsSearch],
+  );
+  const loadCustomers = useCallback(
+    async (signal?: AbortSignal) => {
+      const version = ++requestVersion.current.customers;
+      const params = new URLSearchParams({ sort: customerSort });
+      if (customersSearch) params.set("q", customersSearch);
+      const data = await jsonFetch<{ customers: Customer[] }>(
+        `/api/customers?${params}`,
+        { signal },
+      );
+      if (version === requestVersion.current.customers)
+        setCustomerResults(data.customers);
+    },
+    [customerSort, customersSearch],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      refreshBase()
-        .catch((error: Error) => setNotice(error.message))
-        .finally(() => setLoading(false));
+      void refreshBase().catch(showLoadError);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [refreshBase]);
+  }, [refreshBase, showLoadError]);
   useEffect(() => {
     const refreshVisibleData = () => {
-      if (document.visibilityState === "visible")
-        void refreshBase().catch((error: Error) => setNotice(error.message));
+      if (
+        document.visibilityState !== "visible" ||
+        Date.now() - lastFocusRefresh.current < 1000
+      )
+        return;
+      lastFocusRefresh.current = Date.now();
+      clearClientReadCache();
+      setInsightsRefreshKey((value) => value + 1);
+      setFollowUpRefreshKey((value) => value + 1);
+      const active = currentView.current;
+      void Promise.all([
+        refreshBase(),
+        active === "journal" ? loadWorkLogs() : undefined,
+        active === "calendar" ? loadCalendar() : undefined,
+        active === "listings" ? loadListings() : undefined,
+        active === "customers" ? loadCustomers() : undefined,
+      ]).catch(showLoadError);
     };
     window.addEventListener("focus", refreshVisibleData);
     document.addEventListener("visibilitychange", refreshVisibleData);
@@ -423,7 +535,14 @@ export function WorkManager() {
       window.removeEventListener("focus", refreshVisibleData);
       document.removeEventListener("visibilitychange", refreshVisibleData);
     };
-  }, [refreshBase]);
+  }, [
+    refreshBase,
+    loadWorkLogs,
+    loadCalendar,
+    loadListings,
+    loadCustomers,
+    showLoadError,
+  ]);
   useEffect(() => {
     const openSearch = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -436,11 +555,11 @@ export function WorkManager() {
       )
         return;
       event.preventDefault();
-      setGlobalSearchOpen(true);
+      showGlobalSearch();
     };
     window.addEventListener("keydown", openSearch);
     return () => window.removeEventListener("keydown", openSearch);
-  }, []);
+  }, [showGlobalSearch]);
   useEffect(() => {
     const syncView = () => {
       const key = window.location.hash.slice(1) as View;
@@ -469,27 +588,44 @@ export function WorkManager() {
     return () => window.removeEventListener("popstate", syncView);
   }, []);
   useEffect(() => {
-    const timer = window.setTimeout(
-      () => {
-        if (view === "journal")
-          loadWorkLogs().catch((error: Error) => setNotice(error.message));
-        if (view === "calendar")
-          loadCalendar().catch((error: Error) => setNotice(error.message));
-        if (view === "listings")
-          loadListings().catch((error: Error) => setNotice(error.message));
-        if (view === "customers")
-          loadCustomers().catch((error: Error) => setNotice(error.message));
-      },
-      view === "calendar" ? 0 : 300,
-    );
-    return () => window.clearTimeout(timer);
-  }, [view, loadWorkLogs, loadCalendar, loadListings, loadCustomers]);
+    const controller = new AbortController();
+    const versions = requestVersion.current;
+    // Only typing waits for a pause. Navigating, dates, filters and sorting are immediate.
+    const timer = window.setTimeout(() => {
+      if (view === "journal" && queries.journal === journalSearch)
+        void loadWorkLogs(controller.signal).catch(showLoadError);
+      if (view === "calendar")
+        void loadCalendar(controller.signal).catch(showLoadError);
+      if (view === "listings" && queries.listings === listingsSearch)
+        void loadListings(controller.signal).catch(showLoadError);
+      if (view === "customers" && queries.customers === customersSearch)
+        void loadCustomers(controller.signal).catch(showLoadError);
+    }, 0);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+      versions.work += 1;
+      versions.calendar += 1;
+      versions.listings += 1;
+      versions.customers += 1;
+    };
+  }, [
+    view,
+    loadWorkLogs,
+    loadCalendar,
+    loadListings,
+    loadCustomers,
+    queries,
+    journalSearch,
+    listingsSearch,
+    customersSearch,
+    showLoadError,
+  ]);
 
   function navigate(next: View) {
     if (next === view) {
       window.scrollTo({ top: 0, behavior: "smooth" });
-      if (next === "today")
-        void refreshBase().catch((error: Error) => setNotice(error.message));
+      if (next === "today") void refreshBase().catch(showLoadError);
       return true;
     }
     if (
@@ -505,20 +641,30 @@ export function WorkManager() {
     );
     setView(next);
     currentView.current = next;
-    if (next === "today")
-      void refreshBase().catch((error: Error) => setNotice(error.message));
+    if (next === "today") void refreshBase().catch(showLoadError);
     window.scrollTo({ top: 0, behavior: "smooth" });
     return true;
   }
-  async function openWork(id?: string, initialCustomerId?: string) {
-    if (!id) return setWorkModal({ mode: "new", initialCustomerId });
+  async function openWork(
+    id?: string,
+    initialCustomerId?: string,
+    initialWorkType?: string,
+  ) {
     try {
-      const data = await jsonFetch<{ workLog: WorkDetail }>(
-        `/api/work-logs/${id}`,
+      // Home can render before reference data; never open a form with an empty name picker.
+      const [, data] = await Promise.all([
+        loadReferenceData(),
+        id
+          ? jsonFetch<{ workLog: WorkDetail }>(`/api/work-logs/${id}`)
+          : undefined,
+      ]);
+      setWorkModal(
+        data
+          ? { mode: "edit", item: data.workLog }
+          : { mode: "new", initialCustomerId, initialWorkType },
       );
-      setWorkModal({ mode: "edit", item: data.workLog });
     } catch (error) {
-      setNotice((error as Error).message);
+      showLoadError(error);
     }
   }
   async function afterMutation(message: string) {
@@ -526,20 +672,34 @@ export function WorkManager() {
     setInsightsRefreshKey((value) => value + 1);
     setFollowUpRefreshKey((value) => value + 1);
     try {
-      await refreshBase();
-      if (view === "journal") await loadWorkLogs();
-      if (view === "calendar") await loadCalendar();
-      if (view === "listings") await loadListings();
-      if (view === "customers") await loadCustomers();
+      await Promise.all([
+        refreshBase(),
+        view === "journal" ? loadWorkLogs() : undefined,
+        view === "calendar" ? loadCalendar() : undefined,
+        view === "listings" ? loadListings() : undefined,
+        view === "customers" ? loadCustomers() : undefined,
+      ]);
     } catch (error) {
+      if (isAborted(error)) return;
       setNotice(
         `${message} 화면 갱신이 늦어지고 있습니다. 새로고침해 주세요. (${(error as Error).message})`,
       );
     }
   }
   async function loadMoreWorkLogs() {
-    if (loadingMore || workLogs.length >= workTotal) return;
+    if (
+      !canAppendPage(
+        loadedWorkQueryRef.current,
+        workQueryKey,
+        workFirstRequest.current !== null,
+        workMorePending.current,
+      ) ||
+      workLogs.length >= workTotal ||
+      queries.journal !== journalSearch
+    )
+      return;
     const version = ++requestVersion.current.work;
+    workMorePending.current = true;
     setLoadingMore(true);
     try {
       const params = new URLSearchParams({
@@ -559,8 +719,9 @@ export function WorkManager() {
         setWorkTotal(data.total);
       }
     } catch (error) {
-      setNotice((error as Error).message);
+      showLoadError(error);
     } finally {
+      workMorePending.current = false;
       setLoadingMore(false);
     }
   }
@@ -658,11 +819,13 @@ export function WorkManager() {
       )
     )
       return;
-    await fetch("/api/auth/logout", {
-      method: "POST",
-      credentials: "same-origin",
-    });
-    window.location.assign("/login");
+    clearClientReadCache();
+    try {
+      await jsonFetch("/api/auth/logout", { method: "POST" });
+      window.location.assign("/login");
+    } catch (error) {
+      showLoadError(error);
+    }
   }
 
   const dateLabel = new Intl.DateTimeFormat("ko-KR", {
@@ -766,7 +929,7 @@ export function WorkManager() {
             </button>
             <button
               className="global-search-trigger"
-              onClick={() => setGlobalSearchOpen(true)}
+              onClick={showGlobalSearch}
               type="button"
               aria-keyshortcuts="/"
             >
@@ -812,7 +975,7 @@ export function WorkManager() {
                     navigate(next);
                   }}
                   onQuickWork={(workType) =>
-                    setWorkModal({ mode: "new", initialWorkType: workType })
+                    void openWork(undefined, undefined, workType)
                   }
                   followUps={
                     <FollowUpsView
@@ -821,6 +984,9 @@ export function WorkManager() {
                         followUpDirty.current = dirty;
                       }}
                       refreshKey={followUpRefreshKey}
+                      onChange={() =>
+                        setInsightsRefreshKey((value) => value + 1)
+                      }
                       onOpenCustomer={(id, name) =>
                         void showCustomerHistory({ id, name })
                       }
@@ -836,6 +1002,7 @@ export function WorkManager() {
                     followUpDirty.current = dirty;
                   }}
                   refreshKey={followUpRefreshKey}
+                  onChange={() => setInsightsRefreshKey((value) => value + 1)}
                   initialDraft={followUpDraft}
                   onDraftConsumed={() => setFollowUpDraft(undefined)}
                   onOpenCustomer={(id, name) =>
@@ -845,22 +1012,24 @@ export function WorkManager() {
                 />
               )}
               {view === "insights" && (
-                <InsightsView
-                  refreshKey={insightsRefreshKey}
-                  onReviewStale={() => {
-                    setQueries((current) => ({ ...current, listings: "" }));
-                    setListingState("stale");
-                    setListingSort("oldest");
-                    setPropertyTypeFilter("");
-                    navigate("listings");
-                  }}
-                  onOpenWork={(id) => {
-                    void openWork(id);
-                  }}
-                  onOpenListing={(item) => {
-                    void showListingHistory(item);
-                  }}
-                />
+                <Suspense fallback={<Loading />}>
+                  <InsightsView
+                    refreshKey={insightsRefreshKey}
+                    onReviewStale={() => {
+                      setQueries((current) => ({ ...current, listings: "" }));
+                      setListingState("stale");
+                      setListingSort("oldest");
+                      setPropertyTypeFilter("");
+                      navigate("listings");
+                    }}
+                    onOpenWork={(id) => {
+                      void openWork(id);
+                    }}
+                    onOpenListing={(item) => {
+                      void showListingHistory(item);
+                    }}
+                  />
+                </Suspense>
               )}
               {view === "journal" && (
                 <JournalView
@@ -880,6 +1049,14 @@ export function WorkManager() {
                   }}
                   onLoadMore={loadMoreWorkLogs}
                   loadingMore={loadingMore}
+                  canLoadMore={
+                    canAppendPage(
+                      loadedWorkQuery,
+                      workQueryKey,
+                      workFirstPageLoading,
+                      loadingMore,
+                    ) && queries.journal === journalSearch
+                  }
                   onExport={exportWorkLogs}
                   onOpen={openWork}
                 />
@@ -948,6 +1125,7 @@ export function WorkManager() {
                   lookups={lookups}
                   onLogout={signOut}
                   onSaved={async () => {
+                    setInsightsRefreshKey((value) => value + 1);
                     const data = await jsonFetch<Lookups>("/api/lookups");
                     setLookups(data);
                     setNotice("분류가 추가되었습니다.");
@@ -958,19 +1136,36 @@ export function WorkManager() {
           )}
         </div>
       </section>
-      <GlobalSearch
-        open={globalSearchOpen}
-        onClose={() => setGlobalSearchOpen(false)}
-        onOpenWork={(id) => {
-          void openWork(id);
-        }}
-        onOpenCustomer={(item) => {
-          void showCustomerHistory(item);
-        }}
-        onOpenListing={(item) => {
-          void showListingHistory(item);
-        }}
-      />
+      {globalSearchLoaded && (
+        <Suspense
+          fallback={
+            globalSearchOpen ? (
+              <Modal
+                title="통합검색"
+                subtitle="고객·매물·업무를 한 번에 검색"
+                onClose={() => setGlobalSearchOpen(false)}
+              >
+                <p role="status">검색을 준비하고 있습니다.</p>
+              </Modal>
+            ) : null
+          }
+        >
+          <GlobalSearch
+            open={globalSearchOpen}
+            refreshKey={insightsRefreshKey}
+            onClose={() => setGlobalSearchOpen(false)}
+            onOpenWork={(id) => {
+              void openWork(id);
+            }}
+            onOpenCustomer={(item) => {
+              void showCustomerHistory(item);
+            }}
+            onOpenListing={(item) => {
+              void showListingHistory(item);
+            }}
+          />
+        </Suspense>
+      )}
       {historyModal && (
         <HistoryModal
           data={historyModal}
@@ -1278,6 +1473,7 @@ function JournalView({
   onReset,
   onLoadMore,
   loadingMore,
+  canLoadMore,
   onExport,
   onOpen,
 }: {
@@ -1293,6 +1489,7 @@ function JournalView({
   onReset: () => void;
   onLoadMore: () => void | Promise<void>;
   loadingMore: boolean;
+  canLoadMore: boolean;
   onExport: () => void | Promise<void>;
   onOpen: (id?: string) => void;
 }) {
@@ -1383,7 +1580,7 @@ function JournalView({
               onClick={() => {
                 void onLoadMore();
               }}
-              disabled={loadingMore}
+              disabled={!canLoadMore}
             >
               <Icon name={loadingMore ? "refresh" : "plus"} size={18} />
               {loadingMore ? "불러오는 중…" : "100건 더 보기"}{" "}

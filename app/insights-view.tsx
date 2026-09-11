@@ -135,7 +135,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
         const body = await clientJsonFetch<Partial<InsightsResponse>>("/api/insights", { signal: controller.signal });
         if (!controller.signal.aborted) setData(normalizeInsights(body));
       } catch (loadError) {
-        if (controller.signal.aborted) return;
+        if (controller.signal.aborted || (loadError instanceof Error && loadError.name === "AbortError")) return;
         setData(null);
         setError(loadError instanceof Error ? loadError.message : "현황 분석을 불러오지 못했습니다.");
       } finally {
