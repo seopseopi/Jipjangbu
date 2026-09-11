@@ -24,7 +24,7 @@ test("집장부 핵심 화면과 데이터 기능이 연결되어 있다", async
     assert.match(manager, new RegExp(label));
   }
   for (const table of ["customers", "work_logs", "work_log_properties", "listings", "listing_events"]) {
-    assert.match(schema, new RegExp(`sqliteTable\\("${table}"`));
+    assert.match(schema, new RegExp(`sqliteTable\\(\\s*"${table}"`));
   }
   assert.equal(JSON.parse(hosting).d1, "DB");
   assert.equal(JSON.parse(hosting).r2, "BACKUPS");

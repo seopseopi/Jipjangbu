@@ -109,8 +109,9 @@ test("성공한 업무 데이터 변경 뒤에만 암호화 백업을 예약한�
   const env = {
     DB: {
       prepare() {
-        return { async all() { return { results: [] }; } };
+        return { async all() { return { success: true, results: [] }; } };
       },
+      async batch(statements) { return Promise.all(statements.map((statement) => statement.all())); },
     },
     BACKUPS: {
       async put(key, value, options) {

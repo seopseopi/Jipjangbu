@@ -8,6 +8,7 @@ const BACKUP_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 const BACKUP_FORMAT = "jipjangbu-backup-v1";
 const BACKUP_MAGIC = new Uint8Array([0x4a, 0x4a, 0x42, 0x31]);
 const encoder = new TextEncoder();
+const dailyBackups = new WeakMap<R2Bucket, { key: string; pending: Promise<void> }>();
 
 const BACKUP_TABLES = [
   "customers",
@@ -352,9 +353,19 @@ async function handleBackupDownload(url: URL, env: SecurityEnv): Promise<Respons
 async function ensureDailyBackup(env: SecurityEnv): Promise<void> {
   requireBackupConfiguration(env);
   const key = `daily/${seoulDay()}.json.enc`;
-  if (await env.BACKUPS.head(key)) return;
-  await createBackup(env, "daily", "daily", key);
-  await removeExpiredBackups(env.BACKUPS);
+  const current = dailyBackups.get(env.BACKUPS);
+  if (current?.key === key) return current.pending;
+  const pending = (async () => {
+    if (await env.BACKUPS.head(key)) return;
+    await createBackup(env, "daily", "daily", key);
+    await removeExpiredBackups(env.BACKUPS);
+  })().finally(() => {
+    if (dailyBackups.get(env.BACKUPS)?.pending === pending) dailyBackups.delete(env.BACKUPS);
+  });
+  // Deduplicate only simultaneous checks, never cache success or failure: the
+  // next visit still verifies durable storage and retries a failed daily backup.
+  dailyBackups.set(env.BACKUPS, { key, pending });
+  return pending;
 }
 
 async function createBackup(
@@ -367,16 +378,33 @@ async function createBackup(
   const createdAt = new Date().toISOString();
   const tables: Record<string, unknown[]> = {};
   const counts: Record<string, number> = {};
+  let selectedTables: readonly string[] = BACKUP_TABLES;
+  let results: D1Result[];
+  try {
+    // D1 batch executes these reads in one transaction/round trip. Every table
+    // is kept, and related records now come from one consistent snapshot.
+    results = await env.DB.batch(selectedTables.map((table) => env.DB.prepare(`SELECT * FROM ${table}`)));
+  } catch (error) {
+    if (!String(error).toLowerCase().includes("no such table")) throw error;
+    // Older/new databases may not have every optional feature table yet. Read
+    // the schema only on that compatibility path, then snapshot existing tables.
+    const existing = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
+      .all<{ name: string }>();
+    const existingNames = new Set(existing.results.map((table) => table.name));
+    selectedTables = BACKUP_TABLES.filter((table) => existingNames.has(table));
+    results = selectedTables.length
+      ? await env.DB.batch(selectedTables.map((table) => env.DB.prepare(`SELECT * FROM ${table}`)))
+      : [];
+  }
   for (const table of BACKUP_TABLES) {
-    try {
-      const result = await env.DB.prepare(`SELECT * FROM ${table}`).all();
-      tables[table] = result.results;
-      counts[table] = result.results.length;
-    } catch (error) {
-      if (!String(error).toLowerCase().includes("no such table")) throw error;
-      tables[table] = [];
-      counts[table] = 0;
-    }
+    tables[table] = [];
+    counts[table] = 0;
+  }
+  for (const [index, table] of selectedTables.entries()) {
+    const result = results[index];
+    if (!result?.success || !Array.isArray(result.results)) throw new Error(`Backup read failed: ${table}`);
+    tables[table] = result.results;
+    counts[table] = result.results.length;
   }
 
   const payload = encoder.encode(JSON.stringify({ format: BACKUP_FORMAT, createdAt, reason, counts, tables }));

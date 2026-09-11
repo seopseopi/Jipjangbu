@@ -88,11 +88,12 @@ const schemaStatements = [
     CONSTRAINT follow_ups_notes_length CHECK(length(notes) <= 5000),
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
   )`,
+  `CREATE TABLE IF NOT EXISTS app_runtime_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
   `CREATE INDEX IF NOT EXISTS idx_follow_ups_completed_due ON follow_ups(completed_at, due_date)`,
   `CREATE INDEX IF NOT EXISTS idx_follow_ups_customer ON follow_ups(customer_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_work_logs_date ON work_logs(work_date)`,
-  `CREATE INDEX IF NOT EXISTS idx_work_logs_customer ON work_logs(customer_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_work_logs_type_date ON work_logs(work_type, work_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_work_logs_date_updated_id ON work_logs(work_date, updated_at, id)`,
+  `CREATE INDEX IF NOT EXISTS idx_work_logs_customer_date_updated_id ON work_logs(customer_id, work_date, updated_at, id)`,
+  `CREATE INDEX IF NOT EXISTS idx_work_logs_type_date_updated_id ON work_logs(work_type, work_date, updated_at, id)`,
   `CREATE INDEX IF NOT EXISTS idx_work_log_properties_log ON work_log_properties(work_log_id, sequence)`,
   `CREATE INDEX IF NOT EXISTS idx_work_log_properties_address ON work_log_properties(building_name, building_dong, unit_number)`,
   `CREATE INDEX IF NOT EXISTS idx_listings_status ON listings(closed_at, status)`,
@@ -101,20 +102,49 @@ const schemaStatements = [
   `CREATE INDEX IF NOT EXISTS idx_listing_events_work_log ON listing_events(work_log_id)`,
 ];
 
-let initialization: Promise<void> | null = null;
+// Bump when bootstrap schema or default lookup definitions change. Runtime
+// metadata is deliberately not business data and is not included in backups.
+const BOOTSTRAP_VERSION = "1";
+const schemaNames = schemaStatements.map((statement) => {
+  const name = statement.match(/^CREATE (?:TABLE|INDEX) IF NOT EXISTS (\w+)/)?.[1];
+  if (!name) throw new Error("Invalid bootstrap schema statement");
+  return name;
+});
+const initializations = new WeakMap<D1Database, Promise<void>>();
 
-export function ensureDatabase(): Promise<void> {
+export function ensureDatabase(db: D1Database = getD1()): Promise<void> {
+  let initialization = initializations.get(db);
   if (!initialization) {
-    initialization = initialize().catch((error) => {
-      initialization = null;
+    initialization = initialize(db).catch((error) => {
+      initializations.delete(db);
       throw error;
     });
+    initializations.set(db, initialization);
   }
   return initialization;
 }
 
-async function initialize() {
-  const db = getD1();
+async function initialize(db: D1Database) {
+  // A cold Worker only needs this read when initialization already succeeded.
+  // Checking the required schema also catches a restored/partially migrated DB
+  // whose runtime marker was retained but whose tables or indexes are missing.
+  try {
+    const ready = await db.prepare(`SELECT value FROM app_runtime_state
+      WHERE key = 'bootstrap_version' AND value = ?
+        AND (SELECT COUNT(*) FROM sqlite_master
+          WHERE name IN (${schemaNames.map(() => "?").join(",")}) AND type IN ('table', 'index')) = ?`)
+      .bind(BOOTSTRAP_VERSION, ...schemaNames, schemaNames.length).first();
+    if (ready) return;
+  } catch (error) {
+    if (!/no such table:\s*(?:main\.)?app_runtime_state\b/i.test(String(error))) throw error;
+  }
+
+  const existing = await db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'
+    AND name IN ('customers', 'work_logs', 'work_log_properties', 'listings', 'listing_events', 'follow_ups')`)
+    .all<{ name: string }>();
+  // An empty real database is still real. Only a genuinely new, uninitialized
+  // database may receive examples; deleting/importing records never re-seeds it.
+  const isNewDatabase = existing.results.length === 0;
   await db.batch(schemaStatements.map((statement) => db.prepare(statement)));
 
   const lookupSeeds: D1PreparedStatement[] = WORK_TYPES.map((name, index) =>
@@ -128,9 +158,11 @@ async function initialize() {
   }
   await db.batch(lookupSeeds);
 
-  const count = await db.prepare("SELECT COUNT(*) AS count FROM work_logs").first<{ count: number }>();
-  if ((count?.count ?? 0) === 0) await seedDemo(db);
+  if (isNewDatabase) await seedDemo(db);
   await db.prepare("PRAGMA optimize").run();
+  // Write last so every failure remains retryable, including lookup/demo writes.
+  await db.prepare(`INSERT INTO app_runtime_state (key, value) VALUES ('bootstrap_version', ?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value`).bind(BOOTSTRAP_VERSION).run();
 }
 
 async function seedDemo(db: D1Database) {
@@ -150,11 +182,10 @@ async function seedDemo(db: D1Database) {
     db.prepare("INSERT OR IGNORE INTO work_log_properties (id, work_log_id, sequence, property_type, building_name, building_dong, unit_number, size_type, sale_price, source) VALUES ('demo-detail-upcoming-1','demo-upcoming-1',1,'아파트','우방2차','103','501','35','4억 8,000','공동중개')"),
     db.prepare("INSERT OR IGNORE INTO listing_events (id, listing_key, work_log_id, detail_id, event_date, event_order, status, property_type, building_name, building_dong, unit_number, size_type, jeonse_price, source, notes, is_demo) VALUES ('demo-event-reg-1','아파트|아이파크1차|101|1203','demo-reg-1','demo-detail-reg-1',date('now','+9 hours','-20 days'),1,'매물등록','아파트','아이파크1차','101','1203','33','2억 7,000','단독','전세 매물 등록',1)"),
     db.prepare("INSERT OR IGNORE INTO listing_events (id, listing_key, work_log_id, detail_id, event_date, event_order, status, property_type, building_name, building_dong, unit_number, size_type, sale_price, source, notes, is_demo) VALUES ('demo-event-today-3','아파트|힐스테이트1차|204|802','demo-today-3','demo-detail-today-3',date('now','+9 hours'),2,'매물등록','아파트','힐스테이트1차','204','802','40','6억 2,000','우리동네부동산','신규 매매 매물 등록',1)"),
+    db.prepare(`INSERT OR IGNORE INTO listings (id, identity_key, registered_at, status, property_type, building_name, building_dong, unit_number, size_type, jeonse_price, notes, is_demo)
+      VALUES ('demo-listing-1','아파트|아이파크1차|101|1203',date('now','+9 hours','-20 days'),'매물등록','아파트','아이파크1차','101','1203','33','2억 7,000','전세 매물 등록 (매물등록)',1)`),
+    db.prepare(`INSERT OR IGNORE INTO listings (id, identity_key, registered_at, status, property_type, building_name, building_dong, unit_number, size_type, sale_price, notes, is_demo)
+      VALUES ('demo-listing-2','아파트|힐스테이트1차|204|802',date('now','+9 hours'),'매물등록','아파트','힐스테이트1차','204','802','40','6억 2,000','신규 매매 매물 등록 (매물등록)',1)`),
   ];
   await db.batch(statements);
-
-  await db.prepare(`INSERT OR IGNORE INTO listings (id, identity_key, registered_at, status, property_type, building_name, building_dong, unit_number, size_type, jeonse_price, notes, is_demo)
-    VALUES ('demo-listing-1','아파트|아이파크1차|101|1203',date('now','+9 hours','-20 days'),'매물등록','아파트','아이파크1차','101','1203','33','2억 7,000','전세 매물 등록 (매물등록)',1)`).run();
-  await db.prepare(`INSERT OR IGNORE INTO listings (id, identity_key, registered_at, status, property_type, building_name, building_dong, unit_number, size_type, sale_price, notes, is_demo)
-    VALUES ('demo-listing-2','아파트|힐스테이트1차|204|802',date('now','+9 hours'),'매물등록','아파트','힐스테이트1차','204','802','40','6억 2,000','신규 매매 매물 등록 (매물등록)',1)`).run();
 }

@@ -37,7 +37,7 @@ function database(t) {
         bind(...bindings) { values = bindings; return this; },
         async run() { return { meta: query.run(...values) }; },
         async first() { return query.get(...values) ?? null; },
-        async all() { return { results: query.all(...values) }; },
+        async all() { return { success: true, results: query.all(...values) }; },
       };
     },
     async batch(statements) {
