@@ -17,8 +17,11 @@ import type {
 } from "./global-search";
 import { FollowUpsView } from "./follow-ups";
 import { CustomerPicker } from "./customer-picker";
+import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
 import { Icon, workTypeIcon } from "./icons";
 import { canAppendPage } from "./client-paging";
+import { createPropertyHistoryTarget } from "./history-query";
+import { fetchWorkWindow } from "./work-window";
 import {
   clientJsonFetch as jsonFetch,
   clearClientReadCache,
@@ -33,6 +36,9 @@ const InsightsView = lazy(() =>
   import("./insights-view").then((module) => ({
     default: module.InsightsView,
   })),
+);
+const RelatedHistory = lazy(() =>
+  import("./related-history").then((module) => ({ default: module.RelatedHistory })),
 );
 
 function isAborted(error: unknown) {
@@ -173,6 +179,14 @@ type HistoryData = {
   items: WorkSummary[] | ListingEvent[];
   customer?: Pick<Customer, "id" | "name">;
   listing?: Listing;
+  listingKey?: string;
+  date?: string;
+  loading?: boolean;
+  error?: string;
+};
+type WorkHistoryActions = {
+  onCustomerHistory: (customer: Pick<Customer, "id" | "name">) => void;
+  onListingHistory: (work: WorkSummary) => void;
 };
 
 const navItems: Array<[View, string]> = [
@@ -333,6 +347,8 @@ export function WorkManager() {
   const [customerSort, setCustomerSort] = useState("recent");
   const [calendarMonth, setCalendarMonth] = useState(seoulDate().slice(0, 7));
   const [workModal, setWorkModal] = useState<WorkModalState | null>(null);
+  const workOpenVersion = useRef(0);
+  const historyOpenVersion = useRef(0);
   const [customerModal, setCustomerModal] = useState<{
     mode: "new" | "edit";
     item?: Customer;
@@ -419,10 +435,11 @@ export function WorkManager() {
       return;
     if (!navigate("tasks")) return;
     setFollowUpDraft(draft);
+    historyOpenVersion.current += 1;
     setHistoryModal(null);
   }
   const loadWorkLogs = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal, visibleCount = 100) => {
       const version = ++requestVersion.current.work;
       workFirstRequest.current = version;
       setWorkFirstPageLoading(true);
@@ -439,10 +456,12 @@ export function WorkManager() {
         to,
       ]);
       try {
-        const data = await jsonFetch<{
-          workLogs: WorkSummary[];
-          total: number;
-        }>(`/api/work-logs?${params}`, { signal });
+        const data = await fetchWorkWindow<WorkSummary>(
+          (pageParams, pageSignal) => jsonFetch(`/api/work-logs?${pageParams}`, { signal: pageSignal }),
+          params,
+          visibleCount,
+          signal,
+        );
         if (version !== requestVersion.current.work) return;
         loadedWorkQueryRef.current = queryKey;
         setLoadedWorkQuery(queryKey);
@@ -523,7 +542,7 @@ export function WorkManager() {
       const active = currentView.current;
       void Promise.all([
         refreshBase(),
-        active === "journal" ? loadWorkLogs() : undefined,
+        active === "journal" ? loadWorkLogs(undefined, workLogs.length) : undefined,
         active === "calendar" ? loadCalendar() : undefined,
         active === "listings" ? loadListings() : undefined,
         active === "customers" ? loadCustomers() : undefined,
@@ -542,6 +561,7 @@ export function WorkManager() {
     loadListings,
     loadCustomers,
     showLoadError,
+    workLogs.length,
   ]);
   useEffect(() => {
     const openSearch = (event: KeyboardEvent) => {
@@ -580,6 +600,7 @@ export function WorkManager() {
         );
         return;
       }
+      if (next !== currentView.current) workOpenVersion.current += 1;
       currentView.current = next;
       setView(next);
     };
@@ -634,6 +655,7 @@ export function WorkManager() {
     )
       return false;
     const hash = next === "today" ? "" : `#${next}`;
+    workOpenVersion.current += 1;
     window.history.pushState(
       { view: next },
       "",
@@ -650,6 +672,7 @@ export function WorkManager() {
     initialCustomerId?: string,
     initialWorkType?: string,
   ) {
+    const version = ++workOpenVersion.current;
     try {
       // Home can render before reference data; never open a form with an empty name picker.
       const [, data] = await Promise.all([
@@ -658,13 +681,14 @@ export function WorkManager() {
           ? jsonFetch<{ workLog: WorkDetail }>(`/api/work-logs/${id}`)
           : undefined,
       ]);
+      if (version !== workOpenVersion.current) return;
       setWorkModal(
         data
           ? { mode: "edit", item: data.workLog }
           : { mode: "new", initialCustomerId, initialWorkType },
       );
     } catch (error) {
-      showLoadError(error);
+      if (version === workOpenVersion.current) showLoadError(error);
     }
   }
   async function afterMutation(message: string) {
@@ -674,7 +698,7 @@ export function WorkManager() {
     try {
       await Promise.all([
         refreshBase(),
-        view === "journal" ? loadWorkLogs() : undefined,
+        view === "journal" ? loadWorkLogs(undefined, workLogs.length) : undefined,
         view === "calendar" ? loadCalendar() : undefined,
         view === "listings" ? loadListings() : undefined,
         view === "customers" ? loadCustomers() : undefined,
@@ -764,20 +788,28 @@ export function WorkManager() {
   }
   async function showCustomerHistory(
     customer: Pick<Customer, "id" | "name"> | SearchCustomer,
+    preserve = false,
   ) {
+    const version = ++historyOpenVersion.current;
+    setGlobalSearchOpen(false);
+    setHistoryModal((current) => ({
+      title: `${customer.name} 업무 이력`, subtitle: customer.id, customer,
+      items: preserve && current?.customer?.id === customer.id ? current.items : [],
+      loading: true,
+    }));
     try {
       const items = await fetchAllWorkLogs(
         new URLSearchParams({ customerId: customer.id }),
       );
+      if (version !== historyOpenVersion.current) return;
       setHistoryModal({
         title: `${customer.name} 업무 이력`,
         subtitle: customer.id,
         items,
         customer,
       });
-      setGlobalSearchOpen(false);
     } catch (error) {
-      setNotice((error as Error).message);
+      if (version === historyOpenVersion.current) setHistoryModal((current) => current ? { ...current, loading: false, error: (error as Error).message } : null);
     }
   }
   async function showListingHistory(
@@ -794,22 +826,66 @@ export function WorkManager() {
   ) {
     await showListingByKey(listing.identity_key);
   }
-  async function showListingByKey(key: string) {
+  async function showListingByKey(key: string, preserve = false) {
+    const version = ++historyOpenVersion.current;
+    setGlobalSearchOpen(false);
+    setHistoryModal((current) => ({
+      title: preserve && current?.listing?.identity_key === key ? current.title : "매물 이력",
+      subtitle: "저장된 매물 변경 이력을 확인합니다",
+      items: preserve && current?.listing?.identity_key === key ? current.items : [],
+      listing: preserve ? current?.listing : undefined,
+      listingKey: key,
+      loading: true,
+    }));
     try {
       const data = await jsonFetch<{
         listing: Listing;
         events: ListingEvent[];
       }>(`/api/listings/${encodeURIComponent(key)}`);
+      if (version !== historyOpenVersion.current) return;
       setHistoryModal({
         title: `${targetText(data.listing)} 이력`,
         subtitle: data.listing.property_type,
         items: data.events,
         listing: data.listing,
+        listingKey: key,
       });
-      setGlobalSearchOpen(false);
     } catch (error) {
-      setNotice((error as Error).message);
+      if (version !== historyOpenVersion.current) return;
+      const missing = (error as Error).message === "매물을 찾을 수 없습니다.";
+      setHistoryModal((current) => current ? {
+        ...current,
+        ...(missing ? { items: [], listing: undefined } : {}),
+        loading: false,
+        error: missing
+          ? "이 주소로 저장된 매물 이력이 없습니다. 업무에 적힌 물건구분·건물명·동·호수를 확인해 주세요."
+          : (error as Error).message,
+      } : null);
     }
+  }
+  async function refreshHistory(history: HistoryData | null) {
+    if (!history) return;
+    if (history.customer) return showCustomerHistory(history.customer, true);
+    if (history.listing) return showListingByKey(history.listing.identity_key, true);
+    if (history.listingKey) return showListingByKey(history.listingKey, true);
+    if (!history.date) return;
+    const version = ++historyOpenVersion.current;
+    setHistoryModal({ ...history, loading: true, error: undefined });
+    try {
+      const items = await fetchAllWorkLogs(new URLSearchParams({ from: history.date, to: history.date }));
+      if (version === historyOpenVersion.current) setHistoryModal({ ...history, items, subtitle: `${items.length}건`, loading: false, error: undefined });
+    } catch (error) {
+      if (version === historyOpenVersion.current) setHistoryModal({ ...history, loading: false, error: (error as Error).message });
+    }
+  }
+  function showWorkListingHistory(work: WorkSummary) {
+    const target = createPropertyHistoryTarget({
+      propertyType: work.property_type ?? "",
+      buildingName: work.building_name ?? "",
+      buildingDong: work.building_dong ?? "",
+      unitNumber: work.unit_number ?? "",
+    });
+    if (target?.kind === "listing") void showListingByKey(target.key);
   }
   async function signOut() {
     if (
@@ -967,6 +1043,8 @@ export function WorkManager() {
                 <DashboardView
                   dashboard={dashboard}
                   onOpen={openWork}
+                  onCustomerHistory={showCustomerHistory}
+                  onListingHistory={showWorkListingHistory}
                   onNavigate={(next) => {
                     if (next === "calendar") {
                       setCalendarMonth(seoulDate().slice(0, 7));
@@ -1059,6 +1137,8 @@ export function WorkManager() {
                   }
                   onExport={exportWorkLogs}
                   onOpen={openWork}
+                  onCustomerHistory={showCustomerHistory}
+                  onListingHistory={showWorkListingHistory}
                 />
               )}
               {view === "listings" && (
@@ -1099,7 +1179,7 @@ export function WorkManager() {
                     void openWork(undefined, item.id);
                   }}
                   onCopy={copyCustomerId}
-                  onHistory={showCustomerHistory}
+                  onHistory={(customer) => void showCustomerHistory(customer)}
                 />
               )}
               {view === "calendar" && (
@@ -1111,13 +1191,15 @@ export function WorkManager() {
                   items={calendarLogs}
                   lookups={lookups}
                   onOpen={openWork}
-                  onShowDay={(date, items) =>
+                  onShowDay={(date, items) => {
+                    historyOpenVersion.current += 1;
                     setHistoryModal({
                       title: `${displayDate(date)} 업무`,
                       subtitle: `${items.length}건`,
                       items,
-                    })
-                  }
+                      date,
+                    });
+                  }}
                 />
               )}
               {view === "settings" && (
@@ -1169,7 +1251,8 @@ export function WorkManager() {
       {historyModal && (
         <HistoryModal
           data={historyModal}
-          onClose={() => setHistoryModal(null)}
+          onClose={() => { historyOpenVersion.current += 1; workOpenVersion.current += 1; setHistoryModal(null); }}
+          onRefresh={() => void refreshHistory(historyModal)}
           onOpenWork={(id) => {
             void openWork(id);
           }}
@@ -1185,12 +1268,12 @@ export function WorkManager() {
           customers={customers}
           lookups={lookups}
           onNewCustomer={() => setCustomerModal({ mode: "new" })}
-          onClose={() => setWorkModal(null)}
-          onCopy={(item) => setWorkModal({ mode: "copy", item })}
+          onClose={() => { workOpenVersion.current += 1; setWorkModal(null); }}
+          onCopy={(item) => { workOpenVersion.current += 1; setWorkModal({ mode: "copy", item }); }}
           onSaved={async (message) => {
+            workOpenVersion.current += 1;
             setWorkModal(null);
-            setHistoryModal(null);
-            await afterMutation(message);
+            await Promise.all([afterMutation(message), refreshHistory(historyModal)]);
           }}
         />
       )}
@@ -1227,6 +1310,8 @@ function Loading() {
 function DashboardView({
   dashboard,
   onOpen,
+  onCustomerHistory,
+  onListingHistory,
   onNavigate,
   onQuickWork,
   followUps,
@@ -1236,7 +1321,7 @@ function DashboardView({
   onNavigate: (view: View) => void;
   onQuickWork: (workType: string) => void;
   followUps: ReactNode;
-}) {
+} & WorkHistoryActions) {
   const metrics = dashboard.metrics;
   return (
     <>
@@ -1375,7 +1460,7 @@ function DashboardView({
             전체 보기
           </button>
         </div>
-        <WorkTable items={dashboard.recent} onOpen={onOpen} />
+        <WorkTable items={dashboard.recent} onOpen={onOpen} onCustomerHistory={onCustomerHistory} onListingHistory={onListingHistory} />
       </section>
     </>
   );
@@ -1476,6 +1561,8 @@ function JournalView({
   canLoadMore,
   onExport,
   onOpen,
+  onCustomerHistory,
+  onListingHistory,
 }: {
   items: WorkSummary[];
   total: number;
@@ -1492,7 +1579,7 @@ function JournalView({
   canLoadMore: boolean;
   onExport: () => void | Promise<void>;
   onOpen: (id?: string) => void;
-}) {
+} & WorkHistoryActions) {
   const filtered = Boolean(query || workType || period);
   return (
     <>
@@ -1569,10 +1656,10 @@ function JournalView({
             </p>
           </div>
           <span className="helper-text">
-            CSV 저장은 현재 검색 조건의 전체 기록을 빠짐없이 담습니다
+            고객·물건을 누르면 이력, 일자·내용을 누르면 업무 수정
           </span>
         </div>
-        <WorkTable items={items} onOpen={onOpen} />
+        <WorkTable items={items} onOpen={onOpen} onCustomerHistory={onCustomerHistory} onListingHistory={onListingHistory} />
         {items.length < total && (
           <div className="load-more">
             <button
@@ -1597,10 +1684,12 @@ function JournalView({
 function WorkTable({
   items,
   onOpen,
+  onCustomerHistory,
+  onListingHistory,
 }: {
   items: WorkSummary[];
   onOpen: (id?: string) => void;
-}) {
+} & WorkHistoryActions) {
   if (!items.length) return <EmptyState title="조건에 맞는 업무가 없습니다." />;
   return (
     <div className="responsive-table work-table">
@@ -1612,29 +1701,35 @@ function WorkTable({
         <span>내용</span>
       </div>
       {items.map((item) => (
-        <button
-          className="table-row"
+        <div
+          className="table-row work-record-row"
           key={item.id}
-          onClick={() => onOpen(item.id)}
         >
-          <span data-label="일자">{displayDate(item.work_date)}</span>
+          <span data-label="일자"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${displayDate(item.work_date)} ${item.customer_name} 업무 수정`}>{displayDate(item.work_date)}<small><Icon name="edit" size={13} /> 업무 수정</small></button></span>
           <span data-label="업무구분">
             <i className={`tag ${statusTone(item.work_type)}`}>
               {item.work_type}
             </i>
           </span>
           <span data-label="고객">
-            <b>{item.customer_name}</b>
-            <small>{item.customer_id}</small>
+            <button type="button" className="work-cell-button history-link" onClick={() => onCustomerHistory({ id: item.customer_id, name: item.customer_name })} aria-label={`${item.customer_name} 고객 이력 보기`}>
+              <b>{item.customer_name}</b>
+              <small className="work-customer-id">{item.customer_id}</small>
+              <small><Icon name="clock" size={13} /> 고객 이력</small>
+            </button>
           </span>
           <span data-label="물건">
-            {targetText(item)}
+            {item.property_type?.trim() && item.building_name?.trim() && item.unit_number?.trim() ? (
+              <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory(item)} aria-label={`${targetText(item)} 매물 이력 보기`}>
+                {targetText(item)}<small><Icon name="clock" size={13} /> 매물 이력</small>
+              </button>
+            ) : targetText(item)}
             {Number(item.property_count) > 1 && (
-              <small>외 {Number(item.property_count) - 1}건</small>
+              <button type="button" className="work-extra-properties" onClick={() => onOpen(item.id)}>외 {Number(item.property_count) - 1}건 보기</button>
             )}
           </span>
-          <span data-label="내용">{item.content || "-"}</span>
-        </button>
+          <span data-label="내용"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${item.customer_name} 업무 내용 확인 및 수정`}>{item.content || "내용 확인·수정"}</button></span>
+        </div>
       ))}
     </div>
   );
@@ -2442,6 +2537,15 @@ function WorkModal({
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [referenceHistory, setReferenceHistory] = useState<
+    { kind: "customer"; id: string } | { kind: "listing"; index: number; key: string } | null
+  >(null);
+  const historyTrigger = useRef<HTMLButtonElement | null>(null);
+  const selectedCustomer = customers.find((customer) => customer.id === customerId);
+  function closeReferenceHistory() {
+    setReferenceHistory(null);
+    historyTrigger.current?.focus();
+  }
   const [initialValues] = useState(() =>
     JSON.stringify({ workDate, customerId, workType, content, details }),
   );
@@ -2479,6 +2583,9 @@ function WorkModal({
     key: keyof PropertyDetail,
     value: string,
   ) {
+    if (["propertyType", "buildingName", "buildingDong", "unitNumber"].includes(key)) {
+      setReferenceHistory((current) => current?.kind === "listing" && current.index === index ? null : current);
+    }
     setDetails((current) =>
       current.map((detail, detailIndex) =>
         detailIndex === index ? { ...detail, [key]: value } : detail,
@@ -2580,9 +2687,22 @@ function WorkModal({
             <CustomerPicker
               customers={customers}
               value={customerId}
-              onChange={setCustomerId}
+              onChange={(id) => { setCustomerId(id); setReferenceHistory(null); }}
               disabled={saving}
             />
+            <button
+              type="button"
+              className="editor-history-button"
+              disabled={saving || !selectedCustomer}
+              aria-expanded={referenceHistory?.kind === "customer" && referenceHistory.id === customerId}
+              aria-controls="editor-customer-history"
+              onClick={(event) => {
+                historyTrigger.current = event.currentTarget;
+                setReferenceHistory((current) => current?.kind === "customer" && current.id === customerId ? null : { kind: "customer", id: customerId });
+              }}
+            >
+              <Icon name="clock" size={17} /> 고객 이력 보기
+            </button>
           </div>
           <label>
             업무구분 <b>*</b>
@@ -2599,6 +2719,13 @@ function WorkModal({
             </select>
           </label>
         </div>
+        {selectedCustomer && referenceHistory?.kind === "customer" && referenceHistory.id === customerId && (
+          <div id="editor-customer-history">
+            <Suspense fallback={<p className="form-help" role="status">고객 이력을 준비하고 있습니다…</p>}>
+              <RelatedHistory target={{ kind: "customer", id: selectedCustomer.id, name: selectedCustomer.name }} currentWorkId={item?.id} onClose={closeReferenceHistory} />
+            </Suspense>
+          </div>
+        )}
         <label className="full-label">
           내용
           <textarea
@@ -2629,6 +2756,34 @@ function WorkModal({
           {details.map((detail, index) => (
             <fieldset key={index} disabled={saving}>
               <legend>물건 {index + 1}</legend>
+              <div className="detail-history-tools">
+                <button
+                  type="button"
+                  className="editor-history-button"
+                  disabled={!createPropertyHistoryTarget(detail)}
+                  aria-expanded={referenceHistory?.kind === "listing" && referenceHistory.index === index}
+                  aria-controls={`editor-listing-history-${index}`}
+                  onClick={(event) => {
+                    const target = createPropertyHistoryTarget(detail);
+                    if (target?.kind !== "listing") return;
+                    historyTrigger.current = event.currentTarget;
+                    setReferenceHistory((current) => current?.kind === "listing" && current.index === index ? null : { kind: "listing", index, key: target.key });
+                  }}
+                >
+                  <Icon name="clock" size={17} /> 매물 이력 보기
+                </button>
+                {!createPropertyHistoryTarget(detail) && <span className="form-help">물건구분·건물명·호수를 입력하면 조회할 수 있습니다.</span>}
+              </div>
+              {referenceHistory?.kind === "listing" && referenceHistory.index === index && (() => {
+                const target = createPropertyHistoryTarget(detail);
+                return target?.kind === "listing" && target.key === referenceHistory.key ? (
+                  <div id={`editor-listing-history-${index}`}>
+                    <Suspense fallback={<p className="form-help" role="status">매물 이력을 준비하고 있습니다…</p>}>
+                      <RelatedHistory target={target} currentWorkId={item?.id} onClose={closeReferenceHistory} />
+                    </Suspense>
+                  </div>
+                ) : null;
+              })()}
               <div className="detail-fields">
                 <label>
                   물건구분
@@ -2737,11 +2892,12 @@ function WorkModal({
                 <button
                   type="button"
                   className="remove-detail"
-                  onClick={() =>
+                  onClick={() => {
+                    setReferenceHistory(null);
                     setDetails((current) =>
                       current.filter((_, detailIndex) => detailIndex !== index),
-                    )
-                  }
+                    );
+                  }}
                 >
                   이 물건 빼기
                 </button>
@@ -2812,6 +2968,27 @@ function CustomerModal({
   const [notes, setNotes] = useState(modal.item?.notes || "");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [initialDraft] = useState(() => ({ id, name, notes }));
+  const currentDraft = { id, name, notes };
+  const dirty = customerDraftChanged(initialDraft, currentDraft);
+  useEffect(() => {
+    if (!dirty && !saving) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty, saving]);
+  function requestClose() {
+    if (
+      !canCloseCustomerDraft(initialDraft, currentDraft, saving, () =>
+        window.confirm("작성 중인 고객 정보가 있습니다. 저장하지 않고 닫을까요?"),
+      )
+    )
+      return;
+    onClose();
+  }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (saving) return;
@@ -2864,7 +3041,7 @@ function CustomerModal({
     <Modal
       title={modal.item ? "고객 정보 수정" : "새 고객 등록"}
       subtitle="고객 정보와 상담 메모를 간단하게 관리합니다"
-      onClose={onClose}
+      onClose={requestClose}
       locked={saving}
     >
       <form className="customer-form" onSubmit={submit}>
@@ -2913,7 +3090,7 @@ function CustomerModal({
           <button
             type="button"
             className="secondary-button"
-            onClick={onClose}
+            onClick={requestClose}
             disabled={saving}
           >
             취소
@@ -2930,6 +3107,7 @@ function CustomerModal({
 function HistoryModal({
   data,
   onClose,
+  onRefresh,
   onOpenWork,
   onNewWork,
   onFollowUp,
@@ -2937,6 +3115,7 @@ function HistoryModal({
 }: {
   data: HistoryData;
   onClose: () => void;
+  onRefresh: () => void;
   onOpenWork: (id: string) => void;
   onNewWork: (id: string) => void;
   onFollowUp: (draft: FollowUpDraft) => void;
@@ -2944,6 +3123,8 @@ function HistoryModal({
 }) {
   return (
     <Modal title={data.title} subtitle={data.subtitle} onClose={onClose}>
+      {data.loading && <p className="form-help" role="status">이력을 불러오고 있습니다…</p>}
+      {data.error && <div className="form-error" role="alert"><p>{data.error}</p>{(data.customer || data.listing || data.listingKey || data.date) && <button type="button" className="secondary-button" onClick={onRefresh}><Icon name="refresh" size={16} /> 다시 불러오기</button>}</div>}
       {data.customer && (
         <div className="history-actions">
           <button
@@ -3007,7 +3188,7 @@ function HistoryModal({
       )}
       <div className="history-list">
         {!data.items.length ? (
-          <EmptyState title="기록이 없습니다." />
+          !data.loading && !data.error ? <EmptyState title="기록이 없습니다." /> : null
         ) : (
           data.items.map((raw) => {
             const isEvent = "event_date" in raw;
