@@ -10,6 +10,7 @@ const notoSansKr = Noto_Sans_KR({
 export const metadata: Metadata = {
   title: "업무비서 | 부동산 업무관리",
   description: "업무일지, 매물, 고객, 일정을 한곳에서 관리합니다.",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
