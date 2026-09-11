@@ -17,6 +17,7 @@ const BACKUP_TABLES = [
   "listing_events",
   "work_types",
   "property_buildings",
+  "follow_ups",
 ] as const;
 
 export interface SecurityEnv {
@@ -445,7 +446,7 @@ async function importAesKey(secret: string): Promise<CryptoKey> {
 
 function isBusinessMutation(pathname: string, method: string): boolean {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
-  return /^\/api\/(work-logs|customers|lookups)(\/|$)/.test(pathname);
+  return /^\/api\/(work-logs|customers|lookups|follow-ups)(\/|$)/.test(pathname);
 }
 
 function mutationArea(pathname: string): string {

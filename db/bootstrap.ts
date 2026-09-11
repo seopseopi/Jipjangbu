@@ -80,6 +80,16 @@ const schemaStatements = [
     key TEXT PRIMARY KEY, attempts INTEGER NOT NULL DEFAULT 0,
     blocked_until INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL DEFAULT 0
   )`,
+  `CREATE TABLE IF NOT EXISTS follow_ups (
+    id TEXT PRIMARY KEY, title TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', due_date TEXT,
+    customer_id TEXT, listing_key TEXT, completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT follow_ups_title_length CHECK(length(trim(title)) BETWEEN 1 AND 200),
+    CONSTRAINT follow_ups_notes_length CHECK(length(notes) <= 5000),
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_follow_ups_completed_due ON follow_ups(completed_at, due_date)`,
+  `CREATE INDEX IF NOT EXISTS idx_follow_ups_customer ON follow_ups(customer_id)`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_date ON work_logs(work_date)`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_customer ON work_logs(customer_id)`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_type_date ON work_logs(work_type, work_date)`,

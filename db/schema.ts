@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const customers = sqliteTable("customers", {
   id: text("id").primaryKey(),
@@ -115,3 +115,20 @@ export const authAttempts = sqliteTable("auth_attempts", {
   blockedUntil: integer("blocked_until").notNull().default(0),
   updatedAt: integer("updated_at").notNull().default(0),
 });
+
+export const followUps = sqliteTable("follow_ups", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  notes: text("notes").notNull().default(""),
+  dueDate: text("due_date"),
+  customerId: text("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  listingKey: text("listing_key"),
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  check("follow_ups_title_length", sql`length(trim(${table.title})) BETWEEN 1 AND 200`),
+  check("follow_ups_notes_length", sql`length(${table.notes}) <= 5000`),
+  index("idx_follow_ups_completed_due").on(table.completedAt, table.dueDate),
+  index("idx_follow_ups_customer").on(table.customerId),
+]);
