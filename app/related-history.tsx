@@ -248,7 +248,9 @@ function HistoryPanel({
   }
 
   return (
-    <section className="related-history" aria-labelledby={headingId}>
+    <section className="related-history" aria-labelledby={headingId} onKeyDownCapture={(event) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
+    }}>
       <div className="related-history-header">
         <div className="related-history-heading">
           <Icon name={isListing ? "listings" : "customers"} size={20} />

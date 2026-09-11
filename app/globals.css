@@ -375,6 +375,37 @@ button.table-row:hover { background: #f4f8f5; }
 .related-history-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 17px; border-top: 1px solid var(--line); background: #f7faf8; color: var(--muted); font-size: var(--text-caption); }
 .related-history-footer p { margin: 0; }
 .related-history button.secondary-button { min-height: 44px; max-width: calc(100% - 24px); padding: 8px 12px; font-size: var(--text-small); white-space: normal; }
+.listing-loaded-message { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 12px 15px; border: 1px solid #b7d3c2; border-radius: 9px; background: var(--green-soft); color: var(--green-dark); font-size: var(--text-small); }
+.listing-picker { margin: 0 0 18px; overflow: hidden; border: 1px solid #b7d3c2; border-radius: 12px; background: #fff; }
+.listing-picker-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 15px 17px; border-bottom: 1px solid var(--line); background: #eef7f1; }
+.listing-picker-header > div { min-width: 0; }
+.listing-picker-header h3 { margin: 0; color: var(--green-dark); font-size: var(--text-base); line-height: 1.6; }
+.listing-picker-header p { margin: 5px 0 0; color: var(--muted); font-size: var(--text-small); }
+.listing-picker-header > button { flex: 0 0 auto; }
+.listing-picker-controls { padding: 15px 17px; }
+.listing-picker-search { display: flex; align-items: center; gap: 8px; margin-top: 7px; padding: 0 10px; border: 1px solid #c4d6cb; border-radius: 9px; background: #fff; color: var(--muted); }
+.listing-picker-search:focus-within { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-soft); }
+.work-form .listing-picker-search input { min-width: 0; flex: 1; width: auto; margin: 0; padding-inline: 0; border: 0; background: transparent; box-shadow: none; }
+.listing-picker-clear { display: grid; flex: 0 0 auto; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
+.work-form .listing-picker-closed-filter { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 44px; margin-top: 7px; font-weight: 500; }
+.work-form .listing-picker-closed-filter input { width: 18px; min-height: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--green); }
+.listing-picker-message, .listing-picker-summary { margin: 0; padding: 12px 17px; color: var(--muted); font-size: var(--text-small); overflow-wrap: anywhere; }
+.listing-picker-message[role="alert"] { color: #9e3e2c; }
+.listing-picker-message p { margin: 0 0 9px; }
+.listing-picker-summary { border-block: 1px solid var(--line); background: #f7faf8; font-size: var(--text-caption); }
+.listing-picker-results { max-height: 390px; overflow-y: auto; overscroll-behavior: contain; scrollbar-color: #b5cbbf transparent; }
+.listing-picker-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 15px; padding: 15px 17px; border-bottom: 1px solid var(--line); }
+.listing-picker-row:last-child { border-bottom: 0; }
+.listing-picker-row-copy { flex: 1 1 220px; min-width: 0; }
+.listing-picker-row-copy > strong { display: block; margin: 6px 0 4px; color: var(--ink); font-size: var(--text-base); overflow-wrap: anywhere; }
+.listing-picker-row-copy > p { margin: 0; color: #354a3d; font-size: var(--text-small); overflow-wrap: anywhere; }
+.listing-picker-row-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; color: var(--muted); font-size: var(--text-caption); }
+.listing-picker-status { display: inline-block; padding: 3px 7px; border-radius: 5px; background: #e5f2e9; color: var(--green-dark); font-weight: 600; }
+.listing-picker-status.is-closed { background: #f1ece4; color: #775722; }
+.listing-picker button.secondary-button { min-height: 44px; padding: 8px 12px; font-size: var(--text-small); white-space: normal; }
+.listing-picker-row > button { margin-left: auto; border-color: #b7d3c2; color: var(--green-dark); }
+.listing-picker-more { margin: 12px 17px; max-width: calc(100% - 34px); }
+.listing-picker-footer { margin: 0; padding: 12px 17px; border-top: 1px solid var(--line); background: #f7faf8; color: var(--muted); font-size: var(--text-caption); }
 .modal-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); }
 .modal-actions > span { flex: 1; }
 .customer-form { display: grid; gap: 18px; }

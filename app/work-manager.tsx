@@ -22,6 +22,7 @@ import { Icon, workTypeIcon } from "./icons";
 import { canAppendPage } from "./client-paging";
 import { createPropertyHistoryTarget } from "./history-query";
 import { fetchWorkWindow } from "./work-window";
+import { hasPropertyDraft, propertyFromListing, type ListingDraftSource } from "./listing-draft";
 import {
   clientJsonFetch as jsonFetch,
   clearClientReadCache,
@@ -39,6 +40,9 @@ const InsightsView = lazy(() =>
 );
 const RelatedHistory = lazy(() =>
   import("./related-history").then((module) => ({ default: module.RelatedHistory })),
+);
+const ListingPicker = lazy(() =>
+  import("./listing-picker").then((module) => ({ default: module.ListingPicker })),
 );
 
 function isAborted(error: unknown) {
@@ -2541,10 +2545,29 @@ function WorkModal({
     { kind: "customer"; id: string } | { kind: "listing"; index: number; key: string } | null
   >(null);
   const historyTrigger = useRef<HTMLButtonElement | null>(null);
+  const [listingPickerIndex, setListingPickerIndex] = useState<number | null>(null);
+  const [listingLoadedMessage, setListingLoadedMessage] = useState("");
+  const listingPickerTrigger = useRef<HTMLButtonElement | null>(null);
   const selectedCustomer = customers.find((customer) => customer.id === customerId);
   function closeReferenceHistory() {
     setReferenceHistory(null);
     historyTrigger.current?.focus();
+  }
+  function closeListingPicker() {
+    setListingPickerIndex(null);
+    listingPickerTrigger.current?.focus();
+  }
+  function applyExistingListing(listing: ListingDraftSource) {
+    if (listingPickerIndex === null || saving || !details[listingPickerIndex]) return;
+    if (
+      hasPropertyDraft(details[listingPickerIndex]) &&
+      !window.confirm("이 물건에 입력한 내용이 있습니다. 선택한 기존 매물 정보로 바꿀까요? 고객·상담 내용은 유지됩니다.")
+    ) return;
+    const next = propertyFromListing(listing);
+    setDetails((current) => current.map((detail, index) => index === listingPickerIndex ? next : detail));
+    setReferenceHistory(null);
+    setListingLoadedMessage(`물건 ${listingPickerIndex + 1}에 기존 매물 정보를 불러왔습니다. 주소와 가격을 확인한 뒤 업무를 저장해 주세요.`);
+    closeListingPicker();
   }
   const [initialValues] = useState(() =>
     JSON.stringify({ workDate, customerId, workType, content, details }),
@@ -2697,6 +2720,7 @@ function WorkModal({
               aria-expanded={referenceHistory?.kind === "customer" && referenceHistory.id === customerId}
               aria-controls="editor-customer-history"
               onClick={(event) => {
+                setListingPickerIndex(null);
                 historyTrigger.current = event.currentTarget;
                 setReferenceHistory((current) => current?.kind === "customer" && current.id === customerId ? null : { kind: "customer", id: customerId });
               }}
@@ -2739,7 +2763,7 @@ function WorkModal({
         <div className="detail-head">
           <div>
             <h3>물건 세부항목</h3>
-            <p>물건이 없는 전화·기타 업무는 비워 두어도 됩니다.</p>
+            <p>기존 매물을 불러오거나 직접 입력하세요. 물건이 없는 업무는 비워 두어도 됩니다.</p>
           </div>
           <button
             type="button"
@@ -2753,10 +2777,25 @@ function WorkModal({
           </button>
         </div>
         <div className="detail-list">
+          {listingLoadedMessage && <p className="listing-loaded-message" role="status"><Icon name="check" size={18} />{listingLoadedMessage}</p>}
           {details.map((detail, index) => (
             <fieldset key={index} disabled={saving}>
               <legend>물건 {index + 1}</legend>
               <div className="detail-history-tools">
+                <button
+                  type="button"
+                  className="editor-history-button"
+                  aria-expanded={listingPickerIndex === index}
+                  aria-controls={`editor-listing-picker-${index}`}
+                  onClick={(event) => {
+                    listingPickerTrigger.current = event.currentTarget;
+                    setListingLoadedMessage("");
+                    setReferenceHistory(null);
+                    setListingPickerIndex((current) => current === index ? null : index);
+                  }}
+                >
+                  <Icon name="search" size={17} /> 기존 매물 불러오기
+                </button>
                 <button
                   type="button"
                   className="editor-history-button"
@@ -2766,14 +2805,22 @@ function WorkModal({
                   onClick={(event) => {
                     const target = createPropertyHistoryTarget(detail);
                     if (target?.kind !== "listing") return;
+                    setListingPickerIndex(null);
                     historyTrigger.current = event.currentTarget;
                     setReferenceHistory((current) => current?.kind === "listing" && current.index === index ? null : { kind: "listing", index, key: target.key });
                   }}
                 >
                   <Icon name="clock" size={17} /> 매물 이력 보기
                 </button>
-                {!createPropertyHistoryTarget(detail) && <span className="form-help">물건구분·건물명·호수를 입력하면 조회할 수 있습니다.</span>}
+                {!createPropertyHistoryTarget(detail) && <span className="form-help">이력 조회는 물건구분·건물명·호수가 필요합니다.</span>}
               </div>
+              {listingPickerIndex === index && (
+                <div id={`editor-listing-picker-${index}`}>
+                  <Suspense fallback={<p className="form-help" role="status">기존 매물 검색을 준비하고 있습니다…</p>}>
+                    <ListingPicker onSelect={applyExistingListing} onClose={closeListingPicker} />
+                  </Suspense>
+                </div>
+              )}
               {referenceHistory?.kind === "listing" && referenceHistory.index === index && (() => {
                 const target = createPropertyHistoryTarget(detail);
                 return target?.kind === "listing" && target.key === referenceHistory.key ? (
@@ -2894,6 +2941,8 @@ function WorkModal({
                   className="remove-detail"
                   onClick={() => {
                     setReferenceHistory(null);
+                    setListingPickerIndex(null);
+                    setListingLoadedMessage("");
                     setDetails((current) =>
                       current.filter((_, detailIndex) => detailIndex !== index),
                     );

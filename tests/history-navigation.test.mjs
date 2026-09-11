@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { hasPropertyDraft, propertyFromListing } from "../app/listing-draft.ts";
 
 // Exercise the actual component's async handlers, with only their I/O replaced.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -137,4 +138,59 @@ test("work table and editor expose separate history controls without nested butt
   assert.match(editor, /<RelatedHistory/);
   assert.match(editor, /onClose=\{closeReferenceHistory\}/);
   assert.match(editor, /currentWorkId=\{item\?\.id\}/);
+});
+
+const existingListing = {
+  identity_key: "아파트|예시||101", property_type: "아파트", building_name: "예시",
+  building_dong: "", unit_number: "101", size_type: "33", sale_price: "확인 필요",
+  jeonse_price: "", monthly_rent: "", source_notes: "새 상담으로 복사하면 안 되는 원문",
+};
+function listingImportHarness(initial, index, confirm) {
+  const details = stateBox(initial);
+  const changes = { closed: 0, notice: "", history: "open" };
+  const apply = handler("applyExistingListing", {
+    listingPickerIndex: index, saving: false, details: initial, hasPropertyDraft, propertyFromListing,
+    window: { confirm }, setDetails: details.set,
+    setReferenceHistory: (value) => { changes.history = value; },
+    setListingLoadedMessage: (value) => { changes.notice = value; },
+    closeListingPicker: () => { changes.closed += 1; },
+  });
+  return { apply, details, changes };
+}
+
+test("an existing listing fills only the chosen empty property without saving or changing customer/content", () => {
+  const other = { ...propertyFromListing(existingListing), buildingName: "다른 물건" };
+  const empty = Object.fromEntries(Object.keys(other).map((key) => [key, ""]));
+  const harness = listingImportHarness([other, empty], 1, () => assert.fail("empty property needs no overwrite prompt"));
+  harness.apply(existingListing);
+  assert.equal(harness.details.current[0], other);
+  assert.deepEqual(harness.details.current[1], propertyFromListing(existingListing));
+  assert.equal(harness.changes.closed, 1);
+  assert.equal(harness.changes.history, null);
+  assert.match(harness.changes.notice, /물건 2/);
+  const body = source.slice(source.indexOf("function applyExistingListing("), source.indexOf("const [initialValues]"));
+  assert.doesNotMatch(body, /jsonFetch|setCustomerId|setContent|setWorkDate|setWorkType/);
+});
+
+test("declining listing replacement keeps the entered property and search panel unchanged", () => {
+  const draft = { ...propertyFromListing(existingListing), buildingName: "작성 중인 주소", source: "입력 중인 출처" };
+  let prompts = 0;
+  const initial = [draft];
+  const harness = listingImportHarness(initial, 0, () => { prompts += 1; return false; });
+  harness.apply(existingListing);
+  assert.equal(prompts, 1);
+  assert.equal(harness.details.current, initial);
+  assert.equal(harness.changes.closed, 0);
+  assert.equal(harness.changes.history, "open");
+});
+
+test("confirming listing replacement copies property fields only and never injects historical notes", () => {
+  const draft = { ...propertyFromListing(existingListing), buildingName: "작성 중인 주소", source: "입력 중인 출처" };
+  let prompts = 0;
+  const harness = listingImportHarness([draft], 0, () => { prompts += 1; return true; });
+  harness.apply(existingListing);
+  assert.equal(prompts, 1);
+  assert.deepEqual(harness.details.current[0], propertyFromListing(existingListing));
+  assert.equal(harness.details.current[0].source, "");
+  assert.equal(harness.changes.closed, 1);
 });
