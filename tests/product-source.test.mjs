@@ -5,11 +5,14 @@ import test from "node:test";
 const root = new URL("../", import.meta.url);
 
 test("업무비서 핵심 화면과 데이터 기능이 연결되어 있다", async () => {
-  const [page, manager, schema, hosting] = await Promise.all([
+  const [page, manager, schema, hosting, workRoute, customerRoute, listingRoute] = await Promise.all([
     readFile(new URL("app/page.tsx", root), "utf8"),
     readFile(new URL("app/work-manager.tsx", root), "utf8"),
     readFile(new URL("db/schema.ts", root), "utf8"),
     readFile(new URL(".openai/hosting.json", root), "utf8"),
+    readFile(new URL("app/api/work-logs/route.ts", root), "utf8"),
+    readFile(new URL("app/api/customers/route.ts", root), "utf8"),
+    readFile(new URL("app/api/listings/route.ts", root), "utf8"),
   ]);
 
   assert.match(page, /<WorkManager \/>/);
@@ -21,4 +24,11 @@ test("업무비서 핵심 화면과 데이터 기능이 연결되어 있다", as
   }
   assert.equal(JSON.parse(hosting).d1, "DB");
   assert.doesNotMatch(manager, /react-loading-skeleton|_sites-preview/);
+  for (const feature of ["바로 검색", "최근 7일", "CSV 저장", "100건 더 보기", "← 홈", "업무 등록"]) {
+    assert.match(manager, new RegExp(feature));
+  }
+  assert.match(manager, /history\.pushState/);
+  assert.match(workRoute, /COUNT\(\*\) AS total/);
+  assert.match(customerRoute, /sort === "history"/);
+  assert.match(listingRoute, /sort === "recent"/);
 });

@@ -8,6 +8,8 @@ export async function GET(request: Request) {
     const q = params.get("q")?.trim() ?? "";
     const state = params.get("state") ?? "active";
     const type = params.get("type")?.trim() ?? "";
+    const sort = params.get("sort") ?? "building";
+    const orderBy = sort === "recent" ? "CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, registered_at DESC, building_name" : "CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, building_name, building_dong, unit_number";
     const where = ["(? = '' OR property_type = ?)"];
     const binds: unknown[] = [type, type];
     if (state === "active") where.push("closed_at IS NULL");
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
     }
     const rows = await getD1().prepare(`
       SELECT * FROM listings WHERE ${where.join(" AND ")}
-      ORDER BY CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, building_name, building_dong, unit_number LIMIT 1000
+      ORDER BY ${orderBy} LIMIT 1000
     `).bind(...binds).all();
     return Response.json({ listings: rows.results });
   } catch (error) {

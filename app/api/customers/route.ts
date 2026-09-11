@@ -4,14 +4,17 @@ import { apiError, badRequest, ready } from "../_shared";
 export async function GET(request: Request) {
   try {
     await ready();
-    const q = new URL(request.url).searchParams.get("q")?.trim() ?? "";
+    const params = new URL(request.url).searchParams;
+    const q = params.get("q")?.trim() ?? "";
+    const sort = params.get("sort") ?? "recent";
+    const orderBy = sort === "name" ? "c.name COLLATE NOCASE, c.id" : sort === "history" ? "COUNT(w.id) DESC, COALESCE(MAX(w.work_date), c.updated_at) DESC" : "COALESCE(MAX(w.work_date), c.updated_at) DESC, c.name";
     const like = `%${q}%`;
     const rows = await getD1().prepare(`
       SELECT c.id, c.name, c.notes, c.created_at, c.updated_at, c.is_demo,
         COUNT(w.id) AS history_count, MAX(w.work_date) AS last_work_date
       FROM customers c LEFT JOIN work_logs w ON w.customer_id = c.id
       WHERE (? = '' OR c.id LIKE ? OR c.name LIKE ? OR c.notes LIKE ?)
-      GROUP BY c.id ORDER BY COALESCE(MAX(w.work_date), c.updated_at) DESC, c.name LIMIT 1000
+      GROUP BY c.id ORDER BY ${orderBy} LIMIT 1000
     `).bind(q, like, like, like).all();
     return Response.json({ customers: rows.results });
   } catch (error) {

@@ -25,8 +25,12 @@ export async function GET(request: Request) {
     const month = params.get("month")?.trim() ?? "";
     const workType = params.get("workType")?.trim() ?? "";
     const customerId = params.get("customerId")?.trim() ?? "";
-    const where = ["(? = '' OR w.work_type = ?)", "(? = '' OR w.customer_id = ?)", "(? = '' OR substr(w.work_date,1,7) = ?)"];
-    const binds: string[] = [workType, workType, customerId, customerId, month, month];
+    const from = params.get("from")?.trim() ?? "";
+    const to = params.get("to")?.trim() ?? "";
+    const limit = Math.min(Math.max(Number(params.get("limit") || 100), 1), 1000);
+    const offset = Math.max(Number(params.get("offset") || 0), 0);
+    const where = ["(? = '' OR w.work_type = ?)", "(? = '' OR w.customer_id = ?)", "(? = '' OR substr(w.work_date,1,7) = ?)", "(? = '' OR w.work_date >= ?)", "(? = '' OR w.work_date <= ?)"];
+    const binds: unknown[] = [workType, workType, customerId, customerId, month, month, from, from, to, to];
     if (q) {
       where.push(`(w.content LIKE ? OR c.id LIKE ? OR c.name LIKE ? OR EXISTS (
         SELECT 1 FROM work_log_properties p WHERE p.work_log_id = w.id AND
@@ -35,9 +39,12 @@ export async function GET(request: Request) {
       const like = `%${q}%`;
       binds.push(like, like, like, like, like, like, like);
     }
-    const rows = await getD1().prepare(`${summarySql} WHERE ${where.join(" AND ")} ORDER BY w.work_date DESC, w.updated_at DESC LIMIT 300`)
-      .bind(...binds).all();
-    return Response.json({ workLogs: rows.results });
+    const db = getD1();
+    const count = await db.prepare(`SELECT COUNT(*) AS total FROM work_logs w JOIN customers c ON c.id = w.customer_id WHERE ${where.join(" AND ")}`)
+      .bind(...binds).first<{ total: number }>();
+    const rows = await db.prepare(`${summarySql} WHERE ${where.join(" AND ")} ORDER BY w.work_date DESC, w.updated_at DESC LIMIT ? OFFSET ?`)
+      .bind(...binds, limit, offset).all();
+    return Response.json({ workLogs: rows.results, total: Number(count?.total || 0) });
   } catch (error) {
     return apiError(error, "업무일지를 불러오지 못했습니다.");
   }
