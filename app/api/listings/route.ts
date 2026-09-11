@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     const binds: unknown[] = [type, type];
     if (state === "active") where.push("closed_at IS NULL");
     if (state === "closed") where.push("closed_at IS NOT NULL");
+    if (state === "stale") where.push("closed_at IS NULL AND date(COALESCE(NULLIF(updated_at, ''), registered_at, '1900-01-01')) <= date('now','+9 hours','-90 days')");
     if (q) {
       where.push("(building_name LIKE ? OR building_dong LIKE ? OR unit_number LIKE ? OR notes LIKE ?)");
       const like = `%${q}%`;

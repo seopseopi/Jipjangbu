@@ -120,9 +120,6 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
   const close = useCallback(() => {
     requestSequence.current += 1;
     controllerRef.current?.abort();
-    setQuery("");
-    setResults(emptyResults());
-    setStatus("idle");
     setError("");
     onCloseRef.current();
   }, []);

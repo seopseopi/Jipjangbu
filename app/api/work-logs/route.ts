@@ -42,7 +42,7 @@ export async function GET(request: Request) {
     const db = getD1();
     const count = await db.prepare(`SELECT COUNT(*) AS total FROM work_logs w JOIN customers c ON c.id = w.customer_id WHERE ${where.join(" AND ")}`)
       .bind(...binds).first<{ total: number }>();
-    const rows = await db.prepare(`${summarySql} WHERE ${where.join(" AND ")} ORDER BY w.work_date DESC, w.updated_at DESC LIMIT ? OFFSET ?`)
+    const rows = await db.prepare(`${summarySql} WHERE ${where.join(" AND ")} ORDER BY w.work_date DESC, w.updated_at DESC, w.id DESC LIMIT ? OFFSET ?`)
       .bind(...binds, limit, offset).all();
     return Response.json({ workLogs: rows.results, total: Number(count?.total || 0) });
   } catch (error) {

@@ -60,6 +60,7 @@ export type InsightsViewProps = {
   onOpenWork: (id: string) => void;
   onOpenListing: (listing: InsightsListing) => void;
   refreshKey?: string | number;
+  onReviewStale?: () => void;
 };
 
 function asCount(value: unknown): number {
@@ -118,7 +119,7 @@ function priceText(item: InsightsListing): string {
   ].filter(Boolean).join(" · ") || "가격 미입력";
 }
 
-export function InsightsView({ onOpenWork, onOpenListing, refreshKey }: InsightsViewProps) {
+export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewStale }: InsightsViewProps) {
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -250,7 +251,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey }: Insights
         </section>
 
         <section className="insights-panel insights-stale" aria-labelledby="insights-stale-title">
-          <header className="insights-panel-head"><div><p>매물 점검</p><h2 id="insights-stale-title">오래 갱신되지 않은 매물</h2></div><span>{data.staleListings.length}건</span></header>
+          <header className="insights-panel-head"><div><p>매물 점검</p><h2 id="insights-stale-title">오래 갱신되지 않은 매물</h2></div>{onReviewStale ? <button className="text-button" type="button" onClick={onReviewStale}>전체 {data.summary.staleListingCount}건 보기</button> : <span>{data.staleListings.length}건</span>}</header>
           {data.staleListings.length === 0 ? <p className="insights-panel-empty">지금 확인이 필요한 오래된 매물이 없습니다.</p> : (
             <div className="insights-item-list">
               {data.staleListings.map((listing) => (
