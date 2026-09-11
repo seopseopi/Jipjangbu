@@ -1,5 +1,13 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789097053087,
+      "tag": "0000_perpetual_havok",
+      "breakpoints": true
+    }
+  ]
 }
