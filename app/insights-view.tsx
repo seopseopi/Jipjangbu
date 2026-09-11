@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { clientJsonFetch } from "./client-api";
+import { Icon } from "./icons";
 
 export type InsightsWorkLog = {
   id: string;
@@ -162,9 +163,9 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
   if (error || !data) {
     return (
       <section className="insights-error" role="alert">
-        <span className="insights-error-mark" aria-hidden="true">!</span>
+        <span className="insights-error-mark" aria-hidden="true"><Icon name="warning" size={26} /></span>
         <div><h2>현황 분석을 불러오지 못했습니다.</h2><p>{error || "잠시 뒤 다시 시도해 주세요."}</p></div>
-        <button className="insights-retry" type="button" onClick={() => setRetryKey((current) => current + 1)}>다시 불러오기</button>
+        <button className="insights-retry" type="button" onClick={() => setRetryKey((current) => current + 1)}><Icon name="refresh" size={18} /> 다시 불러오기</button>
       </section>
     );
   }
@@ -178,7 +179,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
   if (totalVisible === 0 && summaryTotal === 0) {
     return (
       <section className="insights-empty">
-        <span className="insights-empty-mark" aria-hidden="true">✓</span>
+        <span className="insights-empty-mark" aria-hidden="true"><Icon name="empty" size={26} /></span>
         <h2>분석할 업무 기록이 아직 없습니다.</h2>
         <p>업무와 고객, 매물을 등록하면 월별 흐름과 확인할 항목이 이곳에 나타납니다.</p>
       </section>
@@ -243,7 +244,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
                   <time>{displayDate(item.work_date)}</time>
                   <span className="insights-item-copy"><strong>{workName(item)}</strong><small>{item.content || item.customer_name}</small></span>
                   <span className="insights-item-status">{item.work_type}</span>
-                  <span className="insights-item-arrow" aria-hidden="true">›</span>
+                  <Icon name="next" className="insights-item-arrow" size={18} />
                 </button>
               ))}
             </div>
@@ -258,7 +259,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
                 <button className="insights-item insights-stale-item" type="button" key={listing.id} onClick={() => onOpenListing(listing)}>
                   <span className="insights-item-copy"><strong>{propertyName(listing)}</strong><small>{listing.property_type} · {priceText(listing)}</small></span>
                   <span className="insights-item-date">최근 갱신 {displayDate(listing.updated_at || listing.registered_at)}</span>
-                  <span className="insights-item-arrow" aria-hidden="true">›</span>
+                  <Icon name="next" className="insights-item-arrow" size={18} />
                 </button>
               ))}
             </div>

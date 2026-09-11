@@ -31,10 +31,11 @@ test("집장부 핵심 화면과 데이터 기능이 연결되어 있다", async
   assert.doesNotMatch(manager, /react-loading-skeleton|_sites-preview/);
   assert.match(manager, /집장부 홈으로 이동/);
   assert.match(manager, /<strong>집장부<\/strong>/);
-  for (const feature of ["바로 검색", "최근 7일", "CSV 저장", "100건 더 보기", "← 홈", "업무 등록"]) {
+  for (const feature of ["바로 검색", "최근 7일", "CSV 저장", "100건 더 보기", "업무 등록", "sort-summary"]) {
     assert.match(manager, new RegExp(feature));
   }
   assert.match(manager, /history\.pushState/);
+  assert.match(manager, /<Icon name="back"/);
   assert.match(workRoute, /COUNT\(\*\) AS total/);
   assert.match(customerRoute, /sort === "history"/);
   assert.match(listingRoute, /sort === "recent"/);

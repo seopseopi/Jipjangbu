@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clientJsonFetch } from "./client-api";
+import { Icon } from "./icons";
 
 export type GlobalSearchWorkLog = {
   id: string;
@@ -216,11 +217,11 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
             <p className="global-search-kicker">통합검색</p>
             <h2 id="global-search-title">업무·고객·매물을 한 번에 찾기</h2>
           </div>
-          <button className="global-search-close" type="button" onClick={close} aria-label="통합검색 닫기">×</button>
+          <button className="global-search-close" type="button" onClick={close} aria-label="통합검색 닫기"><Icon name="close" /></button>
         </header>
 
         <div className="global-search-input-wrap">
-          <span className="global-search-icon" aria-hidden="true">⌕</span>
+          <Icon name="search" className="global-search-icon" />
           <input
             ref={inputRef}
             className="global-search-input"
@@ -232,26 +233,26 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
             aria-describedby="global-search-help"
             autoComplete="off"
           />
-          {query && <button className="global-search-clear" type="button" onClick={() => changeQuery("")} aria-label="검색어 지우기">×</button>}
+          {query && <button className="global-search-clear" type="button" onClick={() => changeQuery("")} aria-label="검색어 지우기"><Icon name="close" size={18} /></button>}
         </div>
-        <p className="global-search-help" id="global-search-help">두 글자 이상 입력하면 자동으로 검색합니다.</p>
+        <p className="global-search-help" id="global-search-help">두 글자부터 검색 · 고객·매물은 정확히 일치하는 결과 우선 · 업무는 최신순</p>
 
         <div className="global-search-body" aria-live="polite" aria-busy={status === "loading"}>
-          {status === "idle" && <div className="global-search-idle"><span aria-hidden="true">⌕</span><p>찾을 내용을 두 글자 이상 입력해 주세요.</p></div>}
+          {status === "idle" && <div className="global-search-idle"><span aria-hidden="true"><Icon name="search" size={26} /></span><p>찾을 내용을 두 글자 이상 입력해 주세요.</p></div>}
           {status === "loading" && <div className="global-search-loading"><span aria-hidden="true" /><p>관련 기록을 찾고 있습니다.</p></div>}
           {status === "error" && <div className="global-search-error" role="alert"><strong>검색하지 못했습니다.</strong><p>{error}</p></div>}
-          {status === "success" && resultCount === 0 && <div className="global-search-empty"><span aria-hidden="true">✓</span><p>일치하는 업무, 고객, 매물이 없습니다.</p></div>}
+          {status === "success" && resultCount === 0 && <div className="global-search-empty"><span aria-hidden="true"><Icon name="empty" size={26} /></span><p>일치하는 업무, 고객, 매물이 없습니다.</p></div>}
 
           {status === "success" && results.workLogs.length > 0 && (
             <section className="global-search-group" aria-labelledby="global-search-work-title">
-              <div className="global-search-group-head"><h3 id="global-search-work-title">업무</h3><span>{results.workLogs.length}건</span></div>
+              <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-work-title"><Icon name="journal" size={18} />업무</h3><span>{results.workLogs.length}건</span></div>
               <div className="global-search-list">
                 {results.workLogs.map((item) => (
                   <button className="global-search-result global-search-work" type="button" key={item.id} onClick={() => chooseWork(item.id)}>
                     <span className="global-search-result-date">{displayDate(item.work_date)}</span>
                     <span className="global-search-result-copy"><strong>{workTarget(item)}</strong><small>{item.content || item.customer_name}</small></span>
                     <span className="global-search-result-meta">{item.work_type}</span>
-                    <span className="global-search-result-arrow" aria-hidden="true">›</span>
+                    <Icon name="next" className="global-search-result-arrow" size={18} />
                   </button>
                 ))}
               </div>
@@ -260,13 +261,13 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
 
           {status === "success" && results.customers.length > 0 && (
             <section className="global-search-group" aria-labelledby="global-search-customer-title">
-              <div className="global-search-group-head"><h3 id="global-search-customer-title">고객</h3><span>{results.customers.length}명</span></div>
+              <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-customer-title"><Icon name="customers" size={18} />고객</h3><span>{results.customers.length}명</span></div>
               <div className="global-search-list">
                 {results.customers.map((customer) => (
                   <button className="global-search-result global-search-customer" type="button" key={customer.id} onClick={() => chooseCustomer(customer)}>
                     <span className="global-search-result-copy"><strong>{customer.name}</strong><small>{customer.id}{customer.notes ? ` · ${customer.notes}` : ""}</small></span>
                     <span className="global-search-result-meta">업무 {Number(customer.history_count) || 0}건</span>
-                    <span className="global-search-result-arrow" aria-hidden="true">›</span>
+                    <Icon name="next" className="global-search-result-arrow" size={18} />
                   </button>
                 ))}
               </div>
@@ -275,13 +276,13 @@ export function GlobalSearch({ open, onClose, onOpenWork, onOpenCustomer, onOpen
 
           {status === "success" && results.listings.length > 0 && (
             <section className="global-search-group" aria-labelledby="global-search-listing-title">
-              <div className="global-search-group-head"><h3 id="global-search-listing-title">매물</h3><span>{results.listings.length}건</span></div>
+              <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-listing-title"><Icon name="listings" size={18} />매물</h3><span>{results.listings.length}건</span></div>
               <div className="global-search-list">
                 {results.listings.map((listing) => (
                   <button className="global-search-result global-search-listing" type="button" key={listing.id} onClick={() => chooseListing(listing)}>
                     <span className="global-search-result-copy"><strong>{listingName(listing)}</strong><small>{listing.property_type}{listing.size_type ? ` · ${listing.size_type}` : ""}</small></span>
                     <span className="global-search-result-meta">{listing.status}</span>
-                    <span className="global-search-result-arrow" aria-hidden="true">›</span>
+                    <Icon name="next" className="global-search-result-arrow" size={18} />
                   </button>
                 ))}
               </div>

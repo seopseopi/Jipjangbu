@@ -1,5 +1,6 @@
 import { getD1 } from "../../../db";
 import { apiError, ready } from "../_shared";
+import { HOME_RECENT_WHERE, HOME_TODAY_ORDER, HOME_UPCOMING_ORDER, WORK_RECENT_ORDER } from "../_ordering";
 
 const summarySql = `
   SELECT w.id, w.work_date, w.customer_id, w.work_type, w.content, w.is_demo,
@@ -24,10 +25,10 @@ export async function GET() {
         (SELECT COUNT(*) FROM listings WHERE closed_at IS NULL) AS active_listing_count,
         (SELECT COUNT(*) FROM customers) AS customer_count
       `).first(),
-      db.prepare(`${summarySql} WHERE w.work_date = date('now','+9 hours') ORDER BY w.created_at, w.id`).all(),
-      db.prepare(`${summarySql} ORDER BY w.work_date DESC, w.updated_at DESC, w.id DESC LIMIT 8`).all(),
+      db.prepare(`${summarySql} WHERE w.work_date = date('now','+9 hours') ORDER BY ${HOME_TODAY_ORDER}`).all(),
+      db.prepare(`${summarySql} WHERE ${HOME_RECENT_WHERE} ORDER BY ${WORK_RECENT_ORDER} LIMIT 8`).all(),
       db.prepare("SELECT COUNT(*) AS real_count FROM work_logs WHERE is_demo = 0").first<{ real_count: number }>(),
-      db.prepare(`${summarySql} WHERE w.work_date > date('now','+9 hours') AND w.work_date <= date('now','+9 hours','+7 days') AND (w.work_type LIKE '%예정' OR w.work_type LIKE '%예약') ORDER BY w.work_date, w.id LIMIT 6`).all(),
+      db.prepare(`${summarySql} WHERE w.work_date > date('now','+9 hours') AND w.work_date <= date('now','+9 hours','+7 days') AND (w.work_type LIKE '%예정' OR w.work_type LIKE '%예약') ORDER BY ${HOME_UPCOMING_ORDER} LIMIT 6`).all(),
     ]);
     return Response.json({ metrics, today: today.results, recent: recent.results, upcoming: upcoming.results, demoMode: (demo?.real_count ?? 0) === 0 });
   } catch (error) {

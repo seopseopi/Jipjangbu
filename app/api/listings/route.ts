@@ -1,5 +1,6 @@
 import { getD1 } from "../../../db";
 import { apiError, ready } from "../_shared";
+import { LISTING_BUILDING_ORDER, LISTING_OLDEST_ORDER, LISTING_RECENT_ORDER, LISTING_UPDATED_ORDER } from "../_ordering";
 
 export async function GET(request: Request) {
   try {
@@ -9,7 +10,9 @@ export async function GET(request: Request) {
     const state = params.get("state") ?? "active";
     const type = params.get("type")?.trim() ?? "";
     const sort = params.get("sort") ?? "building";
-    const orderBy = sort === "recent" ? "CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, registered_at DESC, building_name" : "CASE WHEN closed_at IS NULL THEN 0 ELSE 1 END, building_name, building_dong, unit_number";
+    const orderBy = sort === "recent" ? LISTING_RECENT_ORDER
+      : sort === "updated" ? LISTING_UPDATED_ORDER
+      : sort === "oldest" ? LISTING_OLDEST_ORDER : LISTING_BUILDING_ORDER;
     const where = ["(? = '' OR property_type = ?)"];
     const binds: unknown[] = [type, type];
     if (state === "active") where.push("closed_at IS NULL");

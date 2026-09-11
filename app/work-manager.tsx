@@ -17,6 +17,7 @@ import {
 import { InsightsView } from "./insights-view";
 import { FollowUpsView } from "./follow-ups";
 import { CustomerPicker } from "./customer-picker";
+import { Icon, workTypeIcon } from "./icons";
 import { clientJsonFetch as jsonFetch } from "./client-api";
 
 type View =
@@ -717,7 +718,11 @@ export function WorkManager() {
               type="button"
               aria-current={view === key ? "page" : undefined}
             >
-              <span className={`nav-icon ${key}`} />
+              <Icon
+                name={key === "today" ? "home" : key}
+                className="nav-icon"
+                size={21}
+              />
               {label}
             </button>
           ))}
@@ -729,6 +734,7 @@ export function WorkManager() {
             오늘의 일은 가볍게.
           </p>
           <button className="logout-link" onClick={signOut} type="button">
+            <Icon name="logout" size={18} />
             로그아웃
           </button>
         </div>
@@ -742,7 +748,7 @@ export function WorkManager() {
                 onClick={() => navigate("today")}
                 type="button"
               >
-                ← 홈
+                <Icon name="back" size={17} /> 홈
               </button>
             )}
             <p className="eyebrow">{titles[view][1]}</p>
@@ -755,6 +761,7 @@ export function WorkManager() {
               aria-pressed={readable}
               onClick={toggleReadable}
             >
+              <Icon name="text" size={18} />
               {readable ? "기본 글씨" : "큰 글씨"}
             </button>
             <button
@@ -763,14 +770,14 @@ export function WorkManager() {
               type="button"
               aria-keyshortcuts="/"
             >
-              <span aria-hidden="true">⌕</span> 통합검색 <kbd>/</kbd>
+              <Icon name="search" /> 통합검색 <kbd>/</kbd>
             </button>
             <button
               className="primary-button"
               onClick={() => openWork()}
               type="button"
             >
-              <span>＋</span> 새 업무 등록
+              <Icon name="plus" /> 새 업무 등록
             </button>
           </div>
         </header>
@@ -778,7 +785,7 @@ export function WorkManager() {
           <div className="notice" role="status">
             <span>{notice}</span>
             <button onClick={() => setNotice("")} aria-label="알림 닫기">
-              ×
+              <Icon name="close" size={18} />
             </button>
           </div>
         )}
@@ -843,6 +850,7 @@ export function WorkManager() {
                   onReviewStale={() => {
                     setQueries((current) => ({ ...current, listings: "" }));
                     setListingState("stale");
+                    setListingSort("oldest");
                     setPropertyTypeFilter("");
                     navigate("listings");
                   }}
@@ -1039,20 +1047,26 @@ function DashboardView({
     <>
       <section className="home-hero">
         <div className="home-hero-copy">
-            <p className="home-date">{displayDate(seoulDate())} · 매일의 업무, 집장부</p>
-          <h2>오늘도 한 건씩, 꼼꼼하게.</h2>
-          <p>연락할 고객부터 새로운 상담까지, 여기서 시작하세요.</p>
+          <p className="home-date">
+            <Icon name="calendar" size={16} />
+            {displayDate(seoulDate())}
+          </p>
+          <h2>오늘 확인할 일부터 시작하세요.</h2>
+          <p>연락할 일과 일정을 확인하고, 새 업무를 바로 기록하세요.</p>
         </div>
         <div className="home-hero-actions">
           <span className="home-section-label">자주 하는 업무 바로 등록</span>
           <div className="home-quick-actions">
             <button type="button" onClick={() => onQuickWork("전화")}>
+              <Icon name="phone" size={19} />
               전화 상담
             </button>
             <button type="button" onClick={() => onQuickWork("집방문예약")}>
+              <Icon name="calendarPlus" size={19} />
               방문 예약
             </button>
             <button type="button" onClick={() => onQuickWork("매물등록")}>
+              <Icon name="housePlus" size={19} />
               매물 등록
             </button>
           </div>
@@ -1060,39 +1074,53 @@ function DashboardView({
       </section>
       <div className="metric-grid">
         <article className="metric-card featured">
-          <p>오늘 업무</p>
+          <p className="metric-label">
+            <Icon name="journal" size={19} />
+            오늘 업무
+          </p>
           <strong>
             {metrics.today_count}
             <small>건</small>
           </strong>
-          <span>오늘 등록된 전체 업무</span>
+          <span>업무일이 오늘인 기록</span>
         </article>
         <article className="metric-card">
-          <p>진행 중 매물</p>
+          <p className="metric-label">
+            <Icon name="listings" size={19} />
+            진행 중 매물
+          </p>
           <strong>
             {metrics.active_listing_count}
             <small>건</small>
           </strong>
-          <button onClick={() => onNavigate("listings")}>매물 목록 보기</button>
+          <button onClick={() => onNavigate("listings")}>
+            매물 목록 보기 <Icon name="next" size={16} />
+          </button>
         </article>
         <article className="metric-card">
-          <p>전체 고객</p>
+          <p className="metric-label">
+            <Icon name="customers" size={19} />
+            전체 고객
+          </p>
           <strong>
             {metrics.customer_count}
             <small>명</small>
           </strong>
           <button onClick={() => onNavigate("customers")}>
-            고객 목록 보기
+            고객 목록 보기 <Icon name="next" size={16} />
           </button>
         </article>
         <article className="metric-card">
-          <p>다가오는 일정</p>
+          <p className="metric-label">
+            <Icon name="upcoming" size={19} />
+            다가오는 일정
+          </p>
           <strong>
             {metrics.upcoming_count}
             <small>건</small>
           </strong>
           <button className="attention" onClick={() => onNavigate("calendar")}>
-            7일 일정 확인
+            7일 일정 확인 <Icon name="next" size={16} />
           </button>
         </article>
       </div>
@@ -1100,7 +1128,10 @@ function DashboardView({
         {followUps}
         <section className="panel schedule-panel dashboard-schedule">
           <div className="panel-head">
-            <h2>오늘 업무</h2>
+            <h2 className="heading-icon">
+              <Icon name="journal" />
+              오늘 업무
+            </h2>
             <button
               className="text-button"
               onClick={() => onNavigate("calendar")}
@@ -1114,7 +1145,10 @@ function DashboardView({
             empty="오늘 등록된 업무가 없습니다."
           />
           <div className="panel-head">
-            <h2>앞으로 7일</h2>
+            <h2 className="heading-icon">
+              <Icon name="upcoming" />
+              앞으로 7일
+            </h2>
             <button
               className="text-button"
               onClick={() => onNavigate("calendar")}
@@ -1132,7 +1166,16 @@ function DashboardView({
       </div>
       <section className="panel recent-panel">
         <div className="panel-head">
-          <h2>최근 업무</h2>
+          <div>
+            <h2 className="heading-icon">
+              <Icon name="journal" />
+              최근 업무
+            </h2>
+            <p className="sort-summary">
+              <Icon name="sort" size={16} />
+              오늘까지의 기록 · 업무일 최신순
+            </p>
+          </div>
           <button className="text-button" onClick={() => onNavigate("journal")}>
             전체 보기
           </button>
@@ -1162,7 +1205,9 @@ function WorkRows({
           onClick={() => onOpen(item.id)}
           key={item.id}
         >
-          <span className={`status-dot ${statusTone(item.work_type)}`} />
+          <span className={`schedule-icon ${statusTone(item.work_type)}`}>
+            <Icon name={workTypeIcon(item.work_type)} size={18} />
+          </span>
           <span className="schedule-copy">
             <strong>
               {targetText(item) === "물건 없음"
@@ -1177,7 +1222,7 @@ function WorkRows({
           <span className={`tag ${statusTone(item.work_type)}`}>
             {item.work_type}
           </span>
-          <span className="row-arrow">›</span>
+          <Icon name="next" className="row-arrow" size={18} />
         </button>
       ))}
     </div>
@@ -1197,7 +1242,7 @@ function Toolbar({
   return (
     <div className="toolbar">
       <div className="search-box">
-        <span aria-hidden="true">⌕</span>
+        <Icon name="search" />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -1211,7 +1256,7 @@ function Toolbar({
             type="button"
             aria-label="검색어 지우기"
           >
-            ×
+            <Icon name="close" size={17} />
           </button>
         )}
         <span className="search-live">바로 검색</span>
@@ -1292,7 +1337,7 @@ function JournalView({
           disabled={!total}
           type="button"
         >
-          CSV 저장
+          <Icon name="download" size={18} /> CSV 저장
         </button>
       </Toolbar>
       {filtered && (
@@ -1321,6 +1366,10 @@ function JournalView({
                 {items.length} / {total}
               </span>
             </h2>
+            <p className="sort-summary">
+              <Icon name="sort" size={16} />
+              업무일 최신순 · 같은 날은 최근 수정순
+            </p>
           </div>
           <span className="helper-text">
             CSV 저장은 현재 검색 조건의 전체 기록을 빠짐없이 담습니다
@@ -1336,7 +1385,8 @@ function JournalView({
               }}
               disabled={loadingMore}
             >
-              {loadingMore ? "불러오는 중…" : "＋ 100건 더 보기"}{" "}
+              <Icon name={loadingMore ? "refresh" : "plus"} size={18} />
+              {loadingMore ? "불러오는 중…" : "100건 더 보기"}{" "}
               <small>
                 남은 {(total - items.length).toLocaleString("ko-KR")}건
               </small>
@@ -1432,7 +1482,13 @@ function ListingsView({
         <select
           aria-label="매물 상태 필터"
           value={state}
-          onChange={(event) => setState(event.target.value)}
+          onChange={(event) => {
+            const next = event.target.value;
+            setState(next);
+            if (next === "stale") setSort("oldest");
+            else if (state === "stale" && sort === "oldest")
+              setSort("building");
+          }}
         >
           <option value="active">진행 중</option>
           <option value="stale">90일 이상 확인 필요</option>
@@ -1454,8 +1510,10 @@ function ListingsView({
           value={sort}
           onChange={(event) => setSort(event.target.value)}
         >
-          <option value="building">건물명순</option>
+          <option value="building">건물·동·호수순</option>
           <option value="recent">최근 등록순</option>
+          <option value="updated">최근 변경순</option>
+          <option value="oldest">오래 미갱신순</option>
         </select>
         {filtered && (
           <button className="filter-reset" onClick={onReset} type="button">
@@ -1498,7 +1556,7 @@ function ListingsView({
           disabled={!items.length}
           type="button"
         >
-          CSV 저장
+          <Icon name="download" size={18} /> CSV 저장
         </button>
       </Toolbar>
       <section className="panel data-panel">
@@ -1508,6 +1566,18 @@ function ListingsView({
             <h2>
               매물 목록 <span className="count-badge">{items.length}</span>
             </h2>
+            <p className="sort-summary">
+              <Icon name="sort" size={16} />
+              {sort === "recent"
+                ? "최근 등록순"
+                : sort === "updated"
+                  ? "최근 변경순"
+                  : sort === "oldest"
+                    ? "마지막 갱신이 오래된 순"
+                    : "건물명 → 동 → 호수순"}
+              {state === "all" ? " · 진행 중 우선" : ""}
+              {sort === "building" ? " · 동·호수는 숫자순" : ""}
+            </p>
           </div>
           <span className="helper-text">
             {state === "stale"
@@ -1622,7 +1692,7 @@ function CustomersView({
           value={sort}
           onChange={(event) => setSort(event.target.value)}
         >
-          <option value="recent">최근 업무순</option>
+          <option value="recent">최근 업무·등록순</option>
           <option value="name">이름순</option>
           <option value="history">이력 많은 순</option>
         </select>
@@ -1649,10 +1719,10 @@ function CustomersView({
           disabled={!items.length}
           type="button"
         >
-          CSV 저장
+          <Icon name="download" size={18} /> CSV 저장
         </button>
         <button className="secondary-button" onClick={onNew} type="button">
-          ＋ 고객 등록
+          <Icon name="plus" size={18} /> 고객 등록
         </button>
       </Toolbar>
       <section className="panel data-panel">
@@ -1662,6 +1732,14 @@ function CustomersView({
             <h2>
               고객 목록 <span className="count-badge">{items.length}</span>
             </h2>
+            <p className="sort-summary">
+              <Icon name="sort" size={16} />
+              {sort === "name"
+                ? "이름 가나다순 · 같은 이름은 고객 ID순"
+                : sort === "history"
+                  ? "업무 이력 많은 순"
+                  : "최근 업무·등록순 · 미래 예약은 제외"}
+            </p>
           </div>
           <span className="helper-text">
             이름을 누르면 전체 이력, 고객 ID를 누르면 바로 복사됩니다
@@ -1695,7 +1773,9 @@ function CustomersView({
                   title="고객 ID 복사"
                 >
                   {item.id}
-                  <small>눌러서 복사</small>
+                  <small>
+                    <Icon name="copy" size={13} /> 눌러서 복사
+                  </small>
                 </button>
                 <span data-label="비고">{item.notes || "-"}</span>
                 <span data-label="최근 업무">
@@ -1707,10 +1787,10 @@ function CustomersView({
                     className="tiny-button accent"
                     onClick={() => onNewWork(item)}
                   >
-                    업무 등록
+                    <Icon name="plus" size={16} /> 업무 등록
                   </button>
                   <button className="tiny-button" onClick={() => onEdit(item)}>
-                    수정
+                    <Icon name="edit" size={16} /> 수정
                   </button>
                 </span>
               </div>
@@ -1766,7 +1846,7 @@ function CalendarView({
           aria-label="이전 달"
           onClick={() => setMonth(shiftMonth(month, -1))}
         >
-          ‹
+          <Icon name="back" size={18} />
         </button>
         <input
           aria-label="달력 월"
@@ -1779,7 +1859,7 @@ function CalendarView({
           aria-label="다음 달"
           onClick={() => setMonth(shiftMonth(month, 1))}
         >
-          ›
+          <Icon name="next" size={18} />
         </button>
         <select
           aria-label="달력 업무구분 필터"
@@ -2070,6 +2150,7 @@ function BackupPanel() {
           onClick={createNow}
           disabled={creating}
         >
+          <Icon name="backup" size={18} />
           {creating ? "백업 중…" : "지금 백업"}
         </button>
       </div>
@@ -2100,7 +2181,7 @@ function BackupPanel() {
                 className="tiny-button"
                 href={`/api/backups/download?key=${encodeURIComponent(backup.key)}`}
               >
-                내려받기
+                <Icon name="download" size={16} /> 내려받기
               </a>
             </div>
           ))
@@ -2296,7 +2377,7 @@ function WorkModal({
                 고객 <b>*</b>
               </span>
               <button type="button" onClick={onNewCustomer} disabled={saving}>
-                ＋ 새 고객
+                <Icon name="plus" size={16} /> 새 고객
               </button>
             </div>
             <CustomerPicker
@@ -2344,7 +2425,7 @@ function WorkModal({
               setDetails((current) => [...current, blankProperty()])
             }
           >
-            ＋ 물건 추가
+            <Icon name="housePlus" size={18} /> 물건 추가
           </button>
         </div>
         <div className="detail-list">
@@ -2489,7 +2570,7 @@ function WorkModal({
                 onCopy(item);
               }}
             >
-              이 기록으로 새 업무
+              <Icon name="copy" size={18} /> 이 기록으로 새 업무
             </button>
           )}
           {item && (
@@ -2499,7 +2580,7 @@ function WorkModal({
               onClick={remove}
               disabled={saving}
             >
-              업무 삭제
+              <Icon name="delete" size={18} /> 업무 삭제
             </button>
           )}
           <span />
@@ -2512,6 +2593,7 @@ function WorkModal({
             취소
           </button>
           <button className="primary-button" disabled={saving}>
+            <Icon name="save" size={18} />
             {saving ? "저장 중…" : item ? "수정 저장" : "업무 저장"}
           </button>
         </div>
@@ -2627,7 +2709,7 @@ function CustomerModal({
               onClick={remove}
               disabled={saving}
             >
-              고객 삭제
+              <Icon name="delete" size={18} /> 고객 삭제
             </button>
           )}
           <span />
@@ -2640,6 +2722,7 @@ function CustomerModal({
             취소
           </button>
           <button className="primary-button" disabled={saving}>
+            <Icon name="save" size={18} />
             {saving ? "저장 중…" : "저장"}
           </button>
         </div>
@@ -2671,7 +2754,7 @@ function HistoryModal({
             className="primary-button"
             onClick={() => onNewWork(data.customer!.id)}
           >
-            ＋ 업무 등록
+            <Icon name="plus" size={18} /> 업무 등록
           </button>
           <button
             type="button"
@@ -2683,14 +2766,14 @@ function HistoryModal({
               })
             }
           >
-            다시 연락할 일 추가
+            <Icon name="tasks" size={18} /> 다시 연락할 일 추가
           </button>
           <button
             type="button"
             className="secondary-button"
             onClick={() => onCopy(data.customer!.id)}
           >
-            연락처·ID 복사
+            <Icon name="copy" size={18} /> 연락처·ID 복사
           </button>
         </div>
       )}
@@ -2721,7 +2804,7 @@ function HistoryModal({
               })
             }
           >
-            이 매물 확인할 일 추가
+            <Icon name="tasks" size={18} /> 이 매물 확인할 일 추가
           </button>
         </div>
       )}
@@ -2866,7 +2949,7 @@ function Modal({
             aria-label="닫기"
             disabled={locked}
           >
-            ×
+            <Icon name="close" />
           </button>
         </header>
         <div className="modal-body">{children}</div>
@@ -2877,7 +2960,9 @@ function Modal({
 function EmptyState({ title }: { title: string }) {
   return (
     <div className="empty-state">
-      <span>✓</span>
+      <span aria-hidden="true">
+        <Icon name="empty" />
+      </span>
       <p>{title}</p>
     </div>
   );

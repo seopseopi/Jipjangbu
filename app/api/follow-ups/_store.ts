@@ -99,6 +99,13 @@ const ITEM_SQL = `SELECT f.*, c.name AS customer_name,
   LEFT JOIN customers c ON c.id = f.customer_id
   LEFT JOIN listings l ON l.identity_key = f.listing_key`;
 
+// With an equal deadline, older open tasks retain their place. Completed
+// tasks use completion time instead, with the ID breaking any remaining tie.
+export const FOLLOW_UP_ORDER = `f.completed_at IS NOT NULL,
+  CASE WHEN f.completed_at IS NULL THEN f.due_date IS NULL END,
+  CASE WHEN f.completed_at IS NULL THEN f.due_date END,
+  f.completed_at DESC, CASE WHEN f.completed_at IS NULL THEN f.created_at END, f.id`;
+
 export async function getFollowUps(db: D1Database, params: URLSearchParams, now = new Date()) {
   const allowed = new Set(["q", "status", "due"]);
   for (const key of params.keys()) {
@@ -129,8 +136,7 @@ export async function getFollowUps(db: D1Database, params: URLSearchParams, now 
   }
   const [items, summary] = await db.batch([
     db.prepare(`${ITEM_SQL} ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-      ORDER BY f.completed_at IS NOT NULL, CASE WHEN f.completed_at IS NULL THEN f.due_date IS NULL END,
-        CASE WHEN f.completed_at IS NULL THEN f.due_date END, f.completed_at DESC, f.created_at DESC, f.id`)
+      ORDER BY ${FOLLOW_UP_ORDER}`)
       .bind(...bindings),
     db.prepare(`SELECT
       COALESCE(SUM(completed_at IS NULL), 0) AS open,

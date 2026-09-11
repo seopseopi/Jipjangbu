@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { WORK_SUMMARY_SQL } from "../_queries";
 import { apiError, ready } from "../_shared";
+import { HOME_UPCOMING_ORDER, LISTING_OLDEST_ORDER } from "../_ordering";
 
 type SummaryRow = {
   month_work_count: number;
@@ -50,7 +51,7 @@ export async function GET() {
         WHERE w.work_date > date('now', '+9 hours')
           AND w.work_date <= date('now', '+9 hours', '+30 days')
           AND (w.work_type LIKE '%예정' OR w.work_type LIKE '%예약')
-        ORDER BY w.work_date, w.updated_at, w.id
+        ORDER BY ${HOME_UPCOMING_ORDER}
         LIMIT 12
       `).all(),
       db.prepare(`
@@ -58,8 +59,7 @@ export async function GET() {
         WHERE closed_at IS NULL
           AND date(COALESCE(NULLIF(updated_at, ''), registered_at, '1900-01-01'))
             <= date('now', '+9 hours', '-90 days')
-        ORDER BY date(COALESCE(NULLIF(updated_at, ''), registered_at, '1900-01-01')),
-          building_name, building_dong, unit_number
+        ORDER BY ${LISTING_OLDEST_ORDER}
         LIMIT 12
       `).all(),
     ]);

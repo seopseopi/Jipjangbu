@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { clientJsonFetch } from "./client-api";
+import { Icon } from "./icons";
 import "./follow-ups.css";
 
 export type FollowUpItem = {
@@ -288,23 +289,20 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
         <textarea id={`${id}-notes`} rows={2} value={value.notes} onChange={(event) => update({ ...value, notes: event.target.value })} maxLength={4000} placeholder="다음 연락 때 확인할 내용을 남겨두세요." disabled={!!busyId} />
       </label>}
       {(value.customerId || value.listingKey) && <div className="followup-linked-records" aria-label="연결된 기록">
-        {value.customerId && <div className="followup-linked-record"><span>고객 · {saved ? saved.customer_name ?? "기록을 찾을 수 없음" : "선택한 고객"}</span><button type="button" disabled={!!busyId} onClick={() => update({ ...value, customerId: "" })}>고객 연결 해제</button></div>}
-        {value.listingKey && <div className="followup-linked-record"><span>매물 · {saved ? saved.listing_label ?? "기록을 찾을 수 없음" : "선택한 매물"}</span><button type="button" disabled={!!busyId} onClick={() => update({ ...value, listingKey: "" })}>매물 연결 해제</button></div>}
+        {value.customerId && <div className="followup-linked-record"><span>고객 · {saved ? saved.customer_name ?? "기록을 찾을 수 없음" : "선택한 고객"}</span><button type="button" disabled={!!busyId} onClick={() => update({ ...value, customerId: "" })}><Icon name="unlink" size={16} />고객 연결 해제</button></div>}
+        {value.listingKey && <div className="followup-linked-record"><span>매물 · {saved ? saved.listing_label ?? "기록을 찾을 수 없음" : "선택한 매물"}</span><button type="button" disabled={!!busyId} onClick={() => update({ ...value, listingKey: "" })}><Icon name="unlink" size={16} />매물 연결 해제</button></div>}
         {saved && ((value.customerId && !saved.customer_name) || (value.listingKey && !saved.listing_label)) && <p className="followup-link-warning">연결된 기록을 확인할 수 없습니다. 필요하면 연결을 해제해 주세요.</p>}
       </div>}
       {!editing && editingId && <p className="followup-link-note">수정 중인 할 일을 저장하거나 취소한 뒤 새 할 일을 추가할 수 있습니다.</p>}
       <div className="followup-form-actions">
         {!compact || editing || draftDirty ? <button className="followup-button" type="button" disabled={!!busyId} onClick={() => cancelForm(editing)}>취소</button> : null}
-        <button className="followup-button followup-button-primary" type="submit" disabled={!!busyId || !value.title.trim() || (!editing && !!editingId)}>{busyId === (editing ?? "new") ? "저장 중…" : editing ? "수정 저장" : "할 일 추가"}</button>
+        <button className="followup-button followup-button-primary" type="submit" disabled={!!busyId || !value.title.trim() || (!editing && !!editingId)}><Icon name={editing ? "save" : "plus"} size={18} />{busyId === (editing ?? "new") ? "저장 중…" : editing ? "수정 저장" : "할 일 추가"}</button>
       </div>
     </form>;
   }
 
   const summary = data?.summary;
-  const items = [...(data?.items ?? [])].sort((a, b) => {
-    if (a.completed_at && b.completed_at) return b.completed_at.localeCompare(a.completed_at);
-    return (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") || a.created_at.localeCompare(b.created_at);
-  });
+  const items = data?.items ?? [];
   const visibleItems = compact ? items.slice(0, 5) : items;
   const filters: Array<{ id: Filter; label: string; count?: number }> = [
     { id: "all", label: "전체 진행", count: summary?.open },
@@ -317,43 +315,49 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
   return <section className={`followup-view${compact ? " followup-compact" : ""}`} aria-label={compact ? "챙겨야 할 일" : "할 일 관리"}>
     <div className="followup-heading">
       <div><h2>{compact ? "챙겨야 할 일" : "다음 연락과 약속, 놓치지 않게"}</h2><p>{compact ? (summary?.overdue ? `기한이 지난 ${summary.overdue}건부터 확인해 보세요.` : "고객 연락과 매물 확인을 미리 기록해 두세요.") : "고객 연락, 매물 확인, 약속 준비를 한곳에서 챙기세요."}</p></div>
-      {compact ? onShowAll && <button className="followup-button followup-button-link" disabled={!!busyId} onClick={showAll}>전체 보기 <span aria-hidden="true">→</span></button> : !showForm && <button className="followup-button followup-button-primary" disabled={!!busyId} onClick={openNewForm}>+ 할 일 추가</button>}
+      {compact ? onShowAll && <button className="followup-button followup-button-link" disabled={!!busyId} onClick={showAll}>전체 보기 <Icon name="next" size={18} /></button> : !showForm && <button className="followup-button followup-button-primary" disabled={!!busyId} onClick={openNewForm}><Icon name="plus" size={18} />할 일 추가</button>}
     </div>
+
+    {compact && summary && <div className="followup-urgency" aria-label="챙겨야 할 일 요약">
+      <div className={`followup-urgency-count${summary.overdue ? " is-overdue" : ""}`}><Icon name="warning" size={18} /><span>기한 지남</span><strong>{summary.overdue.toLocaleString()}<small>건</small></strong></div>
+      <div className={`followup-urgency-count${summary.today ? " is-today" : ""}`}><Icon name="calendar" size={18} /><span>오늘</span><strong>{summary.today.toLocaleString()}<small>건</small></strong></div>
+    </div>}
 
     {!compact && <>
       <div className="followup-filters" aria-label="할 일 필터">
-        {filters.map((item) => <button key={item.id} className={`followup-filter${filter === item.id ? " is-active" : ""}${item.id === "overdue" ? " is-overdue" : ""}`} aria-pressed={filter === item.id} onClick={() => { if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 목록을 바꿀까요?")) return; setFilter(item.id); setEditingId(null); }} disabled={!!busyId}>{item.label}{item.count !== undefined && <span>{item.count.toLocaleString()}</span>}</button>)}
+        {filters.map((item) => <button key={item.id} className={`followup-filter${filter === item.id ? " is-active" : ""}${item.id === "overdue" ? " is-overdue" : ""}`} aria-pressed={filter === item.id} onClick={() => { if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 목록을 바꿀까요?")) return; setFilter(item.id); setEditingId(null); }} disabled={!!busyId}><Icon name={item.id === "overdue" ? "warning" : item.id === "completed" ? "check" : item.id === "all" ? "tasks" : "calendar"} size={18} />{item.label}{item.count !== undefined && <span>{item.count.toLocaleString()}</span>}</button>)}
       </div>
-      <label className="followup-search" htmlFor={`${formId}-search`}><span>할 일 검색</span><input id={`${formId}-search`} type="search" maxLength={200} value={query} disabled={!!busyId || !!editingId} title={editingId ? "수정을 저장하거나 취소한 뒤 검색할 수 있습니다." : undefined} onChange={(event) => setQuery(event.target.value)} placeholder="할 일, 메모, 고객명으로 검색" /></label>
+      <label className="followup-search" htmlFor={`${formId}-search`}><span><Icon name="search" size={18} />할 일 검색</span><input id={`${formId}-search`} type="search" maxLength={200} value={query} disabled={!!busyId || !!editingId} title={editingId ? "수정을 저장하거나 취소한 뒤 검색할 수 있습니다." : undefined} onChange={(event) => setQuery(event.target.value)} placeholder="할 일, 메모, 고객명으로 검색" /></label>
     </>}
 
     {!compact && showForm && renderForm(draft, setDraft)}
-    {error && <div className="followup-message followup-error" role="alert"><span>{error}</span><button className="followup-button" disabled={loading || !!busyId} onClick={() => { void reload(); }}>다시 불러오기</button></div>}
-    {notice && <div className="followup-message followup-notice" role="status"><span>{notice}</span><button className="followup-dismiss" aria-label="안내 닫기" onClick={() => setNotice("")}>×</button></div>}
+    {error && <div className="followup-message followup-error" role="alert"><span><Icon name="warning" size={18} />{error}</span><button className="followup-button" disabled={loading || !!busyId} onClick={() => { void reload(); }}><Icon name="refresh" size={18} />다시 불러오기</button></div>}
+    {notice && <div className="followup-message followup-notice" role="status"><span><Icon name="check" size={18} />{notice}</span><button className="followup-dismiss" aria-label="안내 닫기" onClick={() => setNotice("")}><Icon name="close" size={20} /></button></div>}
 
+    {data && items.length > 0 && <p className="followup-sort-note">{!compact && filter === "completed" ? "최근 완료한 순" : compact ? "기한 지난 일 먼저 · 예정일순" : "기한 지난 일 → 예정일순 → 날짜 미정"}</p>}
     {loading && !data ? <div className="followup-empty" role="status"><span className="followup-loading-dot" aria-hidden="true" /><p>할 일을 불러오고 있습니다.</p></div> : <div className="followup-list" aria-busy={loading}>
       {loading && <p className="followup-refresh" role="status">목록을 새로 불러오는 중…</p>}
-      {!visibleItems.length && !error ? <div className="followup-empty"><span className="followup-empty-symbol" aria-hidden="true">✓</span><strong>{search && !compact ? "검색된 할 일이 없습니다" : filter === "completed" && !compact ? "완료한 할 일이 없습니다" : filter !== "all" && !compact ? "해당하는 할 일이 없습니다" : "지금 챙길 할 일이 없습니다"}</strong><p>{search && !compact ? "다른 검색어나 필터로 찾아보세요." : "다음에 연락하거나 확인할 일을 남겨두세요."}</p></div> : null}
+      {!visibleItems.length && !error ? <div className="followup-empty"><span className="followup-empty-symbol" aria-hidden="true"><Icon name={search && !compact ? "search" : "tasks"} size={24} /></span><strong>{search && !compact ? "검색된 할 일이 없습니다" : filter === "completed" && !compact ? "완료한 할 일이 없습니다" : filter !== "all" && !compact ? "해당하는 할 일이 없습니다" : "지금 챙길 할 일이 없습니다"}</strong><p>{search && !compact ? "다른 검색어나 필터로 찾아보세요." : "다음에 연락하거나 확인할 일을 남겨두세요."}</p></div> : null}
       {visibleItems.map((item) => <article key={item.id} className={`followup-item${item.completed_at ? " is-completed" : ""}${!item.completed_at && item.due_date && item.due_date < today ? " is-overdue" : ""}`}>
         {editingId === item.id ? renderForm(editDraft, setEditDraft, item.id) : <>
-          <button className="followup-check" aria-label={`${item.title}: ${item.completed_at ? "다시 진행하기" : "완료하기"}`} aria-pressed={!!item.completed_at} disabled={!!busyId} onClick={() => { void mutate(item.id, "PATCH", { completed: !item.completed_at }, item.completed_at ? "할 일을 다시 열었습니다." : "할 일을 완료했습니다."); }}><span aria-hidden="true">{busyId === item.id ? "·" : item.completed_at ? "✓" : ""}</span></button>
+          <button className="followup-check" title={item.completed_at ? "다시 진행하기" : "완료하기"} aria-label={`${item.title}: ${item.completed_at ? "다시 진행하기" : "완료하기"}`} aria-pressed={!!item.completed_at} disabled={!!busyId} onClick={() => { void mutate(item.id, "PATCH", { completed: !item.completed_at }, item.completed_at ? "할 일을 다시 열었습니다." : "할 일을 완료했습니다."); }}><span aria-hidden="true">{busyId === item.id ? <Icon name="clock" size={16} /> : item.completed_at ? <Icon name="check" size={18} /> : null}</span></button>
           <div className="followup-item-body">
-            <div className="followup-item-top"><h3>{item.title}</h3><span className={`followup-due${!item.completed_at && item.due_date === today ? " is-today" : ""}`}><time dateTime={item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined}>{dueText(item, today)}</time></span></div>
+            <div className="followup-item-top"><h3>{item.title}</h3><span className={`followup-due${!item.completed_at && item.due_date === today ? " is-today" : ""}`}><Icon name={item.completed_at ? "check" : item.due_date && item.due_date < today ? "warning" : "calendar"} size={16} /><time dateTime={item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined}>{dueText(item, today)}</time></span></div>
             {item.notes && <p className="followup-notes">{item.notes}</p>}
             {(item.customer_id || item.listing_key) && <div className="followup-links">
-              {item.customer_id && (onOpenCustomer && item.customer_name ? <button disabled={!!busyId} onClick={() => onOpenCustomer(item.customer_id!, item.customer_name!)}>고객 · {item.customer_name} <span aria-hidden="true">↗</span></button> : <span>고객 · {item.customer_name ?? "연결된 기록 확인 불가"}</span>)}
-              {item.listing_key && (onOpenListing && item.listing_label ? <button disabled={!!busyId} onClick={() => onOpenListing(item.listing_key!)}>매물 · {item.listing_label} <span aria-hidden="true">↗</span></button> : <span>매물 · {item.listing_label ?? "연결된 기록 확인 불가"}</span>)}
+              {item.customer_id && (onOpenCustomer && item.customer_name ? <button disabled={!!busyId} onClick={() => onOpenCustomer(item.customer_id!, item.customer_name!)}><Icon name="customers" size={16} />고객 · {item.customer_name} <Icon name="upRight" size={16} /></button> : <span><Icon name="customers" size={16} />고객 · {item.customer_name ?? "연결된 기록 확인 불가"}</span>)}
+              {item.listing_key && (onOpenListing && item.listing_label ? <button disabled={!!busyId} onClick={() => onOpenListing(item.listing_key!)}><Icon name="listings" size={16} />매물 · {item.listing_label} <Icon name="upRight" size={16} /></button> : <span><Icon name="listings" size={16} />매물 · {item.listing_label ?? "연결된 기록 확인 불가"}</span>)}
             </div>}
             <div className="followup-item-actions">
-              <button disabled={!!busyId} onClick={() => startEdit(item)}>수정</button>
-              {!item.completed_at && <button disabled={!!busyId || item.due_date === "9999-12-31"} onClick={() => { const base = item.due_date && item.due_date > today ? item.due_date : today; void mutate(item.id, "PATCH", { dueDate: nextDay(base) }, "예정일을 하루 미뤘습니다."); }}>{!item.due_date || item.due_date <= today ? "내일로 미루기" : "하루 미루기"}</button>}
-              <button className="followup-delete" disabled={!!busyId} onClick={() => { if (window.confirm(`“${item.title}” 할 일을 삭제할까요?`)) void mutate(item.id, "DELETE", undefined, "할 일을 삭제했습니다."); }}>삭제</button>
+              <button disabled={!!busyId} onClick={() => startEdit(item)}><Icon name="edit" size={16} />수정</button>
+              {!item.completed_at && <button disabled={!!busyId || item.due_date === "9999-12-31"} onClick={() => { const base = item.due_date && item.due_date > today ? item.due_date : today; void mutate(item.id, "PATCH", { dueDate: nextDay(base) }, "예정일을 하루 미뤘습니다."); }}><Icon name="calendarPlus" size={16} />{!item.due_date || item.due_date <= today ? "내일로 미루기" : "하루 미루기"}</button>}
+              <button className="followup-delete" disabled={!!busyId} onClick={() => { if (window.confirm(`“${item.title}” 할 일을 삭제할까요?`)) void mutate(item.id, "DELETE", undefined, "할 일을 삭제했습니다."); }}><Icon name="delete" size={16} />삭제</button>
             </div>
           </div>
         </>}
       </article>)}
     </div>}
     {compact && renderForm(draft, setDraft)}
-    {compact && items.length > visibleItems.length && onShowAll && <button className="followup-show-more" disabled={!!busyId} onClick={showAll}>나머지 {items.length - visibleItems.length}건 더 보기 <span aria-hidden="true">→</span></button>}
+    {compact && items.length > visibleItems.length && onShowAll && <button className="followup-show-more" disabled={!!busyId} onClick={showAll}>나머지 {items.length - visibleItems.length}건 더 보기 <Icon name="next" size={18} /></button>}
   </section>;
 }

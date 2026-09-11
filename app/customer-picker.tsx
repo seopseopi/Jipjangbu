@@ -24,11 +24,18 @@ export function CustomerPicker({
   const selected = customers.find((customer) => customer.id === value);
   const matches = useMemo(() => {
     const term = normalize(query);
+    const rank = (customer: CustomerOption) => {
+      const values = [normalize(customer.name), normalize(customer.id)];
+      if (!term) return 0;
+      if (values.some((text) => text === term)) return 0;
+      return values.some((text) => text.startsWith(term)) ? 1 : 2;
+    };
     return customers
       .filter(
         (customer) =>
           !term || normalize(`${customer.name} ${customer.id}`).includes(term),
       )
+      .sort((left, right) => rank(left) - rank(right))
       .slice(0, 12);
   }, [customers, query]);
   function choose(customer: CustomerOption) {
