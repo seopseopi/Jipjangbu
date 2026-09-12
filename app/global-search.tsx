@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { clientJsonFetch } from "./client-api";
 import { Icon } from "./icons";
+import { searchExcerpt } from "./search-excerpt";
 
 export type GlobalSearchWorkLog = {
   id: string;
@@ -260,7 +261,7 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
                 {results.workLogs.map((item) => (
                   <button className="global-search-result global-search-work" type="button" key={item.id} onClick={() => chooseWork(item.id)}>
                     <span className="global-search-result-date">{displayDate(item.work_date)}</span>
-                    <span className="global-search-result-copy"><strong>{workTarget(item)}</strong><small>{item.content || item.customer_name}</small></span>
+                    <span className="global-search-result-copy"><strong>{workTarget(item)}</strong><small>{searchExcerpt(item.content, trimmedQuery) || item.customer_name}</small></span>
                     <span className="global-search-result-meta">{item.work_type}</span>
                     <Icon name="next" className="global-search-result-arrow" size={18} />
                   </button>
@@ -273,13 +274,16 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
             <section className="global-search-group" aria-labelledby="global-search-customer-title">
               <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-customer-title"><Icon name="customers" size={18} />고객</h3><span>{results.customers.length}명</span></div>
               <div className="global-search-list">
-                {results.customers.map((customer) => (
-                  <button className="global-search-result global-search-customer" type="button" key={customer.id} onClick={() => chooseCustomer(customer)}>
-                    <span className="global-search-result-copy"><strong>{customer.name}</strong><small>{customer.id}{customer.notes ? ` · ${customer.notes}` : ""}</small></span>
-                    <span className="global-search-result-meta">업무 {Number(customer.history_count) || 0}건</span>
-                    <Icon name="next" className="global-search-result-arrow" size={18} />
-                  </button>
-                ))}
+                {results.customers.map((customer) => {
+                  const notes = searchExcerpt(customer.notes, trimmedQuery);
+                  return (
+                    <button className="global-search-result global-search-customer" type="button" key={customer.id} onClick={() => chooseCustomer(customer)}>
+                      <span className="global-search-result-copy"><strong>{customer.name}</strong><small>{customer.id}{notes ? ` · ${notes}` : ""}</small></span>
+                      <span className="global-search-result-meta">업무 {Number(customer.history_count) || 0}건</span>
+                      <Icon name="next" className="global-search-result-arrow" size={18} />
+                    </button>
+                  );
+                })}
               </div>
             </section>
           )}

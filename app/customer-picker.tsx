@@ -1,11 +1,27 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import {
   indexCustomers,
   matchCustomers,
   type CustomerOption,
 } from "./customer-matches";
+
+function revealActiveCustomer(results: HTMLDivElement | null) {
+  const option = results?.querySelector<HTMLElement>('[aria-selected="true"]');
+  if (!results || !option) return;
+  const resultsBounds = results.getBoundingClientRect();
+  const optionBounds = option.getBoundingClientRect();
+  const visibleTop = resultsBounds.top + results.clientTop;
+  const visibleBottom = visibleTop + results.clientHeight;
+
+  // Scroll only the results, not the surrounding work editor or page.
+  if (optionBounds.top < visibleTop || optionBounds.height > results.clientHeight) {
+    results.scrollTop += optionBounds.top - visibleTop;
+  } else if (optionBounds.bottom > visibleBottom) {
+    results.scrollTop += optionBounds.bottom - visibleBottom;
+  }
+}
 
 export function CustomerPicker({
   customers,
@@ -19,6 +35,7 @@ export function CustomerPicker({
   disabled?: boolean;
 }) {
   const listId = useId();
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -28,6 +45,9 @@ export function CustomerPicker({
     () => matchCustomers(searchIndex, query),
     [searchIndex, query],
   );
+  useEffect(() => {
+    if (open) revealActiveCustomer(resultsRef.current);
+  }, [active, open, matches]);
   function choose(customer: CustomerOption) {
     onChange(customer.id);
     setQuery("");
@@ -91,6 +111,7 @@ export function CustomerPicker({
       />
       {open && (
         <div
+          ref={resultsRef}
           className="customer-picker-results"
           id={listId}
           role="listbox"
@@ -113,8 +134,8 @@ export function CustomerPicker({
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => choose(customer)}
             >
-              <strong>{customer.name}</strong>
-              <small>{customer.id}</small>
+              <strong className="customer-picker-name">{customer.name}</strong>
+              <small className="customer-picker-contact">{customer.id}</small>
             </button>
           ))}
         </div>

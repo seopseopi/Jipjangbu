@@ -16,6 +16,7 @@ import type {
   GlobalSearchListing as SearchListing,
 } from "./global-search";
 import { FollowUpsView } from "./follow-ups";
+import "./calendar.css";
 import { CustomerPicker } from "./customer-picker";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
 import { Icon, workTypeIcon } from "./icons";
@@ -2073,7 +2074,7 @@ function CustomersView({
                     <Icon name="copy" size={13} /> 눌러서 복사
                   </small>
                 </button>
-                <span data-label="비고">{item.notes || "-"}</span>
+                <span className="customer-notes" data-label="비고">{item.notes || "-"}</span>
                 <span data-label="최근 업무">
                   {displayDate(item.last_work_date)}
                   <small>이력 {item.history_count}건</small>
@@ -2116,44 +2117,67 @@ function CalendarView({
   onOpen: (id?: string) => void;
   onShowDay: (date: string, items: WorkSummary[]) => void;
 }) {
-  const cells = useMemo(() => {
-    const [year, mon] = month.split("-").map(Number);
-    const first = new Date(year, mon - 1, 1);
-    const count = new Date(year, mon, 0).getDate();
-    return [
-      ...Array(first.getDay()).fill(null),
-      ...Array.from({ length: count }, (_, index) => index + 1),
-    ];
-  }, [month]);
-  const grouped = useMemo(
-    () =>
-      items.reduce<Record<number, WorkSummary[]>>((acc, item) => {
-        const day = Number(item.work_date.slice(8, 10));
-        (acc[day] ||= []).push(item);
-        return acc;
-      }, {}),
-    [items],
-  );
+  const today = seoulDate();
+  const { displayedMonth, cells, grouped, firstWeekday } = useMemo(() => {
+    const displayedMonth = /^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : today.slice(0, 7);
+    // ISO parsing avoids Date's special handling of numeric years below 100.
+    const first = new Date(`${displayedMonth}-01T12:00:00Z`);
+    const last = new Date(first);
+    last.setUTCMonth(last.getUTCMonth() + 1, 0);
+    const count = last.getUTCDate();
+    const grouped = items.reduce<Record<number, WorkSummary[]>>((acc, item) => {
+      const day = Number(item.work_date.slice(8, 10));
+      // A changed month must not briefly show the previous month's rows.
+      if (!item.work_date.startsWith(`${displayedMonth}-`) || !Number.isInteger(day) || day < 1 || day > count) return acc;
+      // Keep the selected work type honest while its replacement request is pending.
+      if (workType && item.work_type !== workType) return acc;
+      (acc[day] ||= []).push(item);
+      return acc;
+    }, {});
+    return {
+      displayedMonth,
+      cells: [
+        ...Array(first.getUTCDay()).fill(null),
+        ...Array.from({ length: count }, (_, index) => index + 1),
+      ],
+      grouped,
+      firstWeekday: first.getUTCDay(),
+    };
+  }, [month, items, today, workType]);
+  const agendaDays = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  function changeMonth(amount: number) {
+    const date = new Date(`${displayedMonth}-01T12:00:00Z`);
+    date.setUTCMonth(date.getUTCMonth() + amount);
+    const next = `${String(date.getUTCFullYear()).padStart(4, "0")}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+    if (/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(next)) setMonth(next);
+  }
   return (
     <>
       <div className="calendar-controls">
         <button
           type="button"
           aria-label="이전 달"
-          onClick={() => setMonth(shiftMonth(month, -1))}
+          disabled={displayedMonth === "0001-01"}
+          onClick={() => changeMonth(-1)}
         >
           <Icon name="back" size={18} />
         </button>
         <input
           aria-label="달력 월"
           type="month"
-          value={month}
-          onChange={(event) => setMonth(event.target.value)}
+          min="0001-01"
+          max="9999-12"
+          value={displayedMonth}
+          onChange={(event) => {
+            if (/^(?!0000)\d{4}-(0[1-9]|1[0-2])$/.test(event.target.value)) setMonth(event.target.value);
+          }}
         />
         <button
           type="button"
           aria-label="다음 달"
-          onClick={() => setMonth(shiftMonth(month, 1))}
+          disabled={displayedMonth === "9999-12"}
+          onClick={() => changeMonth(1)}
         >
           <Icon name="next" size={18} />
         </button>
@@ -2168,7 +2192,7 @@ function CalendarView({
           ))}
         </select>
       </div>
-      <section className="panel calendar-panel">
+      <section className="panel calendar-panel calendar-desktop-panel" aria-label="월간 업무 달력">
         <div className="calendar-week">
           <span>일</span>
           <span>월</span>
@@ -2181,7 +2205,7 @@ function CalendarView({
         <div className="calendar-grid">
           {cells.map((day, index) => (
             <div
-              className={`calendar-cell ${day === Number(seoulDate().slice(8, 10)) && month === seoulDate().slice(0, 7) ? "today-cell" : ""}`}
+              className={`calendar-cell ${day === Number(today.slice(8, 10)) && displayedMonth === today.slice(0, 7) ? "today-cell" : ""}`}
               key={`${day}-${index}`}
             >
               {day && (
@@ -2190,6 +2214,7 @@ function CalendarView({
                   <div>
                     {(grouped[day] || []).slice(0, 4).map((item) => (
                       <button
+                        type="button"
                         className={statusTone(item.work_type)}
                         onClick={() => onOpen(item.id)}
                         key={item.id}
@@ -2208,7 +2233,7 @@ function CalendarView({
                         type="button"
                         onClick={() =>
                           onShowDay(
-                            `${month}-${String(day).padStart(2, "0")}`,
+                            `${displayedMonth}-${String(day).padStart(2, "0")}`,
                             grouped[day],
                           )
                         }
@@ -2223,15 +2248,45 @@ function CalendarView({
           ))}
         </div>
       </section>
+      <section className="panel calendar-agenda" aria-label="날짜별 업무 목록">
+        {agendaDays.length === 0 ? (
+          <p className="calendar-agenda-empty">
+            {workType ? "선택한 달에 해당 업무구분의 기록이 없습니다." : "선택한 달에 등록된 업무가 없습니다."}
+          </p>
+        ) : agendaDays.map((day) => {
+          const date = `${displayedMonth}-${String(day).padStart(2, "0")}`;
+          const dayItems = grouped[day];
+          return (
+            <article className={`calendar-agenda-day${date === today ? " is-today" : ""}`} key={date}>
+              <header className="calendar-agenda-day-head">
+                <h2><time dateTime={date}>{Number(displayedMonth.slice(5))}월 {day}일 ({weekdays[(firstWeekday + day - 1) % 7]})</time>{date === today && <span>오늘</span>}</h2>
+                <span>{dayItems.length}건</span>
+              </header>
+              <div className="calendar-agenda-events">
+                {dayItems.slice(0, 4).map((item) => {
+                  const target = targetText(item);
+                  return (
+                    <button className="calendar-agenda-event" type="button" key={item.id} onClick={() => onOpen(item.id)}>
+                      <span className="calendar-agenda-event-head"><span className={`tag ${statusTone(item.work_type)}`}>{item.work_type}</span><span className="calendar-agenda-open">업무 열기 <Icon name="next" size={16} /></span></span>
+                      <strong>{target === "물건 없음" ? item.customer_name : target}</strong>
+                      {target !== "물건 없음" && item.customer_name && <small>고객 · {item.customer_name}</small>}
+                      {item.content && <span className="calendar-agenda-notes">{item.content}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              {dayItems.length > 4 && (
+                <button className="calendar-agenda-more" type="button" onClick={() => onShowDay(date, dayItems)}>
+                  이 날짜 업무 {dayItems.length}건 모두 보기 <span>· {dayItems.length - 4}건 더 있음</span>
+                </button>
+              )}
+            </article>
+          );
+        })}
+      </section>
     </>
   );
 }
-function shiftMonth(month: string, amount: number) {
-  const [year, mon] = month.split("-").map(Number);
-  const date = new Date(year, mon - 1 + amount, 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function SettingsView({
   lookups,
   onSaved,
@@ -2295,7 +2350,8 @@ function SettingsView({
           {lookups.propertyTypes.map((type) => (
             <details key={type}>
               <summary>
-                {type}
+                <Icon name="next" size={18} />
+                <span>{type}</span>
                 <small>
                   {
                     lookups.buildings.filter(
@@ -2305,12 +2361,11 @@ function SettingsView({
                   개
                 </small>
               </summary>
-              <p>
+              <ul className="building-name-list">
                 {lookups.buildings
                   .filter((item) => item.property_type === type)
-                  .map((item) => item.building_name)
-                  .join(" · ")}
-              </p>
+                  .map((item) => <li key={item.id}>{item.building_name}</li>)}
+              </ul>
             </details>
           ))}
         </div>
@@ -2756,7 +2811,7 @@ function WorkModal({
             value={content}
             disabled={saving}
             onChange={(event) => setContent(event.target.value)}
-            rows={3}
+            rows={Math.min(14, Math.max(6, content.split("\n").length))}
             placeholder="상담 내용, 일정, 특이사항을 입력하세요"
           />
         </label>
@@ -3171,7 +3226,7 @@ function HistoryModal({
   onCopy: (id: string) => void;
 }) {
   return (
-    <Modal title={data.title} subtitle={data.subtitle} onClose={onClose}>
+    <Modal title={data.title} subtitle={data.subtitle} onClose={onClose} reading>
       {data.loading && <p className="form-help" role="status">이력을 불러오고 있습니다…</p>}
       {data.error && <div className="form-error" role="alert"><p>{data.error}</p>{(data.customer || data.listing || data.listingKey || data.date) && <button type="button" className="secondary-button" onClick={onRefresh}><Icon name="refresh" size={16} /> 다시 불러오기</button>}</div>}
       {data.customer && (
@@ -3205,8 +3260,9 @@ function HistoryModal({
         </div>
       )}
       {data.listing && (
-        <div className="editor-context">
-          <p>
+        <>
+        <div className="listing-history-context">
+          <p className="listing-history-summary">
             <strong>{data.listing.status}</strong> ·{" "}
             {[
               data.listing.sale_price && `매매 ${data.listing.sale_price}`,
@@ -3217,10 +3273,12 @@ function HistoryModal({
               .join(" / ") || "가격 미기재"}
           </p>
           {data.listing.source_notes && (
-            <p style={{ whiteSpace: "pre-wrap" }}>
+            <p className="listing-history-notes">
               {data.listing.source_notes}
             </p>
           )}
+        </div>
+        <div className="listing-history-actions">
           <button
             type="button"
             className="secondary-button"
@@ -3234,6 +3292,7 @@ function HistoryModal({
             <Icon name="tasks" size={18} /> 이 매물 확인할 일 추가
           </button>
         </div>
+        </>
       )}
       <div className="history-list">
         {!data.items.length ? (
@@ -3251,13 +3310,13 @@ function HistoryModal({
                 onClick={() => id && onOpenWork(id)}
                 disabled={!id}
               >
-                <span className={`history-mark ${statusTone(status)}`} />
-                <time>{displayDate(date)}</time>
-                <div>
+                <div className="history-entry-meta">
+                  <span className={`history-mark ${statusTone(status)}`} />
+                  <time dateTime={date}>{displayDate(date)}</time>
                   <strong>{status}</strong>
-                  <p>{content || "기록된 내용 없음"}</p>
+                  {isEvent && <small>{raw.customer_name}</small>}
                 </div>
-                {isEvent && <small>{raw.customer_name}</small>}
+                <p className="history-entry-content">{content || "기록된 내용 없음"}</p>
               </button>
             );
           })
@@ -3271,6 +3330,7 @@ function Modal({
   subtitle,
   onClose,
   wide,
+  reading,
   locked = false,
   children,
 }: {
@@ -3278,6 +3338,7 @@ function Modal({
   subtitle: string;
   onClose: () => void;
   wide?: boolean;
+  reading?: boolean;
   locked?: boolean;
   children: React.ReactNode;
 }) {
@@ -3358,7 +3419,7 @@ function Modal({
     >
       <section
         ref={cardRef}
-        className={`modal-card ${wide ? "wide" : ""}`}
+        className={`modal-card ${wide ? "wide" : ""} ${reading ? "reading" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label={title}
