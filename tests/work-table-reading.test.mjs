@@ -233,7 +233,7 @@ const listing = {
 };
 const event = (id, customerId, extra = {}) => ({ id, event_date: "2026-09-13", status: "매물수정", notes: "변경 기록", work_log_id: `work-${id}`, customer_id: customerId, customer_name: `고객 ${customerId}`, ...extra });
 
-test("매물 수정 이력 추가는 현재 매물과 가장 최근 이력의 고객을 전달하며 기존 기록 보존 기준을 알린다", () => {
+test("매물 수정 이력 추가는 현재 매물과 가장 최근 이력의 고객을 전달하며 전체 이력 읽기와 개별 업무를 구분한다", () => {
   const modified = [], created = [];
   const items = [event("without-customer", ""), event("latest", "customer-latest"), event("older", "customer-older", { event_date: "2026-09-12" })];
   const tree = history({ listing, items }, {
@@ -248,9 +248,12 @@ test("매물 수정 이력 추가는 현재 매물과 가장 최근 이력의 �
   buttons(tree, "이 매물로 업무 등록")[0].props.onClick();
   assert.deepEqual(created, [listing], "ordinary new work does not silently choose the modification action or previous customer");
   const html = markup(tree);
-  assert.match(html, /기존 업무를 수정해도 업무일은 유지/);
-  assert.match(html, /저장 시각은 별도로 표시/);
-  assert.match(html, /현재 매물 상태·가격은 가장 최근 업무일 기준/);
+  assert.match(html, /전체 매물 이력/);
+  assert.match(html, /업무일 최신순 · 3건/);
+  const individual = byClass(tree, "listing-work-details")[0];
+  assert.equal(individual.type, "details");
+  assert.equal(Boolean(individual.props.open), false);
+  assert.match(markup(individual), /개별 업무 보기/);
   assert.match(html, /보존할 기존 매물 메모/);
 });
 

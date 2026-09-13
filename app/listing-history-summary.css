@@ -1,22 +1,19 @@
-/* Saved work is the current reading summary; imported source remains separate. */
+/* One continuous memo for all events; individual editing stays secondary. */
 .listing-saved-summary { min-width: 0; color: var(--ink); }
-.listing-latest-save { min-width: 0; padding-block: 14px; }
-.listing-latest-save-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
-.listing-latest-save-heading h3 { margin: 0; color: var(--ink); font-size: var(--text-base); font-weight: 700; line-height: 1.6; }
-.listing-latest-open { display: inline-flex; align-items: center; justify-content: center; gap: 3px; min-height: 40px; padding: 5px 0; border: 0; background: transparent; color: var(--green); font-size: var(--text-small); font-weight: 600; }
-.listing-latest-open:hover { text-decoration: underline; text-underline-offset: 4px; }
-.listing-latest-save-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
-.listing-latest-save-meta strong { color: var(--ink); font-weight: 600; }
-.listing-latest-save-content { margin: 10px 0 0; color: var(--ink); font-size: var(--text-base); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
-.listing-save-time-unknown { margin: 7px 0 0; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
+.listing-all-history { min-width: 0; padding-block: 14px; }
+.listing-all-history-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; }
+.listing-all-history-heading h3 { margin: 0; color: var(--ink); font-size: var(--text-base); font-weight: 700; line-height: 1.6; }
+.listing-all-history-heading > span { color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
+.listing-history-memo { margin: 12px 0 0; color: var(--ink); font-size: var(--text-base); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .listing-source-notes { min-width: 0; border-top: 1px solid var(--line); }
 .listing-source-notes > summary { display: flex; align-items: center; gap: 5px; min-height: 44px; padding-block: 9px; color: var(--muted); font-size: var(--text-small); font-weight: 600; cursor: pointer; }
 .listing-source-notes > summary::marker, .listing-source-notes > summary::-webkit-details-marker { display: none; content: ""; }
 .listing-source-notes[open] > summary > .ui-icon { transform: rotate(90deg); }
 .listing-source-notes > p { margin: 0 0 14px; color: var(--ink); font-size: var(--text-small); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
 .related-history > .listing-saved-summary { margin: 0 17px 10px; }
+.listing-individual-records { min-width: 0; border-top: 1px solid var(--line); }
+.listing-individual-records > summary { display: flex; align-items: center; gap: 5px; min-height: 46px; padding: 10px 17px; color: var(--green); font-size: var(--text-small); font-weight: 600; cursor: pointer; }
+.listing-individual-records > summary::marker, .listing-individual-records > summary::-webkit-details-marker { display: none; content: ""; }
+.listing-individual-records[open] > summary > .ui-icon { transform: rotate(90deg); }
+.listing-individual-records > .secondary-button { margin: 12px 17px; }
 .history-record-saved-at { display: block; margin-top: 4px; color: var(--muted); font-size: var(--text-caption); line-height: 1.7; overflow-wrap: anywhere; }
-@media (max-width: 720px) {
-  .listing-latest-save-meta { gap: 3px 10px; }
-  .listing-latest-save-meta > span { max-width: 100%; overflow-wrap: anywhere; }
-}

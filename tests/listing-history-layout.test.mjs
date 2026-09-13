@@ -53,7 +53,7 @@ test("매물 이력의 원본 메모는 가격 아래 접힌 읽기 영역에 �
       jeonse_price: "", monthly_rent: "", source_notes: sourceNotes,
     };
     const calls = [];
-    const tree = renderHistory(listing, (draft) => calls.push(draft));
+    const tree = renderHistory(listing, (draft) => calls.push(draft), { items: [{ id: "synthetic-event", event_date: "2026-09-13", status: "매물확인", notes: "별도 업무에 저장한 합성 이력", work_log_id: "synthetic-work" }] });
     const siblings = elements(tree.props.children);
     const contextIndex = siblings.findIndex((element) => hasClass(element, "listing-history-context"));
     assert.ok(contextIndex >= 0, "listing summary card exists");
@@ -72,7 +72,7 @@ test("매물 이력의 원본 메모는 가격 아래 접힌 읽기 영역에 �
     const sourceDetails = summary ? descendants(summary).find((element) => element.type === "details") : undefined;
     if (sourceNotes) {
       assert.ok(sourceDetails, "original Excel notes remain available in a native disclosure");
-      assert.equal(Boolean(sourceDetails.props.open), false, "the long original notes start collapsed rather than covering the recent change");
+      assert.equal(Boolean(sourceDetails.props.open), false, "the long original notes start collapsed rather than covering the complete work history");
       assert.match(renderToStaticMarkup(sourceDetails), /엑셀 원본 메모/);
       const note = descendants(sourceDetails).find((element) => element.type === "p" && element.props.children === notes);
       assert.ok(note, "notes are not trimmed, shortened or split into narrow columns");
@@ -90,7 +90,10 @@ test("매물 이력의 원본 메모는 가격 아래 접힌 읽기 영역에 �
     assert.deepEqual(calls, [], "rendering history does not create a follow-up");
     buttons[0].props.onClick();
     assert.deepEqual(calls, [{ title: "예시 매물 매물 확인", listingKey: listing.identity_key, listingLabel: "예시 매물" }]);
-    assert.ok(siblings.findIndex((element) => hasClass(element, "history-list")) > contextIndex + 1);
+    const workDetailsIndex = siblings.findIndex((element) => hasClass(element, "listing-work-details"));
+    assert.ok(workDetailsIndex > contextIndex + 1);
+    assert.equal(Boolean(siblings[workDetailsIndex].props.open), false);
+    assert.ok(descendants(siblings[workDetailsIndex]).some((element) => hasClass(element, "history-list")));
   }
   assert.equal(descendants(renderHistory(undefined, assert.fail)).some((element) => hasClass(element, "listing-history-actions")), false);
 });
@@ -117,7 +120,10 @@ test("고객·매물의 각 이력은 날짜·상태 아래 전체 폭 본문을
     const opened = [];
     const tree = renderHistory(example.listing, assert.fail, { ...example, onOpenWork: (id) => opened.push(id) });
     assert.equal(tree.props.reading, true, "both history types use the reading-width modal");
-    const list = elements(tree.props.children).find((element) => hasClass(element, "history-list"));
+    const list = descendants(tree).find((element) => hasClass(element, "history-list"));
+    const disclosure = descendants(tree).find((element) => hasClass(element, "listing-work-details"));
+    assert.equal(Boolean(disclosure), Boolean(example.listing), "only listing history folds the individual work controls");
+    if (disclosure) assert.equal(Boolean(disclosure.props.open), false);
     const rows = elements(list.props.children);
     assert.equal(rows.length, example.items.length);
     for (const [index, row] of rows.entries()) {

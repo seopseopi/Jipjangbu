@@ -263,6 +263,27 @@ function HistoryPanel({
     }
   }
 
+  const recordList = <>
+    {visibleRecords.length > 0 && (
+      <div className="related-history-list">
+        {visibleRecords.map((record) => (
+          <HistoryRecordRow
+            key={record.id}
+            record={record}
+            current={Boolean(currentWorkId && record.workId === currentWorkId)}
+          />
+        ))}
+      </div>
+    )}
+    {canShowMore && !error && (
+      <button type="button" className="secondary-button" onClick={requestMore} disabled={loading}>
+        <Icon name="plus" size={18} />
+        {loading ? "불러오는 중…" : `${HISTORY_PAGE_SIZE}건 더 보기`}
+        {data && ` (${visibleRecords.length}/${data.total})`}
+      </button>
+    )}
+  </>;
+
   return (
     <section className="related-history" aria-labelledby={headingId} onKeyDownCapture={(event) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); onClose(); }
@@ -286,7 +307,7 @@ function HistoryPanel({
           <Icon name="close" size={18} /> 닫기
         </button>
       </div>
-      {data && (
+      {data && !isListing && (
         <p className="related-history-summary">
           총 {data.total.toLocaleString("ko-KR")}건 · 업무일 최신순
         </p>
@@ -319,33 +340,16 @@ function HistoryPanel({
       {data && !data.records.length && !error && (
         <p className="related-history-status">
           {isListing
-            ? "이 물건에 저장된 매물 변경 이력이 없습니다."
+            ? data.sourceNotes.trim() ? "연결된 개별 업무 기록은 없습니다." : "이 물건에 저장된 매물 변경 이력이 없습니다."
             : "이 고객에게 저장된 업무 이력이 없습니다."}
         </p>
       )}
-      {visibleRecords.length > 0 && (
-        <div className="related-history-list">
-          {visibleRecords.map((record) => (
-            <HistoryRecordRow
-              key={record.id}
-              record={record}
-              current={Boolean(currentWorkId && record.workId === currentWorkId)}
-            />
-          ))}
-        </div>
-      )}
-      {canShowMore && !error && (
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={requestMore}
-          disabled={loading}
-        >
-          <Icon name="plus" size={18} />
-          {loading ? "불러오는 중…" : `${HISTORY_PAGE_SIZE}건 더 보기`}
-          {data && ` (${visibleRecords.length}/${data.total})`}
-        </button>
-      )}
+      {isListing && visibleRecords.length > 0 ? (
+        <details className="listing-individual-records">
+          <summary><Icon name="next" size={16} /> 개별 업무 보기 · {data?.total.toLocaleString("ko-KR")}건</summary>
+          {recordList}
+        </details>
+      ) : recordList}
       <p className="related-history-footer">
         조회만 하며 작성 중 내용은 바뀌지 않습니다.
       </p>

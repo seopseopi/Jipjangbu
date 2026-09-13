@@ -3743,6 +3743,7 @@ function HistoryModal({
   onFollowUp: (draft: FollowUpDraft) => void;
   onCopy: (id: string) => void;
 }) {
+  const RecordContainer = data.listing ? "details" : "div";
   return (
     <Modal title={data.title} subtitle={data.subtitle} onClose={onClose} reading>
       {data.loading && <p className="form-help" role="status">이력을 불러오고 있습니다…</p>}
@@ -3794,7 +3795,6 @@ function HistoryModal({
           <ListingHistorySummary
             events={data.items.filter((item): item is ListingEvent => "event_date" in item)}
             sourceNotes={data.listing.source_notes}
-            onOpenWork={data.loading || data.error ? undefined : onOpenWork}
           />
         </div>
         <div className="listing-history-actions">
@@ -3830,7 +3830,8 @@ function HistoryModal({
         </div>
         </>
       )}
-      {data.listing && <p className="history-list-guide">아래 이력은 업무일 최신순입니다. 기존 업무를 수정해도 업무일은 유지되며, 저장 시각은 별도로 표시합니다. 현재 매물 상태·가격은 가장 최근 업무일 기준입니다.</p>}
+      {(!data.listing || data.items.length > 0) && <RecordContainer className={data.listing ? "listing-work-details" : undefined}>
+      {data.listing && <summary><Icon name="next" size={16} /> 개별 업무 보기 <span>{data.items.length.toLocaleString("ko-KR")}건</span></summary>}
       {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" aria-busy={Boolean(data.loading)}>
         {!data.items.length ? (
@@ -3873,6 +3874,7 @@ function HistoryModal({
           })
         )}
       </div>
+      </RecordContainer>}
     </Modal>
   );
 }

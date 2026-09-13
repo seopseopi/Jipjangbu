@@ -10,7 +10,8 @@ import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
 
 // Exercise the real parent modal plus its real summary, with no requests and
-// entirely synthetic notes. Business-date order and save order are distinct.
+// entirely synthetic notes. The main memo retains every event in business-date
+// order; individual work controls are available in a separate disclosure.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("work-manager.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const node = ast.statements.find((item) => ts.isFunctionDeclaration(item) && item.name?.text === "HistoryModal");
@@ -28,6 +29,16 @@ const markup = (element) => renderToStaticMarkup(element);
 function descendants(element) {
   if (!React.isValidElement(element)) return [];
   return [element, ...React.Children.toArray(element.props.children).flatMap(descendants)];
+}
+function initiallyVisibleText(element) {
+  if (typeof element === "string" || typeof element === "number") return String(element);
+  if (!React.isValidElement(element)) return "";
+  if (element.type === ListingHistorySummary) return initiallyVisibleText(ListingHistorySummary(element.props));
+  const children = React.Children.toArray(element.props.children);
+  if (element.type === "details" && !element.props.open) {
+    return initiallyVisibleText(children.find((child) => React.isValidElement(child) && child.type === "summary"));
+  }
+  return children.map(initiallyVisibleText).join("");
 }
 const hasClass = (element, name) => element.props.className?.split(/\s+/).includes(name);
 const byClass = (tree, name) => descendants(tree).filter((element) => hasClass(element, name));
@@ -60,26 +71,36 @@ function timeline(tree) {
   return React.Children.toArray(list.props.children).filter(React.isValidElement);
 }
 
-test("9월 1일 업무를 9월 13일 저장하면 상단에 수정 내용을 보여주고 9월 17일 미래 일정은 위로 올리지 않는다", () => {
+test("상단 전체 매물 이력은 미래 일정과 과거 업무 수정 내용을 모두 API 업무일 순서 그대로 한 본문에 표시한다", () => {
   const items = Object.freeze([Object.freeze({ ...future }), Object.freeze({ ...edited })]);
   const before = JSON.stringify(items);
   const tree = history({ items });
   const top = summary(tree).tree;
-  const recent = byClass(top, "listing-latest-save")[0];
-  const text = markup(recent);
-  assert.match(text, /최근 저장한 업무 내용/);
-  assert.match(text, /2026\.09\.01/);
-  assert.match(text, /2026\.09\.13 13:05/);
+  const memo = byClass(top, "listing-history-memo")[0];
+  const text = markup(top);
+  assert.match(text, /전체 매물 이력/);
+  assert.match(text, /업무일 최신순 · 2건/);
+  assert.equal(memo.props.children, `${future.notes}\n(${future.status}) (${future.event_date})\n\n${edited.notes}\n(${edited.status}) (${edited.event_date})`);
   assert.doesNotMatch(text, /한국\s*시간/);
   assert.match(text, /합성 임차인 연락처 확인 방식 변경/);
-  assert.doesNotMatch(text, /미리 등록한 합성 미래 일정|2026\.09\.17|2026\.09\.20/);
-  assert.equal(byClass(recent, "listing-latest-save-content")[0].props.children, edited.notes);
-  assert.equal(JSON.stringify(items), before, "selecting the latest save does not rewrite or reorder its input");
+  assert.match(text, /미리 등록한 합성 미래 일정/);
+  assert.doesNotMatch(text, /최근 저장한 업무 내용|최근 업무 내용|2026\.09\.13 13:05|2026\.09\.20/);
+  assert.equal(descendants(top).filter((element) => element.type === "button").length, 0);
+  const initialText = initiallyVisibleText(tree);
+  assert.equal(initialText.split(future.notes).length - 1, 1, "the future record is initially visible once in the single main memo");
+  assert.equal(initialText.split(edited.notes).length - 1, 1, "the edited record is initially visible once; its individual control stays folded");
+  assert.equal(JSON.stringify(items), before, "reading all notes does not rewrite, sort, or drop an event");
 });
 
-test("상단 선택과 무관하게 아래 타임라인은 업무일 순서를 유지하며 각 업무일과 실제 저장 시각을 따로 읽는다", () => {
+test("개별 업무는 처음 접혀 있지만 모든 행의 업무일·저장시각·정확한 읽기 콜백을 유지한다", () => {
   const opened = [];
   const tree = history({}, { onOpenWork: (id) => opened.push(id) });
+  const disclosure = byClass(tree, "listing-work-details")[0];
+  assert.equal(disclosure.type, "details");
+  assert.equal(Boolean(disclosure.props.open), false);
+  const heading = descendants(disclosure).find((element) => element.type === "summary");
+  assert.match(markup(heading), /개별 업무 보기.*2건/);
+  assert.equal(disclosure.props.onToggle, undefined, "the native disclosure does not trigger network or mutation callbacks");
   const rows = timeline(tree);
   assert.equal(rows.length, 2);
   assert.deepEqual(rows.map((row) => descendants(row).find((element) => element.type === "time" && element.props.dateTime).props.dateTime), ["2026-09-17", "2026-09-01"]);
@@ -90,14 +111,10 @@ test("상단 선택과 무관하게 아래 타임라인은 업무일 순서를 �
   assert.doesNotMatch(markup(tree), /한국\s*시간/);
   rows.forEach((row) => row.props.onClick());
   assert.deepEqual(opened, [future.work_log_id, edited.work_log_id]);
-  const top = summary(tree).tree;
-  const open = descendants(top).find((element) => element.type === "button");
-  assert.equal(open.props.type, "button");
-  open.props.onClick();
-  assert.deepEqual(opened, [future.work_log_id, edited.work_log_id, edited.work_log_id], "the top action opens the edited work, not the future date's work");
+  assert.equal(summary(tree).element.props.onOpenWork, undefined, "the all-notes summary is read-only; opening a work belongs to its own row");
 });
 
-test("현재 매물 상태·가격과 최근 저장한 업무 내용은 별개 표제로 구분하며 원본 메모는 처음에 접힌 채 전문을 보존한다", () => {
+test("현재 상태·가격과 전체 이력은 구분하고 이벤트가 있는 매물의 엑셀 원본 메모는 접힌 채 전문을 보존한다", () => {
   const sourceNotes = `  엑셀 원본의 합성 임차인 메모\n\n<확인> & ${"합성 원문 ".repeat(90)}\n끝  `;
   const tree = history({ listing: { ...listing, source_notes: sourceNotes } });
   const current = byClass(tree, "listing-history-context")[0];
@@ -110,27 +127,35 @@ test("현재 매물 상태·가격과 최근 저장한 업무 내용은 별개 �
   assert.match(markup(original), /엑셀 원본 메모/);
   assert.ok(descendants(original).some((element) => element.type === "p" && element.props.children === sourceNotes));
   assert.ok(markup(original).includes(sourceNotes.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")));
-  assert.equal(byClass(top, "listing-latest-save-content")[0].props.children, edited.notes);
-  assert.doesNotMatch(markup(byClass(top, "listing-latest-save")[0]), /엑셀 원본의 합성 임차인 메모/);
+  const memo = byClass(top, "listing-history-memo")[0];
+  assert.ok(memo.props.children.includes(edited.notes));
+  assert.ok(memo.props.children.includes(future.notes));
+  assert.doesNotMatch(markup(memo), /엑셀 원본의 합성 임차인 메모/);
 });
 
-test("같은 업무를 다시 저장해 새 응답으로 그리면 상단 내용과 저장시각만 갱신되고 원래 업무일은 그대로다", () => {
+test("같은 업무를 수정해 다시 읽어도 다른 기록은 빠지지 않고 과거 업무일 위치에서 변경 내용만 갱신한다", () => {
   const initial = history({ items: [future, { ...edited, notes: "수정 전 합성 연락 메모", work_updated_at: "2026-09-09T01:00:00Z" }] });
   assert.match(markup(summary(initial).tree), /미리 등록한 합성 미래 일정/);
+  assert.match(markup(summary(initial).tree), /수정 전 합성 연락 메모/);
   const updated = history({ items: [future, edited] });
-  const top = byClass(summary(updated).tree, "listing-latest-save")[0];
+  const top = byClass(summary(updated).tree, "listing-history-memo")[0];
   assert.match(markup(top), /합성 임차인 연락처 확인 방식 변경/);
-  assert.doesNotMatch(markup(top), /수정 전 합성 연락 메모|미리 등록한 합성 미래 일정/);
-  assert.match(markup(top), /2026\.09\.01/);
+  assert.match(markup(top), /미리 등록한 합성 미래 일정/);
+  assert.doesNotMatch(markup(top), /수정 전 합성 연락 메모/);
+  assert.match(markup(top), /2026-09-01/);
+  assert.ok(top.props.children.indexOf(future.notes) < top.props.children.indexOf(edited.notes));
   assert.deepEqual(timeline(initial).map((row) => row.key), timeline(updated).map((row) => row.key));
 });
 
-test("목록을 다시 읽는 중이거나 읽기에 실패하면 상단 업무 열기 연결도 중지한다", () => {
-  for (const state of [{ loading: true }, { error: "합성 일시 조회 실패" }]) {
-    const tree = history(state, { onOpenWork: () => assert.fail("a pending summary must not open an old work") });
+test("상단은 정상·조회 중·오류 상태 모두 개별 업무를 여는 버튼 없이 전체 메모를 읽는 영역이다", () => {
+  for (const state of [{}, { loading: true }, { error: "합성 일시 조회 실패" }]) {
+    const tree = history(state, { onOpenWork: () => assert.fail("reading the memo must not open a work") });
     const top = summary(tree);
     assert.equal(top.element.props.onOpenWork, undefined);
     assert.equal(descendants(top.tree).filter((element) => element.type === "button").length, 0);
+    const memo = byClass(top.tree, "listing-history-memo")[0];
+    assert.ok(memo.props.children.includes(future.notes));
+    assert.ok(memo.props.children.includes(edited.notes));
   }
 });
 
@@ -139,6 +164,7 @@ test("고객·날짜별 업무 이력은 listing 전용 상단을 만들지 않�
     id: "saved-work", work_date: "2026-09-01", work_type: "전화", customer_name: "합성 고객", content: "합성 연락 방식 변경", updated_at: "2026-09-13 04:05:06", property_count: 0,
   }] });
   assert.equal(descendants(tree).filter((element) => element.type === ListingHistorySummary).length, 0);
+  assert.equal(byClass(tree, "listing-work-details").length, 0, "customer and date histories stay visible rather than inheriting the listing disclosure");
   const row = timeline(tree)[0];
   assert.match(markup(row), /업무일 2026\.09\.01/);
   assert.match(markup(row), /최근 저장.*2026\.09\.13 13:05/);
@@ -152,15 +178,26 @@ test("고객·날짜별 업무 이력은 listing 전용 상단을 만들지 않�
   assert.match(savedStyle, /white-space:\s*normal/);
 });
 
-test("저장시각 없는 과거 원본 이력은 업무일을 저장시각으로 꾸며내지 않으며 연결 없는 원문은 읽기만 제공한다", () => {
+test("이벤트가 없는 매물은 엑셀 원문을 바로 읽게 하며 연결 업무 없는 원본 이벤트도 전체 메모에서 생략하지 않는다", () => {
+  const sourceNotes = "  합성 임차인 연락처: 000-0000-0000 (검증용)\n\n원본 문장과 공백 보존  ";
+  const sourceOnlyModal = history({ items: [], listing: { ...listing, source_notes: sourceNotes } });
+  const sourceOnly = summary(sourceOnlyModal).tree;
+  const originalMemo = byClass(sourceOnly, "listing-history-memo")[0];
+  assert.equal(originalMemo.props.children, sourceNotes);
+  assert.equal(descendants(sourceOnly).filter((element) => element.type === "details").length, 0, "source-only history is the primary readable memo, not hidden in a disclosure");
+  assert.ok(initiallyVisibleText(sourceOnlyModal).includes(sourceNotes), "the original memo is immediately readable in the complete modal");
+  assert.equal(byClass(sourceOnlyModal, "listing-work-details").length, 0, "zero individual work records do not create an empty disclosure");
+  assert.equal(byClass(sourceOnlyModal, "history-list").length, 0);
+  assert.doesNotMatch(markup(sourceOnlyModal), /개별 업무 보기|0건/);
+  assert.equal(byClass(history({ listing: undefined, items: [] }), "history-list").length, 1, "non-listing histories retain their normal empty-state container");
   const legacy = event("original", { work_log_id: "", work_updated_at: undefined, created_at: undefined, notes: "합성 과거 원본 내용" });
   const tree = history({ items: [legacy] });
   const row = timeline(tree)[0];
   assert.equal(byClass(row, "history-entry-saved").length, 0);
   assert.equal(row.props.disabled, true);
   const top = summary(tree).tree;
-  assert.match(markup(top), /저장 시각 정보 없음/);
-  assert.match(markup(top), /업무일 기준/);
+  assert.match(markup(top), /합성 과거 원본 내용/);
+  assert.match(markup(top), /\(매물수정\) \(2026-09-01\)/);
   assert.doesNotMatch(markup(top), /최근 저장 ·|최근 저장한 업무 내용/);
   assert.equal(descendants(top).filter((element) => element.type === "button").length, 0);
 });
