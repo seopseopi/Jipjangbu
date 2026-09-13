@@ -4,6 +4,7 @@ import { registerHooks } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import ts from "typescript";
+import { formatHistoryTimestamp, latestSavedListingEvent } from "../app/history-timestamps.ts";
 
 // Execute the actual API handlers and schema against synthetic in-memory data.
 // The binding adapter models D1's all-or-nothing batch, including a deliberately
@@ -312,4 +313,50 @@ test("묶음 업무 상세는 업무 내용과 모든 물건을 같은 조회 �
   assert.deepEqual(body.workLog.details.map((detail) => detail.sequence), [1, 2, 3]);
   assert.equal(db.batches.length - before, 1);
   assert.equal(db.batches.at(-1).length, 2);
+});
+
+test("매물 이력 API는 기존 이벤트 필드·업무일 정렬을 보존하며 연결 업무의 생성·저장 시각을 함께 반환한다", async (t) => {
+  const db = database(t);
+  const olderWork = await mutate("POST", payload({ workDate: "2026-09-01", content: "합성 이전 업무 추가 메모" }));
+  const newerBusinessWork = await mutate("POST", payload({ workDate: "2026-09-15", workType: "매물수정", content: "합성 최신 업무일 메모" }));
+  db.sqlite.prepare("UPDATE work_logs SET created_at='2026-09-01 01:00:00', updated_at='2026-09-13 08:52:25' WHERE id=?").run(olderWork.id);
+  db.sqlite.prepare("UPDATE work_logs SET created_at='2026-09-12 01:00:00', updated_at='2026-09-12 01:00:00' WHERE id=?").run(newerBusinessWork.id);
+  db.sqlite.prepare("UPDATE listing_events SET created_at='2026-09-01 01:00:01' WHERE work_log_id=?").run(olderWork.id);
+  const before = db.snapshot();
+  const response = await history();
+  assert.deepEqual(db.snapshot(), before, "the expanded GET remains read-only");
+  assert.deepEqual(response.events.map((event) => event.work_log_id), [newerBusinessWork.id, olderWork.id]);
+  for (const event of response.events) {
+    const stored = before.listing_events.find((row) => row.id === event.id);
+    const work = before.work_logs.find((row) => row.id === event.work_log_id);
+    for (const [field, value] of Object.entries(stored)) assert.equal(event[field], value, `existing event field ${field} remains unchanged`);
+    assert.equal(event.work_created_at, work.created_at);
+    assert.equal(event.work_updated_at, work.updated_at);
+    assert.equal(event.customer_id, work.customer_id);
+    assert.equal(event.customer_name, "합성 고객 가");
+  }
+  const edited = response.events[1];
+  assert.equal(edited.created_at, "2026-09-01 01:00:01", "event creation time is not overwritten by the work timestamp alias");
+  assert.equal(edited.work_created_at, "2026-09-01 01:00:00");
+  assert.equal(edited.work_updated_at, "2026-09-13 08:52:25");
+  assert.equal(formatHistoryTimestamp(edited.work_updated_at), "2026.09.13 17:52");
+  assert.equal(latestSavedListingEvent(response.events), edited, "latest save is independent from the first business-date row");
+});
+
+test("과거 업무를 정정하면 이력 업무일을 바꾸거나 새 기록을 늘리지 않고 최근 저장 시각을 전달한다", async (t) => {
+  const db = database(t);
+  const work = await mutate("POST", payload({ workDate: "2026-09-01" }));
+  db.sqlite.prepare("UPDATE work_logs SET created_at='2026-09-01 01:00:00', updated_at='2026-09-01 01:00:00' WHERE id=?").run(work.id);
+  const before = await history();
+  await mutate("PUT", payload({ workDate: "2026-09-01", content: "합성 추가 연락 메모" }), work.id);
+  const response = await history();
+  const saved = db.sqlite.prepare("SELECT created_at, updated_at FROM work_logs WHERE id=?").get(work.id);
+  assert.equal(response.events.length, 1);
+  assert.equal(response.events[0].event_date, "2026-09-01");
+  assert.equal(response.events[0].event_order, before.events[0].event_order);
+  assert.equal(response.events[0].notes, "합성 추가 연락 메모");
+  assert.equal(response.events[0].work_created_at, "2026-09-01 01:00:00");
+  assert.equal(response.events[0].work_updated_at, saved.updated_at);
+  assert.notEqual(response.events[0].work_updated_at, before.events[0].work_updated_at);
+  assert.ok(formatHistoryTimestamp(response.events[0].work_updated_at));
 });

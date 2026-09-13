@@ -8,6 +8,8 @@ import { createPropertyHistoryTarget } from "../app/history-query.ts";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 import { getPropertyDisplayGroups } from "../app/property-display.ts";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
+import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 
 // Render and execute actual production reading components with synthetic work.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -21,8 +23,8 @@ function compile(names) {
   const compiled = ts.transpileModule(declarations.join("\n"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
   }).outputText;
-  return new Function("React", "Modal", "Icon", "workTypeIcon", "getWorkProperties", "workPropertyLabel", "getPropertyDisplayGroups", "WorkSummaryProperties", `${compiled}; return ${names.at(-1)};`)(
-    React, ({ children }) => children, () => null, () => "journal", getWorkProperties, workPropertyLabel, getPropertyDisplayGroups, WorkSummaryProperties,
+  return new Function("React", "Modal", "Icon", "workTypeIcon", "getWorkProperties", "workPropertyLabel", "getPropertyDisplayGroups", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", `${compiled}; return ${names.at(-1)};`)(
+    React, ({ children }) => children, () => null, () => "journal", getWorkProperties, workPropertyLabel, getPropertyDisplayGroups, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp,
   );
 }
 const helpers = ["displayDate", "targetText", "statusTone", "EmptyState"];
@@ -246,9 +248,9 @@ test("매물 수정 이력 추가는 현재 매물과 가장 최근 이력의 �
   buttons(tree, "이 매물로 업무 등록")[0].props.onClick();
   assert.deepEqual(created, [listing], "ordinary new work does not silently choose the modification action or previous customer");
   const html = markup(tree);
-  assert.match(html, /매물 수정은 새 업무와 이력으로 남습니다/);
-  assert.match(html, /이전 기록은 유지/);
-  assert.match(html, /업무일이 가장 최근인 이력/);
+  assert.match(html, /기존 업무를 수정해도 업무일은 유지/);
+  assert.match(html, /저장 시각은 별도로 표시/);
+  assert.match(html, /현재 매물 상태·가격은 가장 최근 업무일 기준/);
   assert.match(html, /보존할 기존 매물 메모/);
 });
 

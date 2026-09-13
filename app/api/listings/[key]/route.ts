@@ -12,7 +12,8 @@ export async function GET(_: Request, { params }: { params: Promise<{ key: strin
     const [listings, events] = await db.batch([
       db.prepare("SELECT * FROM listings WHERE identity_key = ?").bind(listingKey),
       db.prepare(`
-        SELECT e.*, c.id AS customer_id, c.name AS customer_name
+        SELECT e.*, c.id AS customer_id, c.name AS customer_name,
+          w.created_at AS work_created_at, w.updated_at AS work_updated_at
         FROM listing_events e JOIN work_logs w ON w.id = e.work_log_id JOIN customers c ON c.id = w.customer_id
         WHERE e.listing_key = ?
         ORDER BY e.event_date DESC, e.event_order DESC, e.created_at DESC, e.id DESC

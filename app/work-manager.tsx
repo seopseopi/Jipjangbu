@@ -30,6 +30,8 @@ import { CalendarSubjects } from "./calendar-subjects";
 import { getWorkProperties, workPropertyLabel } from "./work-property-summary";
 import { getPropertyDisplayGroups } from "./property-display";
 import { WorkSummaryProperties } from "./work-summary-properties";
+import { ListingHistorySummary } from "./listing-history-summary";
+import { formatHistoryTimestamp } from "./history-timestamps";
 import type { RelatedHistoryTarget } from "./history-query";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
 import { Icon, workTypeIcon } from "./icons";
@@ -87,6 +89,7 @@ type View =
 type WorkSummary = {
   id: string;
   work_date: string;
+  updated_at?: string;
   customer_id: string;
   customer_name: string;
   work_type: string;
@@ -156,6 +159,9 @@ type ListingEvent = {
   notes: string;
   customer_id: string;
   customer_name: string;
+  work_updated_at?: string;
+  work_created_at?: string;
+  created_at?: string;
 };
 type Lookups = {
   workTypes: string[];
@@ -3776,7 +3782,7 @@ function HistoryModal({
         <>
         <div className="listing-history-context">
           <p className="listing-history-summary">
-            <strong>{data.listing.status}</strong> ·{" "}
+            현재 매물 · <strong>{data.listing.status}</strong> ·{" "}
             {[
               data.listing.sale_price && `매매 ${data.listing.sale_price}`,
               data.listing.jeonse_price && `전세 ${data.listing.jeonse_price}`,
@@ -3785,11 +3791,11 @@ function HistoryModal({
               .filter(Boolean)
               .join(" / ") || "가격 미기재"}
           </p>
-          {data.listing.source_notes && (
-            <p className="listing-history-notes">
-              {data.listing.source_notes}
-            </p>
-          )}
+          <ListingHistorySummary
+            events={data.items.filter((item): item is ListingEvent => "event_date" in item)}
+            sourceNotes={data.listing.source_notes}
+            onOpenWork={data.loading || data.error ? undefined : onOpenWork}
+          />
         </div>
         <div className="listing-history-actions">
           {onModifyListing && !data.listing.closed_at && (
@@ -3824,7 +3830,7 @@ function HistoryModal({
         </div>
         </>
       )}
-      {data.listing && <p className="history-list-guide">매물 수정은 새 업무와 이력으로 남습니다. 이전 기록은 유지되며 현재 매물은 업무일이 가장 최근인 이력을 기준으로 표시합니다.</p>}
+      {data.listing && <p className="history-list-guide">아래 이력은 업무일 최신순입니다. 기존 업무를 수정해도 업무일은 유지되며, 저장 시각은 별도로 표시합니다. 현재 매물 상태·가격은 가장 최근 업무일 기준입니다.</p>}
       {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" aria-busy={Boolean(data.loading)}>
         {!data.items.length ? (
@@ -3835,6 +3841,9 @@ function HistoryModal({
             const date = isEvent ? raw.event_date : raw.work_date;
             const status = isEvent ? raw.status : raw.work_type;
             const content = isEvent ? raw.notes : raw.content;
+            const savedLabel = isEvent
+              ? formatHistoryTimestamp(raw.work_updated_at) || formatHistoryTimestamp(raw.created_at)
+              : formatHistoryTimestamp(raw.updated_at);
             const id = isEvent ? raw.work_log_id : raw.id;
             const property = !isEvent && getWorkProperties(raw).length > 0;
             return (
@@ -3846,11 +3855,12 @@ function HistoryModal({
               >
                 <div className="history-entry-meta">
                   <span className={`history-mark ${statusTone(status)}`} />
-                  <time dateTime={date}>{displayDate(date)}</time>
+                  <time dateTime={date}>업무일 {displayDate(date)}</time>
                   <strong>{status}</strong>
                   {isEvent && <small>{raw.customer_name}</small>}
                   <span className="history-entry-open">{id ? <>내용 보기 <Icon name="next" size={15} /></> : "원본 이력"}</span>
                 </div>
+                {savedLabel && <p className="history-entry-saved">최근 저장 · <time>{savedLabel}</time> <span>(한국 시간)</span></p>}
                 {!isEvent && (raw.customer_name || property) && (
                   <div className="history-entry-context">
                     {raw.customer_name && <span><Icon name="customers" size={16} /><span>고객 · {raw.customer_name}</span></span>}

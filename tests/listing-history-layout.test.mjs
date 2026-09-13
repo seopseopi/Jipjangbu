@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
+import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 
 // Exercise the actual modal markup without a browser or real customer records.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -15,9 +17,9 @@ assert.ok(declaration, "HistoryModal exists");
 const compiled = ts.transpileModule(declaration.getText(ast), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
 }).outputText;
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", `${compiled}; return HistoryModal;`)(
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", `${compiled}; return HistoryModal;`)(
   React, ({ children }) => children, "span", "aside", () => "예시 매물",
-  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel, WorkSummaryProperties,
+  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp,
 );
 
 function elements(children) {
@@ -43,7 +45,7 @@ function renderHistory(listing, onFollowUp, { items = [], customer, onOpenWork =
   });
 }
 
-test("매물 이력 메모는 가격 아래 독립 행에 원문을 보존하고 할 일 버튼은 카드 밖에서 같은 매물에 연결된다", () => {
+test("매물 이력의 원본 메모는 가격 아래 접힌 읽기 영역에 원문을 보존하고 할 일 버튼은 카드 밖에 연결된다", () => {
   const notes = `  첫 상담 메모\n\n<확인> & 추가 내용\n${"긴메모".repeat(120)}\n마지막 줄  `;
   for (const sourceNotes of [notes, ""]) {
     const listing = {
@@ -61,15 +63,23 @@ test("매물 이력 메모는 가격 아래 독립 행에 원문을 보존하고
     assert.equal(hasClass(rows[0], "listing-history-summary"), true);
     assert.match(renderToStaticMarkup(rows[0]), /상담/);
     assert.match(renderToStaticMarkup(rows[0]), /매매 확인 필요/);
+    assert.match(renderToStaticMarkup(rows[0]), /현재 매물/);
     assert.equal(descendants(context).some((element) => element.type === "button"), false);
+    assert.equal(rows.length, 2);
+    assert.equal(rows[1].type, ListingHistorySummary);
+    assert.equal(rows[1].props.sourceNotes, sourceNotes, "the original notes reach the summary without trimming");
+    const summary = ListingHistorySummary(rows[1].props);
+    const sourceDetails = summary ? descendants(summary).find((element) => element.type === "details") : undefined;
     if (sourceNotes) {
-      assert.equal(rows.length, 2);
-      assert.equal(hasClass(rows[1], "listing-history-notes"), true);
-      assert.equal(rows[1].props.children, notes, "notes are not trimmed, shortened or split into narrow columns");
-      const rendered = renderToStaticMarkup(rows[1]);
+      assert.ok(sourceDetails, "original Excel notes remain available in a native disclosure");
+      assert.equal(Boolean(sourceDetails.props.open), false, "the long original notes start collapsed rather than covering the recent change");
+      assert.match(renderToStaticMarkup(sourceDetails), /엑셀 원본 메모/);
+      const note = descendants(sourceDetails).find((element) => element.type === "p" && element.props.children === notes);
+      assert.ok(note, "notes are not trimmed, shortened or split into narrow columns");
+      const rendered = renderToStaticMarkup(sourceDetails);
       assert.ok(rendered.includes(notes.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")), "line breaks and long text survive rendering as escaped text");
     } else {
-      assert.equal(rows.length, 1, "empty notes do not leave an empty row");
+      assert.equal(sourceDetails, undefined, "empty original notes do not leave an empty disclosure");
     }
     const actions = siblings[contextIndex + 1];
     assert.ok(actions && hasClass(actions, "listing-history-actions"), "actions occupy a separate row after the summary card");
@@ -127,7 +137,7 @@ test("고객·매물의 각 이력은 날짜·상태 아래 전체 폭 본문을
       const metadata = elements(meta.props.children);
       const time = metadata.find((element) => element.type === "time");
       assert.equal(time.props.dateTime, date);
-      assert.equal(time.props.children, `표시 날짜 ${date}`);
+      assert.equal(React.Children.toArray(time.props.children).join(""), `업무일 표시 날짜 ${date}`);
       assert.equal(metadata.find((element) => element.type === "strong").props.children, status);
       const customerName = metadata.find((element) => element.type === "small");
       assert.equal(customerName?.props.children, isEvent ? raw.customer_name : undefined);

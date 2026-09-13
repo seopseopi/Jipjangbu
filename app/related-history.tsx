@@ -4,6 +4,8 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { clientJsonFetch } from "./client-api";
 import { Icon } from "./icons";
 import { WorkSummaryProperties } from "./work-summary-properties";
+import { ListingHistorySummary } from "./listing-history-summary";
+import { formatHistoryTimestamp } from "./history-timestamps";
 import {
   createHistoryRequestScope,
   HISTORY_PAGE_SIZE,
@@ -35,6 +37,8 @@ type SavedWork = SavedProperty & {
   content: string;
   property_count?: number;
   properties_json?: string;
+  updated_at?: string;
+  created_at?: string;
   details: SavedProperty[];
 };
 
@@ -45,6 +49,9 @@ type ListingEvent = SavedProperty & {
   status: string;
   customer_name: string;
   notes: string;
+  work_updated_at?: string;
+  work_created_at?: string;
+  created_at?: string;
 };
 
 type HistoryRecord = {
@@ -56,6 +63,7 @@ type HistoryRecord = {
   content: string;
   property: SavedProperty & { properties_json?: string };
   propertyCount: number;
+  savedAt?: string;
 };
 
 type HistoryData = {
@@ -64,6 +72,7 @@ type HistoryData = {
   nextOffset: number;
   hasMore: boolean;
   sourceNotes: string;
+  listingEvents: ListingEvent[];
 };
 
 type RequestScope = ReturnType<typeof createHistoryRequestScope>;
@@ -158,6 +167,7 @@ function HistoryPanel({
                 nextOffset: 0,
                 hasMore: false,
                 sourceNotes: "",
+                listingEvents: [],
               };
             }
             return {
@@ -170,11 +180,13 @@ function HistoryPanel({
                 content: event.notes,
                 property: event,
                 propertyCount: 1,
+                savedAt: formatHistoryTimestamp(event.work_updated_at) || formatHistoryTimestamp(event.created_at),
               })),
               total: response.events.length,
               nextOffset: response.events.length,
               hasMore: false,
               sourceNotes: response.listing.source_notes ?? "",
+              listingEvents: response.events,
             };
           }
           const url = new URL(baseUrl, "https://history.invalid");
@@ -194,11 +206,13 @@ function HistoryPanel({
               content: work.content,
               property: work,
               propertyCount: work.property_count ?? 0,
+              savedAt: formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at),
             })),
             total: response.total,
             nextOffset,
             hasMore: response.workLogs.length > 0 && nextOffset < response.total,
             sourceNotes: "",
+            listingEvents: [],
           };
         }, signal),
       );
@@ -274,15 +288,10 @@ function HistoryPanel({
       </div>
       {data && (
         <p className="related-history-summary">
-          총 {data.total.toLocaleString("ko-KR")}건 · 최근 기록부터
+          총 {data.total.toLocaleString("ko-KR")}건 · 업무일 최신순
         </p>
       )}
-      {data?.sourceNotes && (
-        <div className="history-record-detail">
-          <strong>기존 매물 메모</strong>
-          <p className="history-record-content">{data.sourceNotes}</p>
-        </div>
-      )}
+      {isListing && data && <ListingHistorySummary events={data.listingEvents} sourceNotes={data.sourceNotes} />}
       {loading && !data && (
         <p className="related-history-status" role="status">
           저장된 이력을 불러오는 중입니다…
@@ -356,13 +365,14 @@ function HistoryRecordRow({
   return (
     <article className={`history-record${current ? " is-current" : ""}`}>
       <div className="history-record-meta">
-        <time dateTime={record.date}>{record.date.replaceAll("-", ".")}</time>
+        <time dateTime={record.date}>업무일 · {record.date.replaceAll("-", ".")}</time>
         <strong>{record.workType}</strong>
         <span>{record.customerName}</span>
         {current && (
           <span className="history-record-current">현재 수정 중 · 저장된 내용</span>
         )}
       </div>
+      {record.savedAt && <span className="history-record-saved-at">최근 저장 · {record.savedAt} (한국시간)</span>}
       <p className="history-record-content">
         {record.content || "기록된 내용 없음"}
       </p>
@@ -444,6 +454,7 @@ function SavedWorkDetails({ workId }: { workId: string }) {
         <div><dt>업무일</dt><dd>{work.work_date}</dd></div>
         <div><dt>업무구분</dt><dd>{work.work_type}</dd></div>
         <div><dt>고객</dt><dd>{work.customer_name}</dd></div>
+        {(formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at)) && <div><dt>최근 저장 (한국시간)</dt><dd>{formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at)}</dd></div>}
       </dl>
       <p className="history-record-content">{work.content || "기록된 내용 없음"}</p>
       <div className="history-record-properties">

@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
+import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("work-manager.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -194,8 +196,8 @@ test("로그인 HTML 응답을 성공한 백업 파일로 저장하지 않는다
   assert.match(markup(harness.render()), /로그인 상태를 확인/);
 });
 
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", `${compile("HistoryModal")}; return HistoryModal;`)(
-  React, ({ children }) => children, "span", "aside", (item) => `${item.building_name} ${item.building_dong}동 ${item.unit_number}호`, (value) => value, () => "normal", getWorkProperties, workPropertyLabel, WorkSummaryProperties,
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", `${compile("HistoryModal")}; return HistoryModal;`)(
+  React, ({ children }) => children, "span", "aside", (item) => `${item.building_name} ${item.building_dong}동 ${item.unit_number}호`, (value) => value, () => "normal", getWorkProperties, workPropertyLabel, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp,
 );
 function history(data, extra = {}) {
   return HistoryModal({ data, onClose() {}, onRefresh() {}, onOpenWork() {}, onNewWork() {}, onFollowUp() {}, onCopy() {}, ...extra });
