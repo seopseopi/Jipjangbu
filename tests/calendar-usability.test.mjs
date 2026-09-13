@@ -8,7 +8,7 @@ import ts from "typescript";
 // Run the actual calendar markup and handlers with synthetic records only.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("work-manager.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-const declarations = ["CalendarView", "targetText", "statusTone"].map((name) => {
+const declarations = ["ListReadFeedback", "CalendarView", "targetText", "statusTone"].map((name) => {
   const declaration = ast.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
   assert.ok(declaration, `${name} exists`);
   return declaration.getText(ast);

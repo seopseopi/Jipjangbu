@@ -1,0 +1,25 @@
+.work-form-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 0 0 22px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--green-soft); color: var(--ink); font-size: var(--text-small); line-height: 1.65; }
+.work-form-overview > span { min-width: 0; overflow-wrap: anywhere; }
+.work-form-overview strong { margin-right: 5px; }
+.work-form .work-form-error { margin: 0 0 20px; outline-offset: 4px; }
+.work-form .work-form-error p { margin: 0; line-height: 1.65; }
+.work-form-section { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; margin: 0 0 15px; }
+.work-form-section h3 { margin: 0; font-size: 18px; }
+.work-form-section p { margin: 0; color: var(--muted); font-size: var(--text-caption); }
+.work-form .detail-head p { line-height: 1.7; }
+.work-form .full-label > .form-help { display: inline; margin: 0 0 0 6px; }
+.work-form .listing-rule-notice { margin: 0 0 14px; padding: 11px 13px; border: 1px solid #c4ddcd; border-radius: 9px; background: #f0f7f2; color: #285c3d; font-size: var(--text-small); line-height: 1.7; }
+.work-form .detail-fields [aria-invalid="true"], .work-form .form-grid [aria-invalid="true"] { border-color: #ae542e; box-shadow: 0 0 0 2px #f9e7dc; }
+.work-form .modal-actions { position: sticky; z-index: 4; bottom: -25px; margin-inline: -26px; padding: 15px 26px; background: #fff; border-top: 1px solid #d0dcd4; box-shadow: 0 -8px 18px -15px #284c39; }
+.work-form .modal-actions .work-save-state { flex: 1; color: var(--muted); font-size: var(--text-caption); }
+.work-form .work-record-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line); }
+.work-form .work-record-actions .danger-button { margin-left: auto; }
+@media (max-width: 720px) {
+  .work-form .modal-actions { bottom: calc(-21px - env(safe-area-inset-bottom)); margin-inline: -20px; padding: 12px 20px calc(12px + env(safe-area-inset-bottom)); }
+  .work-form .modal-actions .work-save-state { display: block; flex-basis: 100%; }
+  .work-form .work-record-actions { flex-direction: column; }
+  .work-form .work-record-actions > button { width: 100%; margin-left: 0; }
+}
+@media (max-width: 380px) {
+  .work-form .modal-actions { margin-inline: -16px; padding-inline: 16px; }
+}

@@ -77,7 +77,7 @@ test("매물 이력 메모는 가격 아래 독립 행에 원문을 보존하고
     assert.ok(React.Children.toArray(buttons[0].props.children).some((child) => typeof child === "string" && child.includes("이 매물 확인할 일 추가")));
     assert.deepEqual(calls, [], "rendering history does not create a follow-up");
     buttons[0].props.onClick();
-    assert.deepEqual(calls, [{ title: "예시 매물 매물 확인", listingKey: listing.identity_key }]);
+    assert.deepEqual(calls, [{ title: "예시 매물 매물 확인", listingKey: listing.identity_key, listingLabel: "예시 매물" }]);
     assert.ok(siblings.findIndex((element) => hasClass(element, "history-list")) > contextIndex + 1);
   }
   assert.equal(descendants(renderHistory(undefined, assert.fail)).some((element) => hasClass(element, "listing-history-actions")), false);

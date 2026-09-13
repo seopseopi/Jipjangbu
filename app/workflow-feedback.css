@@ -1,0 +1,19 @@
+.view-purpose { margin: 8px 0 0; color: var(--muted); font-size: var(--text-small); line-height: 1.6; word-break: keep-all; overflow-wrap: anywhere; }
+.workflow-feedback { display: grid; justify-items: center; gap: 10px; padding: 34px 22px; border: 1px solid var(--line); border-radius: 12px; background: #fff; text-align: center; color: var(--muted); overflow-wrap: anywhere; }
+.data-panel > .workflow-feedback { border: 0; border-radius: 0; }
+.workflow-feedback strong { color: var(--ink); font-size: var(--text-base); }
+.workflow-feedback p { margin: 0; font-size: var(--text-small); }
+.workflow-feedback small { font-size: var(--text-caption); }
+.workflow-feedback.is-error { border-color: #e4bbb2; background: #fff8f5; }
+.workflow-feedback.is-error > .ui-icon { color: #a43c2e; }
+.workflow-refresh, .workflow-limit-note, .schedule-preview-note, .calendar-result-summary { margin: 0; padding: 12px 22px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
+.workflow-refresh { background: var(--green-soft); }
+.workflow-limit-note { border-top: 1px solid var(--line); background: #fff9ed; color: #79571b; }
+.calendar-result-summary { padding: 0 0 14px; font-weight: 600; color: #36483d; }
+.calendar-controls .calendar-today { width: auto; padding-inline: 13px; font-size: var(--text-small); }
+.listing-table b { word-break: keep-all; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .view-purpose { font-size: var(--text-small); }
+  .workflow-feedback { padding: 26px 16px; }
+  .workflow-refresh, .workflow-limit-note, .schedule-preview-note { padding: 12px 16px; }
+}

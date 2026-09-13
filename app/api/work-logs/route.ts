@@ -11,6 +11,7 @@ export async function GET(request: Request) {
     const q = params.get("q")?.trim() ?? "";
     const month = params.get("month")?.trim() ?? "";
     const workType = params.get("workType")?.trim() ?? "";
+    const schedule = params.get("schedule") === "1";
     const customerId = params.get("customerId")?.trim() ?? "";
     const from = params.get("from")?.trim() ?? "";
     const to = params.get("to")?.trim() ?? "";
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     // prevented SQLite from seeking directly into the date/customer indexes.
     const where: string[] = [];
     const binds: (string | number)[] = [];
+    if (schedule) where.push("(w.work_type LIKE '%예정' OR w.work_type LIKE '%예약')");
     if (workType) {
       where.push("w.work_type = ?");
       binds.push(workType);
@@ -70,7 +72,7 @@ export async function GET(request: Request) {
         .bind(...binds),
       db
         .prepare(
-          `${summary.sql} ${predicate} ORDER BY w.work_date DESC, w.updated_at DESC, w.id DESC LIMIT ? OFFSET ?`,
+          `${summary.sql} ${predicate} ORDER BY w.work_date ${schedule ? "ASC" : "DESC"}, w.updated_at DESC, w.id DESC LIMIT ? OFFSET ?`,
         )
         .bind(...summary.bindings, ...binds, limit, offset),
     ]);

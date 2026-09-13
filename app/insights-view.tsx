@@ -62,6 +62,7 @@ export type InsightsViewProps = {
   onOpenListing: (listing: InsightsListing) => void;
   refreshKey?: string | number;
   onReviewStale?: () => void;
+  onOpenSchedule?: () => void;
 };
 
 function asCount(value: unknown): number {
@@ -120,7 +121,7 @@ function priceText(item: InsightsListing): string {
   ].filter(Boolean).join(" · ") || "가격 미입력";
 }
 
-export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewStale }: InsightsViewProps) {
+export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewStale, onOpenSchedule }: InsightsViewProps) {
   const [data, setData] = useState<InsightsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -236,7 +237,8 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
         </section>
 
         <section className="insights-panel insights-upcoming" aria-labelledby="insights-upcoming-title">
-          <header className="insights-panel-head"><div><p>다가오는 일정</p><h2 id="insights-upcoming-title">30일 안에 확인할 업무</h2></div><span>{data.upcoming.length}건</span></header>
+          <header className="insights-panel-head"><div><p>다가오는 일정 · 예정·예약 업무</p><h2 id="insights-upcoming-title">앞으로 30일 일정</h2></div>{onOpenSchedule && <button className="text-button" type="button" onClick={onOpenSchedule}>30일 일정 전체 보기 <Icon name="next" size={16} /></button>}</header>
+          {data.upcoming.length > 0 && <p className="insights-preview-note">날짜가 가까운 순으로 최대 12건 미리보기 · 현재 {data.upcoming.length}건 표시</p>}
           {data.upcoming.length === 0 ? <p className="insights-panel-empty">다가오는 일정이 없습니다.</p> : (
             <div className="insights-item-list">
               {data.upcoming.map((item) => (

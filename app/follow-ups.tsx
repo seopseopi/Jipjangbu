@@ -24,10 +24,12 @@ export type FollowUpsViewProps = {
   refreshKey?: number;
   onChange?: () => void;
   onDirtyChange?: (dirty: boolean) => void;
+  onBusyChange?: (busy: boolean) => void;
   onOpenCustomer?: (id: string, name: string) => void;
   onOpenListing?: (key: string) => void;
-  initialDraft?: { title?: string; customerId?: string; listingKey?: string };
+  initialDraft?: { title?: string; customerId?: string; listingKey?: string; customerName?: string; listingLabel?: string; replaceConfirmed?: boolean };
   onDraftConsumed?: () => void;
+  // The parent owns the navigation confirmation, using onDirtyChange above.
   onShowAll?: () => void;
 };
 
@@ -38,6 +40,17 @@ type FollowUpsResponse = {
 type Filter = "all" | "today" | "overdue" | "upcoming" | "completed";
 type Draft = { title: string; notes: string; dueDate: string; customerId: string; listingKey: string };
 type ReloadTarget = { filter: Filter; search: string };
+type LoadError = { key: string; message: string } | null;
+
+function followUpQueryKey(compact: boolean, filter: Filter, search: string) {
+  return JSON.stringify(compact ? ["all", ""] : [filter, search.trim()]);
+}
+
+function followUpReadState(loadedKey: string | null, desiredKey: string, loading: boolean, error: LoadError) {
+  if (error?.key === desiredKey) return "error";
+  if (loadedKey !== desiredKey) return "loading";
+  return loading ? "refreshing" : "ready";
+}
 
 function todayDate() {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
@@ -73,19 +86,23 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : "처리하지 못했습니다. 다시 시도해 주세요.";
 }
 
-export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDirtyChange, onOpenCustomer, onOpenListing, initialDraft, onDraftConsumed, onShowAll }: FollowUpsViewProps) {
+export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDirtyChange, onBusyChange, onOpenCustomer, onOpenListing, initialDraft, onDraftConsumed, onShowAll }: FollowUpsViewProps) {
   const formId = useId();
   const [data, setData] = useState<FollowUpsResponse | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<LoadError>(null);
+  const [mutationError, setMutationError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(compact);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [draftBaseline, setDraftBaseline] = useState<Draft>(emptyDraft);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingRecord, setEditingRecord] = useState<FollowUpItem | null>(null);
+  const [draftLabels, setDraftLabels] = useState({ customerName: "", listingLabel: "" });
   const [editDraft, setEditDraft] = useState<Draft>(emptyDraft);
   const [editBaseline, setEditBaseline] = useState<Draft>(emptyDraft);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -93,6 +110,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
   const request = useRef<AbortController | null>(null);
   const consumedCallback = useRef(onDraftConsumed);
   const dirtyCallback = useRef(onDirtyChange);
+  const busyCallback = useRef(onBusyChange);
   const titleInput = useRef<HTMLInputElement>(null);
   const dirtyState = useRef({ newDraft: false, editing: false, busy: false });
   const draftKey = initialDraft ? JSON.stringify(initialDraft) : "";
@@ -100,10 +118,16 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
   const draftDirty = showForm && differentDraft(draft, draftBaseline);
   const editDirty = !!editingId && differentDraft(editDraft, editBaseline);
   const hasUnsavedChanges = draftDirty || editDirty;
+  const desiredKey = followUpQueryKey(compact, filter, query);
+  const readState = followUpReadState(loadedKey, desiredKey, loading, loadError);
+  const listReady = readState === "ready";
 
   useEffect(() => { dirtyCallback.current = onDirtyChange; }, [onDirtyChange]);
   useEffect(() => { dirtyCallback.current?.(hasUnsavedChanges); }, [hasUnsavedChanges]);
   useEffect(() => () => { dirtyCallback.current?.(false); }, []);
+  useEffect(() => { busyCallback.current = onBusyChange; }, [onBusyChange]);
+  useEffect(() => { busyCallback.current?.(!!busyId); }, [busyId]);
+  useEffect(() => () => { busyCallback.current?.(false); }, []);
 
   useEffect(() => { dirtyState.current = { newDraft: draftDirty, editing: editDirty, busy: !!busyId }; }, [draftDirty, editDirty, busyId]);
 
@@ -119,17 +143,20 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
   useEffect(() => {
     if (!draftKey) return;
     const timer = window.setTimeout(() => {
-      if (dirtyState.current.busy || ((dirtyState.current.newDraft || dirtyState.current.editing) && !window.confirm("저장하지 않은 내용이 있습니다. 작성을 취소하고 새 할 일을 열까요?"))) {
+      const incoming = JSON.parse(draftKey) as NonNullable<FollowUpsViewProps["initialDraft"]>;
+      if (dirtyState.current.busy || ((dirtyState.current.newDraft || dirtyState.current.editing) && incoming.replaceConfirmed !== true && !window.confirm("저장하지 않은 내용이 있습니다. 작성을 취소하고 새 할 일을 열까요?"))) {
         consumedCallback.current?.();
         return;
       }
-      const incoming = JSON.parse(draftKey) as NonNullable<FollowUpsViewProps["initialDraft"]>;
       const base = emptyDraft();
       setDraftBaseline(base);
       setDraft({ ...base, ...incoming });
+      setDraftLabels({ customerName: incoming.customerName ?? "", listingLabel: incoming.listingLabel ?? "" });
       setEditingId(null);
+      setEditingRecord(null);
       setShowForm(true);
       setNotice("");
+      setMutationError("");
       consumedCallback.current?.();
       window.requestAnimationFrame(() => titleInput.current?.focus());
     }, 0);
@@ -146,9 +173,10 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     const controller = new AbortController();
     request.current = controller;
     setLoading(true);
-    setError("");
+    setLoadError(null);
     const nextFilter = target?.filter ?? filter;
     const nextSearch = target?.search ?? search;
+    const key = followUpQueryKey(compact, nextFilter, nextSearch);
     const params = new URLSearchParams({
       status: !compact && nextFilter === "completed" ? "completed" : "open",
       due: compact || nextFilter === "completed" ? "all" : nextFilter,
@@ -156,9 +184,12 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     if (!compact && nextSearch) params.set("q", nextSearch);
     try {
       const response = await clientJsonFetch<FollowUpsResponse>(`/api/follow-ups?${params}`, { signal: controller.signal });
-      if (!controller.signal.aborted) setData(response);
+      if (!controller.signal.aborted) {
+        setData(response);
+        setLoadedKey(key);
+      }
     } catch (loadError) {
-      if (!controller.signal.aborted && !(loadError instanceof Error && loadError.name === "AbortError")) setError(errorText(loadError));
+      if (!controller.signal.aborted) setLoadError({ key, message: loadError instanceof Error && loadError.name === "AbortError" ? "조회를 완료하지 못했습니다. 다시 불러와 주세요." : errorText(loadError) });
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -176,8 +207,9 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
   async function mutate(id: string, method: "POST" | "PATCH" | "DELETE", body: unknown, message: string, afterSave?: () => void) {
     if (mutationLock.current) return;
     mutationLock.current = true;
+    busyCallback.current?.(true);
     setBusyId(id);
-    setError("");
+    setMutationError("");
     setNotice("");
     try {
       await clientJsonFetch(method === "POST" ? "/api/follow-ups" : `/api/follow-ups/${encodeURIComponent(id)}`, {
@@ -194,10 +226,11 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
       } else await reload();
       onChange?.();
     } catch (saveError) {
-      setError(errorText(saveError));
+      setMutationError(errorText(saveError));
     } finally {
       mutationLock.current = false;
       setBusyId(null);
+      busyCallback.current?.(false);
     }
   }
 
@@ -212,57 +245,71 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
       dueDate: value.dueDate || null,
       customerId: value.customerId || null,
       listingKey: value.listingKey || null,
-    }, id ? "할 일을 수정했습니다." : "할 일을 추가했습니다.", () => {
-      if (id) setEditingId(null);
+    }, `“${title}” ${id ? "수정을 저장했습니다." : "할 일을 추가했습니다."}`, () => {
+      if (id) { setEditingId(null); setEditingRecord(null); }
       else {
         const next = emptyDraft();
         setDraft(next);
         setDraftBaseline(next);
+        setDraftLabels({ customerName: "", listingLabel: "" });
         setShowForm(compact);
       }
     });
   }
 
   function startEdit(item: FollowUpItem) {
+    if (busyId || !listReady) return;
     if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 다른 할 일을 수정할까요?")) return;
     const next = { title: item.title, notes: item.notes ?? "", dueDate: item.due_date ?? "", customerId: item.customer_id ?? "", listingKey: item.listing_key ?? "" };
     setEditingId(item.id);
+    setEditingRecord(item);
     setEditDraft(next);
     setEditBaseline(next);
     setNotice("");
+    setMutationError("");
+    window.requestAnimationFrame(() => document.getElementById(`${formId}-${item.id}-title`)?.focus());
   }
 
   function cancelForm(editing?: string) {
     if ((editing ? editDirty : draftDirty) && !window.confirm("저장하지 않은 내용이 있습니다. 작성을 취소할까요?")) return;
-    if (editing) setEditingId(null);
+    if (busyId) return;
+    if (editing) { setEditingId(null); setEditingRecord(null); }
     else {
       const next = emptyDraft();
       setDraft(next);
       setDraftBaseline(next);
+      setDraftLabels({ customerName: "", listingLabel: "" });
       setShowForm(compact);
     }
+    setMutationError("");
   }
 
   function openNewForm() {
+    if (busyId) return;
     if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 새 할 일을 열까요?")) return;
     setEditingId(null);
+    setEditingRecord(null);
     if (!draftDirty) {
       const next = emptyDraft();
       setDraft(next);
       setDraftBaseline(next);
+      setDraftLabels({ customerName: "", listingLabel: "" });
     }
     setShowForm(true);
+    setMutationError("");
     window.requestAnimationFrame(() => titleInput.current?.focus());
   }
 
   function showAll() {
-    if ((draftDirty || editDirty) && !window.confirm("저장하지 않은 내용이 있습니다. 작성을 취소하고 전체 할 일을 볼까요?")) return;
+    if (busyId) return;
     onShowAll?.();
   }
 
   function renderForm(value: Draft, update: (next: Draft) => void, editing?: string) {
     const id = `${formId}-${editing ?? "new"}`;
-    const saved = editing ? data?.items.find((item) => item.id === editing) : undefined;
+    const saved = editing ? editingRecord : null;
+    const customerName = editing ? saved?.customer_name || "연결된 기록 확인 불가" : draftLabels.customerName || value.customerId;
+    const listingLabel = editing ? saved?.listing_label || "연결된 기록 확인 불가" : draftLabels.listingLabel || "연결된 매물";
     return <form className={`followup-form${compact && !editing ? " followup-form-compact" : ""}`} onSubmit={(event) => saveDraft(event, value, editing)} onFocus={() => {
       if (busyId || editing || differentDraft(value, draftBaseline) || value.dueDate === todayDate()) return;
       const next = emptyDraft();
@@ -274,18 +321,21 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
           <span>{editing ? "할 일 수정" : "무엇을 해야 하나요?"}</span>
           <input ref={editing ? undefined : titleInput} id={`${id}-title`} value={value.title} onChange={(event) => update({ ...value, title: event.target.value })} placeholder="예: 고객에게 상담 일정 확인하기" maxLength={200} required disabled={!!busyId} autoComplete="off" />
         </label>
-        <label className="followup-field followup-date-field" htmlFor={`${id}-date`}>
-          <span>예정일 <small>선택</small></span>
+        <div className="followup-field followup-date-field">
+          <label htmlFor={`${id}-date`}>예정일 <small>선택</small></label>
           <input id={`${id}-date`} type="date" min="0001-01-01" max="9999-12-31" value={value.dueDate} onChange={(event) => update({ ...value, dueDate: event.target.value })} disabled={!!busyId} />
-        </label>
+          <div className="followup-date-shortcuts" aria-label="예정일 빠른 선택">
+            {[{ label: "오늘", value: today }, { label: "내일", value: nextDay(today) }, { label: "날짜 미정", value: "" }].map((option) => <button key={option.label} type="button" disabled={!!busyId} aria-pressed={value.dueDate === option.value} onClick={() => update({ ...value, dueDate: option.value })}>{option.label}</button>)}
+          </div>
+        </div>
       </div>
       {(!compact || editing || value.notes || value.customerId || value.listingKey) && <label className="followup-field" htmlFor={`${id}-notes`}>
         <span>메모 <small>선택</small></span>
-        <textarea id={`${id}-notes`} rows={2} value={value.notes} onChange={(event) => update({ ...value, notes: event.target.value })} maxLength={4000} placeholder="다음 연락 때 확인할 내용을 남겨두세요." disabled={!!busyId} />
+        <textarea id={`${id}-notes`} rows={2} value={value.notes} onChange={(event) => update({ ...value, notes: event.target.value })} maxLength={5000} placeholder="다음 연락 때 확인할 내용을 남겨두세요." disabled={!!busyId} />
       </label>}
       {(value.customerId || value.listingKey) && <div className="followup-linked-records" aria-label="연결된 기록">
-        {value.customerId && <div className="followup-linked-record"><span>고객 · {saved ? saved.customer_name ?? "기록을 찾을 수 없음" : "선택한 고객"}</span><button type="button" disabled={!!busyId} onClick={() => update({ ...value, customerId: "" })}><Icon name="unlink" size={16} />고객 연결 해제</button></div>}
-        {value.listingKey && <div className="followup-linked-record"><span>매물 · {saved ? saved.listing_label ?? "기록을 찾을 수 없음" : "선택한 매물"}</span><button type="button" disabled={!!busyId} onClick={() => update({ ...value, listingKey: "" })}><Icon name="unlink" size={16} />매물 연결 해제</button></div>}
+        {value.customerId && <div className="followup-linked-record"><span>고객 · {customerName}</span><div className="followup-linked-actions">{onOpenCustomer && (!saved || saved.customer_name) && <button className="followup-linked-history" type="button" disabled={!!busyId} onClick={() => onOpenCustomer(value.customerId, customerName)}><Icon name="clock" size={16} />고객 이력</button>}<button type="button" disabled={!!busyId} onClick={() => update({ ...value, customerId: "" })}><Icon name="unlink" size={16} />연결 해제</button></div></div>}
+        {value.listingKey && <div className="followup-linked-record"><span>매물 · {listingLabel}</span><div className="followup-linked-actions">{onOpenListing && (!saved || saved.listing_label) && <button className="followup-linked-history" type="button" disabled={!!busyId} onClick={() => onOpenListing(value.listingKey)}><Icon name="clock" size={16} />매물 이력</button>}<button type="button" disabled={!!busyId} onClick={() => update({ ...value, listingKey: "" })}><Icon name="unlink" size={16} />연결 해제</button></div></div>}
         {saved && ((value.customerId && !saved.customer_name) || (value.listingKey && !saved.listing_label)) && <p className="followup-link-warning">연결된 기록을 확인할 수 없습니다. 필요하면 연결을 해제해 주세요.</p>}
       </div>}
       {!editing && editingId && <p className="followup-link-note">수정 중인 할 일을 저장하거나 취소한 뒤 새 할 일을 추가할 수 있습니다.</p>}
@@ -296,8 +346,8 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     </form>;
   }
 
-  const summary = data?.summary;
-  const items = data?.items ?? [];
+  const summary = readState === "error" ? undefined : data?.summary;
+  const items = readState === "ready" || readState === "refreshing" ? data?.items ?? [] : [];
   const visibleItems = compact ? items.slice(0, 5) : items;
   const filters: Array<{ id: Filter; label: string; count?: number }> = [
     { id: "all", label: "전체 진행", count: summary?.open },
@@ -320,33 +370,36 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
 
     {!compact && <>
       <div className="followup-filters" aria-label="할 일 필터">
-        {filters.map((item) => <button key={item.id} className={`followup-filter${filter === item.id ? " is-active" : ""}${item.id === "overdue" ? " is-overdue" : ""}`} aria-pressed={filter === item.id} onClick={() => { if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 목록을 바꿀까요?")) return; setFilter(item.id); setEditingId(null); }} disabled={!!busyId}><Icon name={item.id === "overdue" ? "warning" : item.id === "completed" ? "check" : item.id === "all" ? "tasks" : "calendar"} size={18} />{item.label}{item.count !== undefined && <span>{item.count.toLocaleString()}</span>}</button>)}
+        {filters.map((item) => <button key={item.id} className={`followup-filter${filter === item.id ? " is-active" : ""}${item.id === "overdue" ? " is-overdue" : ""}`} aria-pressed={filter === item.id} onClick={() => { if (item.id === filter) return; if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 목록을 바꿀까요?")) return; setFilter(item.id); setEditingId(null); setEditingRecord(null); setMutationError(""); }} disabled={!!busyId}><Icon name={item.id === "overdue" ? "warning" : item.id === "completed" ? "check" : item.id === "all" ? "tasks" : "calendar"} size={18} />{item.label}{item.count !== undefined && <span>{item.count.toLocaleString()}</span>}</button>)}
       </div>
-      <label className="followup-search" htmlFor={`${formId}-search`}><span><Icon name="search" size={18} />할 일 검색</span><input id={`${formId}-search`} type="search" maxLength={200} value={query} disabled={!!busyId || !!editingId} title={editingId ? "수정을 저장하거나 취소한 뒤 검색할 수 있습니다." : undefined} onChange={(event) => setQuery(event.target.value)} placeholder="할 일, 메모, 고객명으로 검색" /></label>
+      <label className="followup-search" htmlFor={`${formId}-search`}><span><Icon name="search" size={18} />할 일 검색</span><input id={`${formId}-search`} type="search" maxLength={200} value={query} disabled={!!busyId || !!editingId} title={editingId ? "수정을 저장하거나 취소한 뒤 검색할 수 있습니다." : undefined} onChange={(event) => setQuery(event.target.value)} placeholder="할 일, 고객·연락처, 매물 주소, 메모 검색" /></label>
+      <div className="followup-results-summary"><p><strong>{filters.find((item) => item.id === filter)?.label}</strong>{query.trim() && <> · “{query.trim()}”</>}{readState === "ready" && <> · <strong>{items.length.toLocaleString()}건</strong></>}</p><span>필터 숫자는 검색 전 전체 기준</span>{(query.trim() || filter !== "all") && <button type="button" className="followup-button" disabled={!!busyId || !!editingId} onClick={() => { setFilter("all"); setQuery(""); setSearch(""); }}>조건 초기화</button>}</div>
     </>}
 
     {!compact && showForm && renderForm(draft, setDraft)}
-    {error && <div className="followup-message followup-error" role="alert"><span><Icon name="warning" size={18} />{error}</span><button className="followup-button" disabled={loading || !!busyId} onClick={() => { void reload(); }}><Icon name="refresh" size={18} />다시 불러오기</button></div>}
+    {editingId && <div className="followup-edit-panel"><p className="followup-edit-heading"><Icon name="edit" size={18} /><strong>할 일 수정 중</strong><span>저장하거나 취소해 주세요.</span></p>{renderForm(editDraft, setEditDraft, editingId)}</div>}
+    {mutationError && <div className="followup-message followup-error" role="alert"><span><Icon name="warning" size={18} /><span>변경을 저장하지 못했습니다. {mutationError}<br />입력한 내용은 유지됩니다. 해당 버튼으로 다시 시도해 주세요.</span></span></div>}
+    {readState === "error" && <div className="followup-message followup-error" role="alert"><span><Icon name="warning" size={18} /><span>할 일 목록을 확인하지 못했습니다.<br />{loadError?.message}</span></span><button className="followup-button" disabled={loading || !!busyId} onClick={() => { void reload({ filter, search: query.trim() }); }}><Icon name="refresh" size={18} />다시 불러오기</button></div>}
     {notice && <div className="followup-message followup-notice" role="status"><span><Icon name="check" size={18} />{notice}</span><button className="followup-dismiss" aria-label="안내 닫기" onClick={() => setNotice("")}><Icon name="close" size={20} /></button></div>}
 
     {data && items.length > 0 && <p className="followup-sort-note">{!compact && filter === "completed" ? "최근 완료한 순" : compact ? "기한 지난 일 먼저 · 예정일순" : "기한 지난 일 → 예정일순 → 날짜 미정"}</p>}
-    {loading && !data ? <div className="followup-empty" role="status"><span className="followup-loading-dot" aria-hidden="true" /><p>할 일을 불러오고 있습니다.</p></div> : <div className="followup-list" aria-busy={loading}>
-      {loading && <p className="followup-refresh" role="status">목록을 새로 불러오는 중…</p>}
-      {!visibleItems.length && !error ? <div className="followup-empty"><span className="followup-empty-symbol" aria-hidden="true"><Icon name={search && !compact ? "search" : "tasks"} size={24} /></span><strong>{search && !compact ? "검색된 할 일이 없습니다" : filter === "completed" && !compact ? "완료한 할 일이 없습니다" : filter !== "all" && !compact ? "해당하는 할 일이 없습니다" : "지금 챙길 할 일이 없습니다"}</strong><p>{search && !compact ? "다른 검색어나 필터로 찾아보세요." : "다음에 연락하거나 확인할 일을 남겨두세요."}</p></div> : null}
+    {readState === "loading" ? <div className="followup-empty" role="status" aria-busy="true"><span className="followup-loading-dot" aria-hidden="true" /><p>{query.trim() && !compact ? "입력한 조건으로 할 일을 찾고 있습니다." : "할 일을 불러오고 있습니다."}</p></div> : readState === "error" ? null : <div className="followup-list" aria-busy={readState === "refreshing"}>
+      {readState === "refreshing" && <p className="followup-refresh" role="status">최신 상태를 확인 중입니다. 같은 조건의 기존 목록을 표시하고 있습니다.</p>}
+      {!visibleItems.length && listReady ? <div className="followup-empty"><span className="followup-empty-symbol" aria-hidden="true"><Icon name={search && !compact ? "search" : "tasks"} size={24} /></span><strong>{search && !compact ? "검색된 할 일이 없습니다" : filter === "completed" && !compact ? "완료한 할 일이 없습니다" : filter !== "all" && !compact ? "해당하는 할 일이 없습니다" : "지금 챙길 할 일이 없습니다"}</strong><p>{search && !compact ? "다른 검색어나 필터로 찾아보세요." : "다음에 연락하거나 확인할 일을 남겨두세요."}</p></div> : null}
       {visibleItems.map((item) => <article key={item.id} className={`followup-item${item.completed_at ? " is-completed" : ""}${!item.completed_at && item.due_date && item.due_date < today ? " is-overdue" : ""}`}>
-        {editingId === item.id ? renderForm(editDraft, setEditDraft, item.id) : <>
-          <button className="followup-check" title={item.completed_at ? "다시 진행하기" : "완료하기"} aria-label={`${item.title}: ${item.completed_at ? "다시 진행하기" : "완료하기"}`} aria-pressed={!!item.completed_at} disabled={!!busyId} onClick={() => { void mutate(item.id, "PATCH", { completed: !item.completed_at }, item.completed_at ? "할 일을 다시 열었습니다." : "할 일을 완료했습니다."); }}><span aria-hidden="true">{busyId === item.id ? <Icon name="clock" size={16} /> : item.completed_at ? <Icon name="check" size={18} /> : null}</span></button>
+        {editingId === item.id ? <p className="followup-editing-marker"><Icon name="edit" size={18} />위에서 수정 중 · {item.title}</p> : <>
+          <button className="followup-check" title={item.completed_at ? "다시 진행하기" : "완료하기"} aria-label={`${item.title}: ${item.completed_at ? "다시 진행하기" : "완료하기"}`} aria-pressed={!!item.completed_at} disabled={!!busyId || !listReady || !!editingId} onClick={() => { void mutate(item.id, "PATCH", { completed: !item.completed_at }, `“${item.title}” ${item.completed_at ? "할 일을 다시 열었습니다. 전체 진행에서 확인할 수 있습니다." : "할 일을 완료했습니다. 완료 목록에서 다시 열 수 있습니다."}`); }}><span aria-hidden="true">{busyId === item.id ? <Icon name="clock" size={16} /> : item.completed_at ? <Icon name="check" size={18} /> : null}</span></button>
           <div className="followup-item-body">
             <div className="followup-item-top"><h3>{item.title}</h3><span className={`followup-due${!item.completed_at && item.due_date === today ? " is-today" : ""}`}><Icon name={item.completed_at ? "check" : item.due_date && item.due_date < today ? "warning" : "calendar"} size={16} /><time dateTime={item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined}>{dueText(item, today)}</time></span></div>
             {item.notes && <p className="followup-notes">{item.notes}</p>}
             {(item.customer_id || item.listing_key) && <div className="followup-links">
-              {item.customer_id && (onOpenCustomer && item.customer_name ? <button disabled={!!busyId} onClick={() => onOpenCustomer(item.customer_id!, item.customer_name!)}><Icon name="customers" size={16} />고객 · {item.customer_name} <Icon name="upRight" size={16} /></button> : <span><Icon name="customers" size={16} />고객 · {item.customer_name ?? "연결된 기록 확인 불가"}</span>)}
-              {item.listing_key && (onOpenListing && item.listing_label ? <button disabled={!!busyId} onClick={() => onOpenListing(item.listing_key!)}><Icon name="listings" size={16} />매물 · {item.listing_label} <Icon name="upRight" size={16} /></button> : <span><Icon name="listings" size={16} />매물 · {item.listing_label ?? "연결된 기록 확인 불가"}</span>)}
+              {item.customer_id && (onOpenCustomer && item.customer_name ? <button disabled={!!busyId || !listReady} onClick={() => onOpenCustomer(item.customer_id!, item.customer_name!)}><Icon name="customers" size={16} />고객 · {item.customer_name} <Icon name="upRight" size={16} /></button> : <span><Icon name="customers" size={16} />고객 · {item.customer_name ?? "연결된 기록 확인 불가"}</span>)}
+              {item.listing_key && (onOpenListing && item.listing_label ? <button disabled={!!busyId || !listReady} onClick={() => onOpenListing(item.listing_key!)}><Icon name="listings" size={16} />매물 · {item.listing_label} <Icon name="upRight" size={16} /></button> : <span><Icon name="listings" size={16} />매물 · {item.listing_label ?? "연결된 기록 확인 불가"}</span>)}
             </div>}
             <div className="followup-item-actions">
-              <button disabled={!!busyId} onClick={() => startEdit(item)}><Icon name="edit" size={16} />수정</button>
-              {!item.completed_at && <button disabled={!!busyId || item.due_date === "9999-12-31"} onClick={() => { const base = item.due_date && item.due_date > today ? item.due_date : today; void mutate(item.id, "PATCH", { dueDate: nextDay(base) }, "예정일을 하루 미뤘습니다."); }}><Icon name="calendarPlus" size={16} />{!item.due_date || item.due_date <= today ? "내일로 미루기" : "하루 미루기"}</button>}
-              <button className="followup-delete" disabled={!!busyId} onClick={() => { if (window.confirm(`“${item.title}” 할 일을 삭제할까요?`)) void mutate(item.id, "DELETE", undefined, "할 일을 삭제했습니다."); }}><Icon name="delete" size={16} />삭제</button>
+              <button disabled={!!busyId || !listReady} onClick={() => startEdit(item)}><Icon name="edit" size={16} />수정</button>
+              {!item.completed_at && <button disabled={!!busyId || !listReady || !!editingId || item.due_date === "9999-12-31"} onClick={() => { const base = item.due_date && item.due_date > today ? item.due_date : today; void mutate(item.id, "PATCH", { dueDate: nextDay(base) }, `“${item.title}” 예정일을 ${nextDay(base)}로 미뤘습니다.`); }}><Icon name="calendarPlus" size={16} />{!item.due_date || item.due_date <= today ? "내일로 미루기" : "하루 미루기"}</button>}
+              <button className="followup-delete" disabled={!!busyId || !listReady || !!editingId} onClick={() => { if (window.confirm(`“${item.title}” 할 일을 삭제할까요?`)) void mutate(item.id, "DELETE", undefined, `“${item.title}” 할 일을 삭제했습니다.`); }}><Icon name="delete" size={16} />삭제</button>
             </div>
           </div>
         </>}

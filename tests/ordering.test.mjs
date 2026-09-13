@@ -17,11 +17,11 @@ const hook = registerHooks({
         url: moduleUrl(`export function getD1() { return globalThis[Symbol.for(${JSON.stringify(dbKey)})]; }`),
         shortCircuit: true,
       };
-      if (specifier === "../_shared") return {
-        url: moduleUrl("export async function ready() {} export function apiError(error) { throw error; } export function badRequest(error) { return Response.json({ error }, { status: 400 }); }"),
+      if (specifier === "../../db/bootstrap") return {
+        url: moduleUrl("export async function ensureDatabase() {}"),
         shortCircuit: true,
       };
-      if (["../_ordering", "../_queries"].includes(specifier)) return {
+      if (["../_shared", "../_ordering", "../_queries"].includes(specifier)) return {
         url: new URL(`${specifier}.ts`, context.parentURL).href, shortCircuit: true,
       };
     }
