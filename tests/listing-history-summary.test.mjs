@@ -45,16 +45,13 @@ test("업무일·저장시각이 뒤섞여 있어도 입력 순서를 임의 정
   assert.doesNotMatch(memo, /2099/);
 });
 
-test("엑셀 원본은 이벤트가 있을 때만 별도 닫힌 참고 영역으로 보존한다", () => {
-  const sourceNotes = "  옛 엑셀 원문\n\n<확인> & 메모\n끝  ";
+test("전체 이력에 포함된 엑셀 원본은 아래에 별도 영역으로 중복 표시하지 않는다", () => {
+  const sourceNotes = events.map((event) => `${event.notes}\n(${event.status}) (${event.event_date})`).join("\n\n");
   const tree = ListingHistorySummary({ events, sourceNotes });
-  const details = descendants(tree).find((element) => element.type === "details");
-  assert.ok(details);
-  assert.equal(details.props.open, undefined);
-  assert.match(markup(details), /엑셀 원본 메모/);
-  assert.equal(descendants(details).find((element) => element.type === "p").props.children, sourceNotes);
-  assert.doesNotMatch(byClass(tree, "listing-history-memo").props.children, /옛 엑셀 원문/);
-  assert.match(markup(details), /&lt;확인&gt; &amp; 메모/);
+  assert.equal(byClass(tree, "listing-history-memo").props.children, sourceNotes);
+  assert.equal(descendants(tree).some((element) => element.type === "details"), false);
+  assert.doesNotMatch(markup(tree), /엑셀 원본 메모|listing-source-notes/);
+  for (const event of events) assert.equal(markup(tree).split(event.notes).length - 1, 1);
 });
 
 test("이벤트가 없고 원본만 남아 있으면 원본 전문을 기본 본문에 한 번만 표시한다", () => {

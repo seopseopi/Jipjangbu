@@ -11,6 +11,27 @@ type SummaryEvent = {
   created_at?: string | null;
 };
 
+/** Hide only source entries whose content is already present in the same event. */
+function remainingSourceNotes(events: SummaryEvent[], sourceNotes: string) {
+  const compact = (value?: string | null) => (value ?? "").replace(/\s+/gu, "");
+  const remaining: string[] = [];
+  let cursor = 0;
+  for (const match of sourceNotes.matchAll(/\(([^()\r\n]+)\)\s*\((\d{4}-\d{2}-\d{2})\)/g)) {
+    const end = match.index + match[0].length;
+    const content = compact(sourceNotes.slice(cursor, match.index));
+    const covered = events.some((event) => event.event_date === match[2]
+      && compact(event.status) === compact(match[1])
+      && (!content || compact(event.notes).includes(content)));
+    if (!covered) remaining.push(sourceNotes.slice(cursor, end));
+    cursor = end;
+  }
+  const tail = sourceNotes.slice(cursor);
+  if (compact(tail) && !events.some((event) => compact(event.notes).includes(compact(tail)))) {
+    remaining.push(tail);
+  }
+  return remaining.join("\n\n");
+}
+
 /** Read every event as one chronological memo without changing the API order. */
 export function ListingHistorySummary({ events, sourceNotes }: {
   events: SummaryEvent[];
@@ -18,6 +39,7 @@ export function ListingHistorySummary({ events, sourceNotes }: {
 }) {
   const hasSource = Boolean(sourceNotes?.trim());
   if (!events.length && !hasSource) return null;
+  const extraSource = events.length && hasSource ? remainingSourceNotes(events, sourceNotes!) : "";
   const memo = events.length ? events.map((event) => {
     const content = event.notes?.trim() ? event.notes : "";
     const context = [event.status && `(${event.status})`, event.event_date && `(${event.event_date})`].filter(Boolean).join(" ");
@@ -32,10 +54,10 @@ export function ListingHistorySummary({ events, sourceNotes }: {
         </div>
         <p className="listing-history-memo">{memo}</p>
       </section>
-      {events.length > 0 && hasSource && (
+      {extraSource.trim() && (
         <details className="listing-source-notes">
-          <summary><Icon name="next" size={16} /> 엑셀 원본 메모</summary>
-          <p>{sourceNotes}</p>
+          <summary><Icon name="next" size={16} /> 이전 보관 메모</summary>
+          <p>{extraSource}</p>
         </details>
       )}
     </div>

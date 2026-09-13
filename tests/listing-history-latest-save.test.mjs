@@ -114,23 +114,18 @@ test("개별 업무는 처음 접혀 있지만 모든 행의 업무일·저장�
   assert.equal(summary(tree).element.props.onOpenWork, undefined, "the all-notes summary is read-only; opening a work belongs to its own row");
 });
 
-test("현재 상태·가격과 전체 이력은 구분하고 이벤트가 있는 매물의 엑셀 원본 메모는 접힌 채 전문을 보존한다", () => {
-  const sourceNotes = `  엑셀 원본의 합성 임차인 메모\n\n<확인> & ${"합성 원문 ".repeat(90)}\n끝  `;
+test("현재 상태·가격과 전체 이력은 구분하고 이미 포함된 엑셀 원본은 별도 영역으로 중복하지 않는다", () => {
+  const sourceNotes = [future, edited].map((item) => `${item.notes}\n(${item.status}) (${item.event_date})`).join("\n\n");
   const tree = history({ listing: { ...listing, source_notes: sourceNotes } });
   const current = byClass(tree, "listing-history-context")[0];
   const price = React.Children.toArray(current.props.children).find((element) => element.type === "p");
   assert.match(markup(price), /현재 매물.*매물등록.*매매 35000/);
   const top = summary(tree).tree;
-  const original = descendants(top).find((element) => element.type === "details");
-  assert.ok(original);
-  assert.equal(Boolean(original.props.open), false);
-  assert.match(markup(original), /엑셀 원본 메모/);
-  assert.ok(descendants(original).some((element) => element.type === "p" && element.props.children === sourceNotes));
-  assert.ok(markup(original).includes(sourceNotes.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")));
+  assert.equal(descendants(top).some((element) => element.type === "details"), false);
+  assert.doesNotMatch(markup(top), /엑셀 원본 메모|listing-source-notes/);
   const memo = byClass(top, "listing-history-memo")[0];
-  assert.ok(memo.props.children.includes(edited.notes));
-  assert.ok(memo.props.children.includes(future.notes));
-  assert.doesNotMatch(markup(memo), /엑셀 원본의 합성 임차인 메모/);
+  assert.equal(memo.props.children, sourceNotes);
+  for (const item of [future, edited]) assert.equal(markup(top).split(item.notes).length - 1, 1);
 });
 
 test("같은 업무를 수정해 다시 읽어도 다른 기록은 빠지지 않고 과거 업무일 위치에서 변경 내용만 갱신한다", () => {

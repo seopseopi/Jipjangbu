@@ -45,7 +45,7 @@ function renderHistory(listing, onFollowUp, { items = [], customer, onOpenWork =
   });
 }
 
-test("매물 이력의 원본 메모는 가격 아래 접힌 읽기 영역에 원문을 보존하고 할 일 버튼은 카드 밖에 연결된다", () => {
+test("전체 이력에 없는 이전 메모만 가격 아래 접힌 영역에 보존하고 할 일 버튼은 카드 밖에 연결된다", () => {
   const notes = `  첫 상담 메모\n\n<확인> & 추가 내용\n${"긴메모".repeat(120)}\n마지막 줄  `;
   for (const sourceNotes of [notes, ""]) {
     const listing = {
@@ -71,9 +71,10 @@ test("매물 이력의 원본 메모는 가격 아래 접힌 읽기 영역에 �
     const summary = ListingHistorySummary(rows[1].props);
     const sourceDetails = summary ? descendants(summary).find((element) => element.type === "details") : undefined;
     if (sourceNotes) {
-      assert.ok(sourceDetails, "original Excel notes remain available in a native disclosure");
-      assert.equal(Boolean(sourceDetails.props.open), false, "the long original notes start collapsed rather than covering the complete work history");
-      assert.match(renderToStaticMarkup(sourceDetails), /엑셀 원본 메모/);
+      assert.ok(sourceDetails, "notes absent from the work events remain available in a native disclosure");
+      assert.equal(Boolean(sourceDetails.props.open), false, "the long retained notes start collapsed rather than covering the complete work history");
+      assert.match(renderToStaticMarkup(sourceDetails), /이전 보관 메모/);
+      assert.doesNotMatch(renderToStaticMarkup(sourceDetails), /엑셀 원본 메모|별도 업무에 저장한 합성 이력/);
       const note = descendants(sourceDetails).find((element) => element.type === "p" && element.props.children === notes);
       assert.ok(note, "notes are not trimmed, shortened or split into narrow columns");
       const rendered = renderToStaticMarkup(sourceDetails);

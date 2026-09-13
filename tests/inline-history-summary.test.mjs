@@ -65,7 +65,7 @@ const events = [
 ];
 
 test("보조 매물 이력은 전체 연속 메모를 먼저 표시하고 개별 업무 목록은 처음 접어 둔다", async (t) => {
-  const sourceNotes = "  엑셀 최초 원문\n기존 줄바꿈  ";
+  const sourceNotes = events.map((event) => `${event.notes}\n(${event.status}) (${event.event_date})`).join("\n\n");
   const h = panelHarness(listingTarget, async () => ({ listing: { source_notes: sourceNotes }, events }));
   t.after(() => h.dispose());
   const tree = await h.mount();
@@ -77,7 +77,9 @@ test("보조 매물 이력은 전체 연속 메모를 먼저 표시하고 개별
   const memoHtml = markup(summary);
   assert.match(memoHtml, /과거 업무에서 방금 고친 메모/);
   assert.match(memoHtml, /미래 업무의 원래 메모/);
-  assert.doesNotMatch(memoHtml, /2026\.09\.13 14:10|최근 저장/);
+  assert.doesNotMatch(memoHtml, /2026\.09\.13 14:10|최근 저장|엑셀 원본 메모|<details/);
+  for (const event of events) assert.equal(memoHtml.split(event.notes).length - 1, 1);
+  assert.ok(memoHtml.indexOf(events[0].notes) < memoHtml.indexOf(events[1].notes));
   assert.doesNotMatch(markup(tree), /한국\s*시간/);
   const records = descendants(tree).filter((element) => element.type === Row).map((element) => element.props.record);
   assert.deepEqual(records.map((record) => record.id), ["future", "changed"]);
