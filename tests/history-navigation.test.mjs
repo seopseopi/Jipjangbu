@@ -134,7 +134,9 @@ test("work table and editor expose separate history controls without nested butt
   assert.match(table, /매물 이력 보기/);
   assert.match(table, /업무 내용 보기/);
   assert.doesNotMatch(table, /업무 수정|내용 확인 및 수정|외 \{Number\(item\.property_count\) - 1\}건/);
-  assert.match(table, /getWorkProperties\(item\)\.map/);
+  assert.match(table, /const properties = getWorkProperties\(item\)/);
+  assert.match(table, /getPropertyDisplayGroups\(properties\)/);
+  assert.match(table, /group\.items\.map/);
   assert.doesNotMatch(table, /<button\s+className="table-row/);
   for (const button of table.matchAll(/<button\b[\s\S]*?>/g)) assert.match(button[0], /type="button"/);
   const editor = source.slice(source.indexOf("function WorkModal("), source.indexOf("function CustomerModal("));

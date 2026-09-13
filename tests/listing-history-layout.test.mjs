@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
+import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 
 // Exercise the actual modal markup without a browser or real customer records.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -14,9 +15,9 @@ assert.ok(declaration, "HistoryModal exists");
 const compiled = ts.transpileModule(declaration.getText(ast), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
 }).outputText;
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", `${compiled}; return HistoryModal;`)(
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", `${compiled}; return HistoryModal;`)(
   React, ({ children }) => children, "span", "aside", () => "예시 매물",
-  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel,
+  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel, WorkSummaryProperties,
 );
 
 function elements(children) {
@@ -136,6 +137,40 @@ test("고객·매물의 각 이력은 날짜·상태 아래 전체 폭 본문을
     assert.deepEqual(opened, example.items.map((raw) => "event_date" in raw ? raw.work_log_id : raw.id).filter(Boolean));
     assert.ok(renderToStaticMarkup(tree).includes(content.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")), "rendered customer and listing histories retain escaped text, spaces and line breaks");
   }
+});
+
+test("고객 이력의 같은 단지 묶음은 제목 한 번과 모든 호수를 표시하며 전체 메모를 별도 행에 보존한다", () => {
+  const properties = ["1503", "1504", "1505"].map((unit, index) => ({ id: `synthetic-${index}`, sequence: index + 1, property_type: "아파트", building_name: "합성공통단지", building_dong: "106", unit_number: unit }));
+  const content = "합성 업무 원문\n둘째 줄의 확인 내용";
+  const tree = renderHistory(undefined, assert.fail, { items: [{ id: "synthetic-work", work_date: "2026-09-13", work_type: "집방문", customer_name: "합성 고객", content, property_count: 3, properties_json: JSON.stringify(properties) }] });
+  const body = descendants(tree).find((element) => hasClass(element, "history-entry-content"));
+  const context = descendants(tree).find((element) => hasClass(element, "history-entry-context"));
+  assert.equal(body.props.children, content);
+  assert.equal(body.type, "p");
+  assert.ok(context);
+  const html = renderToStaticMarkup(context);
+  assert.equal((html.match(/class="work-summary-building"/g) || []).length, 1);
+  assert.equal((html.match(/role="listitem"/g) || []).length, 3);
+  for (const property of properties) {
+    assert.ok(html.includes(`물건 ${property.sequence} · ${workPropertyLabel(property)}`));
+    assert.ok(html.includes(`>106동 ${property.unit_number}호<`));
+  }
+  assert.doesNotMatch(html, /<details\b|\shidden(?:=|\s|>)|외 \d+건/);
+  assert.doesNotMatch(html, /role="listitem"[^>]*aria-hidden="true"/);
+});
+
+test("이력의 고객 아이콘 행만 flex로 정렬하고 물건 요약의 세로 grid를 덮어쓰지 않는다", () => {
+  const historyCss = readFileSync(new URL("../app/workflow-history-backup.css", import.meta.url), "utf8");
+  const summaryCss = readFileSync(new URL("../app/work-summary-properties.css", import.meta.url), "utf8");
+  assert.match(historyCss, /\.history-entry-context > span:not\(\.work-summary-properties\)\s*\{[^}]*display:\s*flex/);
+  assert.doesNotMatch(historyCss, /\.history-entry-context > span\s*\{[^}]*display:\s*flex/);
+  assert.match(summaryCss, /\.work-summary-properties\s*\{[^}]*display:\s*grid/);
+  assert.match(summaryCss, /\.work-summary-property-list\s*\{[^}]*display:\s*grid/);
+  const properties = ["101", "102"].map((unit, index) => ({ id: `synthetic-${index}`, property_type: "아파트", building_name: "합성단지", unit_number: unit }));
+  const tree = renderHistory(undefined, assert.fail, { items: [{ id: "synthetic", work_date: "2026-09-13", work_type: "방문", customer_name: "합성 고객", content: "기록", property_count: 2, properties_json: JSON.stringify(properties) }] });
+  const context = descendants(tree).find((element) => hasClass(element, "history-entry-context"));
+  assert.match(renderToStaticMarkup(context), /class="work-summary-properties"/);
+  assert.match(renderToStaticMarkup(context), /고객 · 합성 고객/);
 });
 
 test("매물 이력은 한 열 전체 폭을 쓰고 긴 메모와 버튼은 좁은 화면에서도 줄바꿈할 수 있다", () => {

@@ -21,11 +21,15 @@ import "./journal-search-feedback.css";
 import "./workflow-feedback.css";
 import "./workflow-history-backup.css";
 import "./work-form-feedback.css";
+import "./work-reading-list.css";
 import { LISTING_WORK_TYPES, findWorkDraftIssue } from "./work-form-rules";
 import { CustomerPicker } from "./customer-picker";
 import { fetchCustomerDirectory } from "./customer-directory";
 import { calendarWorkPresentation } from "./calendar-presentation";
+import { CalendarSubjects } from "./calendar-subjects";
 import { getWorkProperties, workPropertyLabel } from "./work-property-summary";
+import { getPropertyDisplayGroups } from "./property-display";
+import { WorkSummaryProperties } from "./work-summary-properties";
 import type { RelatedHistoryTarget } from "./history-query";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
 import { Icon, workTypeIcon } from "./icons";
@@ -1492,7 +1496,7 @@ export function WorkManager() {
         />
       )}
       {workReader && !workModal && (
-        <Modal title="업무 내용" subtitle="내용과 연결된 물건을 먼저 확인하세요. 변경은 ‘업무 수정’을 눌러 시작합니다." onClose={closeWorkReader} reading>
+        <Modal title="업무 내용" onClose={closeWorkReader} reading>
           {workReader.loading && <p className="form-help" role="status">업무 내용과 연결된 물건을 불러오고 있습니다…</p>}
           {workReader.error && <div className="form-error" role="alert"><p>{workReader.error}</p><button type="button" className="secondary-button" onClick={() => void readWork(workReader.id)}><Icon name="refresh" size={16} /> 다시 불러오기</button></div>}
           {workReader.item && <Suspense fallback={<p role="status">읽기 화면을 준비하고 있습니다…</p>}>
@@ -1741,8 +1745,7 @@ function WorkRows({
             <strong>
               {item.customer_name}
             </strong>
-            {getWorkProperties(item).length > 1 && <span className="work-property-group-label">함께 기록한 물건 {getWorkProperties(item).length}개</span>}
-            {getWorkProperties(item).map((property, index) => <span className="work-property-line" key={property.id || index}>{workPropertyLabel(property)}</span>)}
+            <WorkSummaryProperties work={item} showSingle />
             <small>
               {showDate && `${displayDate(item.work_date)} · `}
               {item.content || item.customer_name}
@@ -1915,7 +1918,7 @@ function JournalView({
             </p>
           </div>
           <span className="helper-text">
-            고객·물건은 이력 보기 · 일자·내용은 읽기 화면 · 수정은 내용 확인 후
+            주소는 매물 이력 · 내용 보기는 업무 상세
           </span>
         </div>
         {status === "refreshing" && (
@@ -1972,51 +1975,44 @@ function WorkTable({
 } & WorkHistoryActions) {
   if (!items.length) return <EmptyState title="조건에 맞는 업무가 없습니다." />;
   return (
-    <div className="responsive-table work-table">
-      <div className="table-head">
-        <span>일자</span>
-        <span>업무구분</span>
-        <span>고객</span>
-        <span>물건</span>
-        <span>내용</span>
-      </div>
-      {items.map((item) => (
-        <div
-          className="table-row work-record-row"
-          key={item.id}
-        >
-          <span data-label="일자"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${displayDate(item.work_date)} ${item.customer_name} 업무 내용 보기`}>{displayDate(item.work_date)}<small><Icon name="journal" size={13} /> 내용 보기</small></button></span>
-          <span data-label="업무구분">
-            <i className={`tag ${statusTone(item.work_type)}`}>
-              {item.work_type}
-            </i>
-          </span>
-          <span data-label="고객">
-            <button type="button" className="work-cell-button history-link" onClick={() => onCustomerHistory({ id: item.customer_id, name: item.customer_name })} aria-label={`${item.customer_name} 고객 이력 보기`}>
-              <b>{item.customer_name}</b>
-              <small className="work-customer-id">{item.customer_id}</small>
-              <small><Icon name="clock" size={13} /> 고객 이력</small>
-            </button>
-          </span>
-          <span data-label="물건">
-            {Number(item.property_count) > 1 && <strong className="work-property-group-label">함께 기록한 물건 {item.property_count}개</strong>}
-            <ol className="work-property-list">
-              {getWorkProperties(item).map((property, index) => {
-                const matched = Number(item.search_property_match) === 1 && property.property_type === item.property_type && property.building_name === item.building_name && property.building_dong === item.building_dong && property.unit_number === item.unit_number;
-                return <li key={property.id || index}>
-                  {matched && <small className="work-property-match" title="이 업무에서 검색에 일치한 물건입니다. 함께 기록된 다른 물건도 아래에 표시합니다.">검색 일치 물건</small>}
-                  {property.property_type.trim() && property.building_name.trim() && property.unit_number.trim() ? <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory({ ...item, ...property, id: item.id })} aria-label={`${workPropertyLabel(property)} 매물 이력 보기`}>
-                    {workPropertyLabel(property)}<small><Icon name="clock" size={13} /> 매물 이력</small>
-                  </button> : <span>{workPropertyLabel(property)}</span>}
-                </li>;
-              })}
-            </ol>
-            {!getWorkProperties(item).length && <span>물건 없음</span>}
-            {Number(item.property_count) > 1 && <button type="button" className="work-extra-properties" onClick={() => onOpen(item.id)}>전체 업무 내용 보기 <Icon name="next" size={14} /></button>}
-          </span>
-          <span data-label="내용"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${item.customer_name} 업무 내용 보기`}>{item.content || "내용 보기"}</button></span>
-        </div>
-      ))}
+    <div className="responsive-table work-table work-reading-list">
+      {items.map((item) => {
+        const properties = getWorkProperties(item);
+        const groups = getPropertyDisplayGroups(properties);
+        return <article className="table-row work-record-row" key={item.id}>
+          <div className="work-record-meta">
+            <span data-label="일자"><button type="button" className="work-record-date" onClick={() => onOpen(item.id)} aria-label={`${displayDate(item.work_date)} ${item.customer_name} 업무 내용 보기`}><time dateTime={item.work_date}>{displayDate(item.work_date)}</time></button></span>
+            <span data-label="업무구분"><i className={`tag ${statusTone(item.work_type)}`}>{item.work_type}</i></span>
+            <span data-label="고객" className="work-record-customer"><button type="button" className="work-record-customer-link" onClick={() => onCustomerHistory({ id: item.customer_id, name: item.customer_name })} aria-label={`${item.customer_name} 고객 이력 보기`}><b>{item.customer_name}</b><span className="work-customer-id">{item.customer_id}</span><Icon name="clock" size={14} /></button></span>
+            <button type="button" className="work-record-open" onClick={() => onOpen(item.id)} aria-label={Number(item.property_count) > 1 ? "전체 업무 내용 보기" : `${item.customer_name} 업무 내용 보기`}>내용 보기 <Icon name="next" size={15} /></button>
+          </div>
+          <div className={`work-record-body${properties.length ? " has-properties" : ""}`}>
+            <span data-label="내용" className="work-record-content"><button type="button" className="work-cell-button work-record-note" onClick={() => onOpen(item.id)} aria-label={`${item.customer_name} 업무 내용 보기`}><span className="work-record-note-text">{item.content || "기록된 내용이 없습니다."}</span></button></span>
+            <span data-label="물건" className="work-record-properties">
+              {properties.length > 0 ? <>
+                <span className="work-record-property-heading"><Icon name="listings" size={15} /><strong className="work-property-group-label" aria-label={`함께 기록한 물건 ${item.property_count}개`}>연결 매물 <span>{item.property_count}</span></strong></span>
+                <span className="work-property-groups">
+                  {groups.map((group) => <span className="work-property-building-group" key={group.key}>
+                    <strong className="work-property-building">{group.building || group.items[0].property.property_type || "물건 정보 미입력"}</strong>
+                    <ol className="work-property-list">
+                      {group.items.map(({ property, index, shortLabel }) => {
+                        const matched = Number(item.search_property_match) === 1 && property.property_type === item.property_type && property.building_name === item.building_name && property.building_dong === item.building_dong && property.unit_number === item.unit_number;
+                        const label = workPropertyLabel(property);
+                        return <li key={property.id || index} className={matched ? "is-search-match" : undefined}>
+                          {property.property_type.trim() && property.building_name.trim() && property.unit_number.trim() ? <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory({ ...item, ...property, id: item.id })} aria-label={`${label} 매물 이력 보기`}>
+                            <span className="work-property-address">{shortLabel}</span>{matched && <span className="work-property-match" aria-label="검색 일치 물건" title="검색 일치 물건"><Icon name="search" size={12} /> 일치</span>}<Icon name="next" size={13} />
+                          </button> : <span className="work-property-incomplete" aria-label={label}>{shortLabel}{matched && <span className="work-property-match" aria-label="검색 일치 물건">일치</span>}</span>}
+                        </li>;
+                      })}
+                    </ol>
+                  </span>)}
+                </span>
+                {Number(item.property_count) > properties.length && <span className="work-record-legacy-note">전체 물건 정보는 내용 보기에서 확인하세요.</span>}
+              </> : <span className="work-record-no-property">물건 없음</span>}
+            </span>
+          </div>
+        </article>;
+      })}
     </div>
   );
 }
@@ -2536,8 +2532,7 @@ function CalendarView({
                         aria-label={`${item.work_type} · ${presentation.entries.join(" · ")} 내용 보기`}
                       >
                         <span className="calendar-card-heading"><span>{item.work_type}</span>{presentation.properties.length > 1 && <span className="calendar-property-count">물건 {presentation.properties.length}개</span>}</span>
-                        <span className="calendar-card-subjects">{presentation.entries.map((entry, entryIndex) => <small key={entryIndex}>{entry}</small>)}</span>
-                        {!presentation.propertyFocused && presentation.properties.length > 0 && <span className="calendar-card-properties" aria-label="관련 물건">{presentation.properties.map((property) => <small key={property.key}>{property.label}</small>)}</span>}
+                        <CalendarSubjects item={item} />
                       </button>
                     );
                     })}
@@ -2583,9 +2578,8 @@ function CalendarView({
                     <button className="calendar-agenda-event" type="button" key={item.id} onClick={() => onOpen(item.id)}>
                       <span className="calendar-agenda-event-head"><span className={`tag ${statusTone(item.work_type)}`}>{item.work_type}</span><span className="calendar-agenda-open">내용 보기 <Icon name="next" size={16} /></span></span>
                       {presentation.properties.length > 1 && <span className="calendar-property-count">관련 물건 {presentation.properties.length}개</span>}
-                      {presentation.entries.map((entry, entryIndex) => <strong key={entryIndex}>{entry}</strong>)}
+                      <CalendarSubjects item={item} />
                       {presentation.propertyFocused && item.customer_name && <small>고객 · {presentation.customerLabel}</small>}
-                      {!presentation.propertyFocused && presentation.properties.length > 0 && <span className="calendar-agenda-properties" aria-label="관련 물건">{presentation.properties.map((property) => <span key={property.key}>{property.label}</span>)}</span>}
                       {item.content && <span className="calendar-agenda-notes">{item.content}</span>}
                     </button>
                   );
@@ -3860,7 +3854,7 @@ function HistoryModal({
                 {!isEvent && (raw.customer_name || property) && (
                   <div className="history-entry-context">
                     {raw.customer_name && <span><Icon name="customers" size={16} /><span>고객 · {raw.customer_name}</span></span>}
-                    {property && <span><Icon name="listings" size={16} /><span>{getWorkProperties(raw).length > 1 && <small>함께 기록한 물건 {raw.property_count}개</small>}{getWorkProperties(raw).map((item, index) => <span className="work-property-line" key={item.id || index}>{workPropertyLabel(item)}</span>)}</span></span>}
+                    {property && <WorkSummaryProperties work={raw} showSingle />}
                   </div>
                 )}
                 <p className="history-entry-content">{content || "기록된 내용 없음"}</p>
@@ -3882,7 +3876,7 @@ function Modal({
   children,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   onClose: () => void;
   wide?: boolean;
   reading?: boolean;
@@ -3976,7 +3970,7 @@ function Modal({
         <header>
           <div>
             <h2>{title}</h2>
-            <p>{subtitle}</p>
+            {subtitle && <p>{subtitle}</p>}
           </div>
           <button
             type="button"

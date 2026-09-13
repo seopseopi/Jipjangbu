@@ -1,0 +1,14 @@
+.calendar-subjects, .calendar-cell button .calendar-subjects { display: grid; gap: 4px; min-width: 0; margin-top: 4px; overflow: visible; white-space: normal; text-overflow: clip; }
+.calendar-subject-customer { display: block; min-width: 0; color: var(--ink); font-size: var(--text-caption); font-weight: 650; line-height: 1.6; white-space: normal; overflow-wrap: anywhere; }
+.calendar-subject-properties, .calendar-cell button .calendar-subject-properties { display: grid; gap: 2px; min-width: 0; overflow: visible; white-space: normal; text-overflow: clip; }
+.calendar-subject-building, .calendar-cell button .calendar-subject-building { display: block; min-width: 0; padding-top: 4px; color: var(--ink); font-size: var(--text-caption); font-weight: 650; line-height: 1.6; overflow: visible; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.calendar-subject-building:first-child, .calendar-cell button .calendar-subject-building:first-child { padding-top: 0; }
+.calendar-subject-property, .calendar-cell button .calendar-subject-property { display: flex; align-items: flex-start; gap: 4px; min-width: 0; padding: 1px 0; border: 0; background: transparent; overflow: visible; white-space: normal; text-overflow: clip; }
+.calendar-subject-number, .calendar-cell button .calendar-subject-number { display: block; flex: 0 0 18px; color: var(--muted); font-size: var(--text-caption); font-weight: 400; line-height: 1.6; text-align: right; font-variant-numeric: tabular-nums; overflow: visible; white-space: normal; text-overflow: clip; }
+.calendar-subject-label, .calendar-cell button .calendar-subject-label { display: block; min-width: 0; color: var(--ink); font-size: var(--text-caption); font-weight: 500; line-height: 1.6; overflow: visible; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; text-overflow: clip; }
+.calendar-subjects.is-customer-focused .calendar-subject-label, .calendar-cell button .calendar-subjects.is-customer-focused .calendar-subject-label { color: var(--muted); font-weight: 400; }
+.calendar-agenda-event .calendar-subject-customer, .calendar-agenda-event .calendar-subject-building, .calendar-agenda-event .calendar-subject-label { font-size: var(--text-base); }
+.calendar-agenda-event .calendar-subject-number { font-size: var(--text-base); flex-basis: 22px; }
+.calendar-agenda-event .calendar-subject-properties { gap: 3px; }
+.calendar-agenda-event .calendar-subjects.is-customer-focused .calendar-subject-label { font-size: var(--text-small); }
+.calendar-agenda-event .calendar-subjects.is-customer-focused .calendar-subject-number { font-size: var(--text-small); }

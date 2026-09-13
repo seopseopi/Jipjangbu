@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { searchExcerpt } from "../app/search-excerpt.ts";
+import { getPropertyDisplayGroups } from "../app/property-display.ts";
+import { getWorkProperties } from "../app/work-property-summary.ts";
 
 const properties = [
   { id: "p1", sequence: 1, property_type: "아파트", building_name: "첫번째합성단지", building_dong: "101", unit_number: "1001", sale_price: "35000", source: "" },
@@ -45,7 +47,7 @@ test("공통 요약은 두번째 물건 검색 일치를 표시하되 원래 물
   const entries = descendants(tree).filter((element) => element.props.role === "listitem");
   assert.doesNotMatch(entries[0].props.className, /is-search-match/);
   assert.match(entries[1].props.className, /is-search-match/);
-  assert.match(html(entries[1]), /검색 일치 물건/);
+  assert.match(html(entries[1]), /검색 일치/);
   assert.match(html(entries[0]), /첫번째합성단지/);
 });
 
@@ -113,4 +115,87 @@ test("공통 요약 주소는 모바일 큰 글씨·긴 문구에서 모두 줄�
   assert.doesNotMatch(css, /line-clamp|text-overflow:\s*ellipsis|overflow:\s*hidden/);
   const source = readFileSync(new URL("../app/work-summary-properties.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(source, /fetch\(|clientJsonFetch|\/api\/|onClick|onChange/);
+});
+
+test("동일 단지 그룹은 연속한 같은 물건구분만 묶으며 원래 물건 순서와 객체를 보존한다", () => {
+  const items = getWorkProperties({ properties_json: JSON.stringify([
+    { ...properties[0], id: "first-a", building_name: "공통단지" },
+    { ...properties[0], id: "first-b", building_name: "공통단지", unit_number: "1002" },
+    { ...properties[0], id: "other-type", building_name: "공통단지", property_type: "상가" },
+    { ...properties[0], id: "second-building", building_name: "다른단지" },
+    { ...properties[0], id: "return-building", building_name: "공통단지", unit_number: "1003" },
+    { ...properties[0], id: "missing-a", building_name: "" },
+    { ...properties[0], id: "missing-b", building_name: "" },
+  ]) });
+  const original = JSON.stringify(items);
+  const groups = getPropertyDisplayGroups(items);
+  assert.deepEqual(groups.map((group) => group.items.length), [2, 1, 1, 1, 1, 1]);
+  assert.deepEqual(groups.flatMap((group) => group.items.map((item) => item.index)), [0, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(groups.flatMap((group) => group.items.map((item) => item.property.id)), items.map((item) => item.id));
+  groups.flatMap((group) => group.items).forEach((item) => assert.equal(item.property, items[item.index]));
+  assert.equal(new Set(groups.map((group) => group.key)).size, groups.length);
+  assert.notEqual(groups[0].key, groups[1].key);
+  assert.equal(JSON.stringify(items), original);
+});
+
+test("짧은 주소는 동·호수 접미사를 중복하지 않고 불완전한 주소의 식별정보를 유지한다", () => {
+  const items = getWorkProperties({ properties_json: JSON.stringify([
+    { ...properties[0], building_dong: "101동", unit_number: "1001호" },
+    { ...properties[0], building_dong: "", unit_number: "1002" },
+    { ...properties[0], building_dong: "102", unit_number: "" },
+    { ...properties[0], building_dong: "", unit_number: "" },
+    { ...properties[0], building_name: "", building_dong: "", unit_number: "", property_type: "상가" },
+    { building_name: "", building_dong: "", unit_number: "", property_type: "" },
+  ]) });
+  assert.deepEqual(getPropertyDisplayGroups(items).flatMap((group) => group.items.map((item) => item.shortLabel)), ["101동 1001호", "1002호", "102동", "첫번째합성단지", "상가", "물건 정보 없음"]);
+});
+
+test("같은 단지 물건 10개는 건물명 소제목 하나와 10개 동·호수로 표시하고 모든 전체 주소를 접근 가능하게 유지한다", () => {
+  const items = Array.from({ length: 10 }, (_, index) => ({ ...properties[0], id: `ten-${index}`, sequence: index + 1, building_name: "한번만표시할합성단지", building_dong: "106", unit_number: String(1501 + index) }));
+  const tree = WorkSummaryProperties({ work: { ...work, properties_json: JSON.stringify(items), property_count: 10 } });
+  const elements = descendants(tree);
+  const headings = elements.filter((element) => element.props.className === "work-summary-building");
+  assert.equal(headings.length, 1);
+  assert.equal(headings[0].props.children, "한번만표시할합성단지");
+  const entries = elements.filter((element) => element.props.role === "listitem");
+  assert.equal(entries.length, 10);
+  entries.forEach((entry, index) => {
+    const label = descendants(entry).find((element) => element.props.className === "work-summary-property-label");
+    assert.equal(label.props.children, `106동 ${1501 + index}호`);
+    assert.equal(label.props.title, `한번만표시할합성단지 106동 ${1501 + index}호`);
+    assert.equal(entry.props["aria-label"], `물건 ${index + 1} · 한번만표시할합성단지 106동 ${1501 + index}호`);
+  });
+  assert.match(html(tree), /함께 기록한 물건 10개/);
+  assert.doesNotMatch(html(tree), /외 \d|더 보기|접기|펼치기|<button/);
+});
+
+test("같은 단지의 검색 일치 및 숫자 0 가격은 간결한 목록에서도 사라지지 않는다", () => {
+  const items = [
+    { ...properties[0], id: "zero-first", sale_price: 0, jeonse_price: 0, monthly_rent: 0 },
+    { ...properties[0], id: "zero-second", unit_number: "1002", sale_price: "0" },
+  ];
+  const tree = WorkSummaryProperties({ work: { ...work, ...items[1], properties_json: JSON.stringify(items), property_count: 2, search_property_match: 1 }, showPrices: true });
+  const entries = descendants(tree).filter((element) => element.props.role === "listitem");
+  assert.match(html(entries[0]), /매매 0 · 전세 0 · 월세 0/);
+  assert.match(html(entries[1]), /매매 0/);
+  assert.doesNotMatch(entries[0].props.className, /is-search-match/);
+  assert.match(entries[1].props.className, /is-search-match/);
+  assert.match(html(entries[1]), /검색 일치/);
+  assert.match(entries[1].props["aria-label"], /첫번째합성단지 101동 1002호/);
+});
+
+test("목록은 개별 카드와 녹색 번호 장식 없이 충분한 컨테이너 폭에서만 2열을 사용한다", () => {
+  const css = readFileSync(new URL("../app/work-summary-properties.css", import.meta.url), "utf8");
+  const rule = (selector) => css.slice(css.indexOf(`${selector} {`)).split("}")[0];
+  assert.match(rule(".work-summary-property"), /border:\s*0/);
+  assert.match(rule(".work-summary-property"), /background:\s*transparent/);
+  assert.doesNotMatch(rule(".work-summary-property-number"), /background|border-radius|green/);
+  assert.match(rule(".work-summary-property-number"), /white-space:\s*nowrap/);
+  assert.match(rule(".work-summary-property-number"), /flex:\s*0 0 28px/);
+  assert.match(rule(".work-summary-property-count"), /color:\s*var\(--ink\)/);
+  assert.match(css, /container-type:\s*inline-size/);
+  assert.match(css, /@container work-property-summary \(min-width:\s*520px\)\s*\{\s*\.work-summary-property-list\s*\{\s*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /@media \(max-width:\s*720px\)\s*\{\s*\.work-summary-property-list\s*\{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(rule(".work-summary-building"), /grid-column:\s*1 \/ -1/);
+  assert.doesNotMatch(css, /(?:^|[;{\s])(?:grid-auto-flow|order)\s*:/);
 });

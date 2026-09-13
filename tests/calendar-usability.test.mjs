@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { calendarWorkPresentation } from "./helpers/calendar-presentation.mjs";
+import { CalendarSubjects } from "./helpers/calendar-subjects.mjs";
 
 // Run the actual calendar markup and handlers with synthetic records only.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -17,11 +18,12 @@ const declarations = ["ListReadFeedback", "CalendarView", "targetText", "statusT
 const compiled = ts.transpileModule(declarations.join("\n"), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
 }).outputText;
-const CalendarView = new Function("React", "useMemo", "seoulDate", "Icon", "calendarWorkPresentation", `${compiled}; return CalendarView;`)(
-  React, (callback) => callback(), () => "2026-09-12", "span", calendarWorkPresentation,
+const CalendarView = new Function("React", "useMemo", "seoulDate", "Icon", "calendarWorkPresentation", "CalendarSubjects", `${compiled}; return CalendarView;`)(
+  React, (callback) => callback(), () => "2026-09-12", "span", calendarWorkPresentation, CalendarSubjects,
 );
 
 function descendants(element) {
+  if (element.type === CalendarSubjects) return descendants(CalendarSubjects(element.props));
   return [element, ...React.Children.toArray(element.props.children).flatMap((child) => React.isValidElement(child) ? descendants(child) : [])];
 }
 
@@ -133,14 +135,32 @@ test("전화·방문 달력 카드는 고객이 첫 정보이며 여러 관련 �
   const properties = [{ id: "a", building_name: "첫번째단지", unit_number: "101" }, { id: "b", building_name: "두번째단지", unit_number: "202" }];
   const item = syntheticWork("call", "2026-09-12", { work_type: "전화", customer_id: "합성업소ID", customer_name: "합성부동산", property_count: 2, properties_json: JSON.stringify(properties) });
   const tree = renderCalendar({ items: [item] });
-  const [subjects] = findByClass(tree, "calendar-card-subjects");
-  assert.equal(renderToStaticMarkup(subjects), '<span class="calendar-card-subjects"><small>합성업소ID 합성부동산</small></span>');
+  const [subjects] = findByClass(tree, "calendar-subjects");
+  const visible = descendants(subjects);
+  const customer = visible.find((element) => hasClass(element, "calendar-subject-customer"));
+  assert.equal(customer.props.children, "합성업소ID 합성부동산");
+  assert.ok(visible.indexOf(customer) < visible.findIndex((element) => hasClass(element, "calendar-subject-properties")), "customer identity remains the first work context before related properties");
   const [mobile] = findByClass(tree, "calendar-agenda-event");
   assert.deepEqual(descendants(mobile).filter((element) => element.type === "strong").map((element) => element.props.children), ["합성업소ID 합성부동산"]);
   for (const element of [findByClass(tree, "calendar-desktop-panel")[0], mobile]) {
     const html = renderToStaticMarkup(element);
     assert.match(html, /첫번째단지 101호/);
     assert.match(html, /두번째단지 202호/);
+  }
+});
+
+test("같은 단지의 묶음 물건은 달력 양쪽에서 제목 한 번과 각 호수·단독/업소 표기를 유지한다", () => {
+  const properties = ["1503", "1504", "1505"].map((unit, index) => ({ id: `same-${index}`, sequence: index + 1, property_type: "아파트", building_name: "같은합성단지", building_dong: "106", unit_number: unit, source: index === 1 ? "합성협력업소" : "" }));
+  const tree = renderCalendar({ items: [syntheticWork("same-building", "2026-09-12", { work_type: "가계약", property_count: 3, properties_json: JSON.stringify(properties) })] });
+  const desktop = findByClass(tree, "calendar-desktop-panel")[0], mobile = findByClass(tree, "calendar-agenda-event")[0];
+  for (const element of [desktop, mobile]) {
+    assert.deepEqual(findByClass(element, "calendar-subject-building").map((heading) => heading.props.children), ["같은합성단지"]);
+    assert.deepEqual(findByClass(element, "calendar-subject-label").map((label) => label.props.children), ["106동 1503호 (단독)", "106동 1504호 (합성협력업소)", "106동 1505호 (단독)"]);
+    const addresses = findByClass(element, "calendar-subject-property");
+    assert.equal(addresses.length, 3);
+    assert.deepEqual(addresses.map((address) => address.props["aria-label"]), ["물건 1 · 같은합성단지 106동 1503호 (단독)", "물건 2 · 같은합성단지 106동 1504호 (합성협력업소)", "물건 3 · 같은합성단지 106동 1505호 (단독)"]);
+    assert.ok(addresses.every((address) => address.props["aria-hidden"] !== true));
+    assert.doesNotMatch(renderToStaticMarkup(element), /<details\b|\shidden(?:=|\s|>)|외 2건/);
   }
 });
 
@@ -215,17 +235,31 @@ test("빈 날짜별 목록은 현재 업무구분 필터에 맞는 안내를 보
 
 test("모바일은 월 그리드 대신 전체 폭 일정 목록을 보여주고 큰 글씨와 긴 내용 줄바꿈을 지원한다", () => {
   const css = readFileSync(new URL("../app/calendar.css", import.meta.url), "utf8");
+  const subjectsCss = readFileSync(new URL("../app/calendar-subjects.css", import.meta.url), "utf8");
   assert.match(css, /\.calendar-agenda\s*\{\s*display:\s*none/);
   assert.match(css, /@media\s*\(max-width:\s*720px\)/);
   assert.match(css, /\.calendar-panel\.calendar-desktop-panel\s*\{\s*display:\s*none/);
   assert.match(css, /\.calendar-agenda\s*\{\s*display:\s*block/);
   assert.match(css, /\.calendar-agenda-notes\s*\{[^}]*font-size:\s*var\(--text-small\)[^}]*white-space:\s*pre-wrap[^}]*overflow-wrap:\s*anywhere/);
-  assert.match(css, /\.calendar-agenda-event > strong\s*\{[^}]*font-size:\s*var\(--text-base\)[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(subjectsCss, /\.calendar-agenda-event \.calendar-subject-customer[^}]*font-size:\s*var\(--text-base\)/);
   assert.doesNotMatch(css, /min-width:\s*770px|text-overflow:\s*ellipsis/);
-  for (const selector of [".calendar-agenda-event > strong", ".calendar-agenda-event > small"]) {
-    const rule = css.slice(css.indexOf(selector)).split("}")[0];
+  assert.doesNotMatch(subjectsCss, /text-overflow:\s*ellipsis|line-clamp/);
+  for (const selector of [".calendar-subject-customer", ".calendar-subject-building", ".calendar-subject-label"]) {
+    const rule = subjectsCss.slice(subjectsCss.indexOf(selector)).split("}")[0];
     assert.doesNotMatch(rule, /line-clamp|overflow:\s*hidden/, "주소와 고객명은 전체 표시한다");
     assert.match(rule, /overflow-wrap:\s*anywhere/);
   }
   assert.match(css, /\.calendar-agenda-notes\s*\{[^}]*-webkit-line-clamp:\s*3/, "목록의 긴 메모는 3줄 미리보기이며 업무 열기로 전문에 접근한다");
+});
+
+test("데스크톱 달력의 업무종별 제목과 더보기는 고정 12px 규칙보다 큰 글씨 토큰을 우선한다", () => {
+  const css = readFileSync(new URL("../app/calendar.css", import.meta.url), "utf8");
+  const globalCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.calendar-cell button \.calendar-card-heading > span,\s*\.calendar-cell button\.calendar-more\s*\{[^}]*font-size:\s*var\(--text-caption\)/);
+  assert.match(globalCss, /html\[data-readable="true"\]\s*\{[^}]*--text-caption:\s*14px/);
+  const items = Array.from({ length: 5 }, (_, index) => syntheticWork(`synthetic-${index}`, "2026-09-12", { work_type: "매물수정" }));
+  const [desktop] = findByClass(renderCalendar({ items }), "calendar-desktop-panel");
+  assert.equal(findByClass(desktop, "calendar-card-heading").length, 4);
+  assert.match(renderToStaticMarkup(findByClass(desktop, "calendar-card-heading")[0]), /매물수정/);
+  assert.equal(findByClass(desktop, "calendar-more")[0].type, "button");
 });

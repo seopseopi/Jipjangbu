@@ -2,7 +2,7 @@
 .history-list-guide { margin: 20px 0 4px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .history-entry-open { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; color: var(--green); font-size: var(--text-caption); white-space: nowrap; }
 .history-entry-context { display: grid; gap: 6px; min-width: 0; color: #354f41; font-size: var(--text-small); line-height: 1.7; }
-.history-entry-context > span { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
+.history-entry-context > span:not(.work-summary-properties) { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
 .history-entry-context .ui-icon { flex: 0 0 auto; margin-top: 5px; }
 .history-entry-context > span > span { min-width: 0; overflow-wrap: anywhere; }
 .history-entry-context small { color: var(--muted); font-size: inherit; }

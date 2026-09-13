@@ -51,15 +51,15 @@ test("열 개의 물건을 등록 순서대로 기본 펼침 상태로 전부 �
   const html = markup(tree);
   assert.equal(descendants(tree).filter((element) => element.type === "article").length, 10);
   assert.equal(buttons(tree, "매물 이력").length, 10);
-  assert.match(html, /관련 물건 <span>10개/);
-  assert.match(html, /모든 물건을 펼쳐/);
+  assert.match(html, /관련 물건 <span class="work-read-count">10개/);
   for (let index = 1; index <= 10; index += 1) {
     assert.match(html, new RegExp(`검증단지${index} ${100 + index}동 ${1000 + index}호`));
     assert.match(html, new RegExp(`검증업소${index}`));
   }
   assert.ok(html.indexOf("검증단지1 101동") < html.indexOf("검증단지2 102동"));
   assert.ok(html.indexOf("검증단지9 109동") < html.indexOf("검증단지10 110동"));
-  assert.doesNotMatch(html, /외 \d+|더 보기|<details\b|hidden=/);
+  assert.doesNotMatch(html, /외 \d+|더 보기|<details\b|\shidden=/);
+  for (const element of descendants(tree).filter((element) => element.type === "article")) assert.notEqual(element.props["aria-hidden"], true);
 });
 
 test("숫자 0 가격을 누락하지 않고 매매·전세·월세와 물건지·업소를 구분한다", () => {
@@ -104,7 +104,7 @@ test("물건과 내용이 없는 업무도 빈 상태를 명확히 보여 주며
   const tree = render({ details: [], content: "  ", building_name: "이전 대표 물건" });
   const html = markup(tree);
   assert.match(html, /기록된 내용이 없습니다/);
-  assert.match(html, /관련 물건 <span>0개/);
+  assert.match(html, /관련 물건 <span class="work-read-count">0개/);
   assert.match(html, /이 업무에 연결된 물건이 없습니다/);
   assert.doesNotMatch(html, /이전 대표 물건|모든 물건을 펼쳐/);
   assert.equal(buttons(tree, "매물 이력").length, 0);
@@ -144,7 +144,60 @@ test("긴 원문과 특수문자를 자르거나 HTML로 해석하지 않는다"
   const css = readFileSync(new URL("../app/work-detail-view.css", import.meta.url), "utf8");
   assert.match(css, /white-space: pre-wrap/);
   assert.match(css, /overflow-wrap: anywhere/);
-  assert.match(css, /repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.work-read-columns, \.work-read-property[^}]*grid-template-columns:/);
   assert.match(css, /@media \(max-width: 780px\)/);
   assert.doesNotMatch(css, /line-clamp|text-overflow:\s*ellipsis|max-height|overflow:\s*hidden/);
+});
+
+test("읽기 헤더는 일자·업무·고객·수정을 한 영역에 모으고 반복 안내와 배경 박스를 없앤다", () => {
+  const tree = render();
+  const header = descendants(tree).find((element) => element.type === "header");
+  assert.ok(header);
+  const html = markup(header);
+  assert.match(html, /2026\.09\.13/);
+  assert.match(html, /집방문/);
+  assert.match(html, /검증 고객/);
+  assert.equal(buttons(header, "업무 수정").length, 1);
+  assert.equal(buttons(header, "고객 이력").length, 1);
+  assert.doesNotMatch(markup(tree), /내용을 확인한 뒤|모든 물건을 펼쳐|work-read-overview|work-read-toolbar|work-read-property-tags/);
+  const css = readFileSync(new URL("../app/work-detail-view.css", import.meta.url), "utf8");
+  const headerRule = css.match(/\.work-read-header\s*\{([^}]+)\}/)[1];
+  const noteRule = css.match(/\.work-read-note\s*\{([^}]+)\}/)[1];
+  assert.doesNotMatch(headerRule, /background|border-radius|box-shadow/);
+  assert.doesNotMatch(noteRule, /background|border|padding|box-shadow/);
+  assert.match(noteRule, /color:\s*var\(--ink\)/);
+});
+
+test("물건 행은 번호·주소와 타입·가격·업소·이력 순서가 고정된 비교 목록이다", () => {
+  const tree = render({ details: [property(1), property(2)] });
+  const fields = ["work-read-number", "work-read-address", "work-read-prices", "work-read-source", "work-read-property-actions"];
+  for (const article of descendants(tree).filter((element) => element.type === "article")) {
+    assert.deepEqual(React.Children.toArray(article.props.children).map((child) => child.props.className), fields);
+    assert.match(markup(article), /아파트 · 타입 33A/);
+    assert.equal(buttons(article, "매물 이력").length, 1);
+  }
+  const list = descendants(tree).find((element) => element.type === "ol");
+  assert.equal(list.type, "ol");
+  assert.equal(list.props.className, "work-read-property-list");
+  const css = readFileSync(new URL("../app/work-detail-view.css", import.meta.url), "utf8");
+  assert.doesNotMatch(css, /repeat\(2|work-read-property-grid/);
+  const rowRule = css.match(/\n\.work-read-property\s*\{([^}]+)\}/)[1];
+  assert.match(rowRule, /border-bottom:/);
+  assert.doesNotMatch(rowRule, /background|border-radius|box-shadow|height:\s*100%/);
+  assert.match(css, /\.work-read-property\s*\{[^}]*grid-template-columns:\s*22px minmax\(0, 1fr\) 83px/);
+  assert.match(css, /\.work-read-prices, \.work-read-price-empty\s*\{[^}]*grid-column:\s*2 \/ -1/);
+});
+
+test("정보가 비어도 비교 열을 유지하고 이력 불가 안내는 물건마다 반복하지 않는다", () => {
+  const tree = render({ details: [{}, { source: "업소만 있는 원본" }] });
+  const articles = descendants(tree).filter((element) => element.type === "article");
+  for (const article of articles) {
+    const fields = React.Children.toArray(article.props.children).map((child) => child.props.className);
+    assert.deepEqual(fields, ["work-read-number", "work-read-address", "work-read-price-empty", "work-read-source", "work-read-property-actions"]);
+    assert.equal(buttons(article, "매물 이력")[0].props.disabled, true);
+  }
+  const html = markup(tree);
+  assert.equal(html.split("물건구분·건물명·호수가 있어야 이력을 찾을 수 있습니다.").length - 1, 1);
+  assert.match(markup(articles[0]), /미기재/);
+  assert.match(markup(articles[1]), /업소만 있는 원본/);
 });

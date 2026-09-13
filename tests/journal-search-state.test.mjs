@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { canAppendPage } from "../app/client-paging.ts";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
+import { getPropertyDisplayGroups } from "../app/property-display.ts";
 
 // Execute the production handlers and markup with synthetic records and controlled I/O.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -32,8 +33,9 @@ const JournalView = compile(["displayDate", "targetText", "statusTone", "EmptySt
   Icon: () => null,
   getWorkProperties,
   workPropertyLabel,
+  getPropertyDisplayGroups,
 });
-const WorkTable = compile(["displayDate", "targetText", "statusTone", "EmptyState", "WorkTable"], { React, Icon: () => null, getWorkProperties, workPropertyLabel });
+const WorkTable = compile(["displayDate", "targetText", "statusTone", "EmptyState", "WorkTable"], { React, Icon: () => null, getWorkProperties, workPropertyLabel, getPropertyDisplayGroups });
 const synthetic = {
   id: "work-example", work_date: "2026-09-13", work_type: "전화", customer_id: "customer-example", customer_name: "합성 고객",
   content: "이전 검색에만 속한 내용", property_type: "아파트", building_name: "예시단지", building_dong: "106", unit_number: "1503", property_count: 3,

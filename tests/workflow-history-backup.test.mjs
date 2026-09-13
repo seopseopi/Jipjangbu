@@ -194,8 +194,8 @@ test("로그인 HTML 응답을 성공한 백업 파일로 저장하지 않는다
   assert.match(markup(harness.render()), /로그인 상태를 확인/);
 });
 
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", `${compile("HistoryModal")}; return HistoryModal;`)(
-  React, ({ children }) => children, "span", "aside", (item) => `${item.building_name} ${item.building_dong}동 ${item.unit_number}호`, (value) => value, () => "normal", getWorkProperties, workPropertyLabel,
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", `${compile("HistoryModal")}; return HistoryModal;`)(
+  React, ({ children }) => children, "span", "aside", (item) => `${item.building_name} ${item.building_dong}동 ${item.unit_number}호`, (value) => value, () => "normal", getWorkProperties, workPropertyLabel, WorkSummaryProperties,
 );
 function history(data, extra = {}) {
   return HistoryModal({ data, onClose() {}, onRefresh() {}, onOpenWork() {}, onNewWork() {}, onFollowUp() {}, onCopy() {}, ...extra });
