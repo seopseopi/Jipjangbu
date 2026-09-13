@@ -70,7 +70,7 @@ test("9월 1일 업무를 9월 13일 저장하면 상단에 수정 내용을 보
   assert.match(text, /최근 저장한 업무 내용/);
   assert.match(text, /2026\.09\.01/);
   assert.match(text, /2026\.09\.13 13:05/);
-  assert.match(text, /한국시간/);
+  assert.doesNotMatch(text, /한국\s*시간/);
   assert.match(text, /합성 임차인 연락처 확인 방식 변경/);
   assert.doesNotMatch(text, /미리 등록한 합성 미래 일정|2026\.09\.17|2026\.09\.20/);
   assert.equal(byClass(recent, "listing-latest-save-content")[0].props.children, edited.notes);
@@ -87,6 +87,7 @@ test("상단 선택과 무관하게 아래 타임라인은 업무일 순서를 �
   assert.match(markup(rows[0]), /최근 저장.*2026\.09\.10 10:00/);
   assert.match(markup(rows[1]), /업무일 2026\.09\.01/);
   assert.match(markup(rows[1]), /최근 저장.*2026\.09\.13 13:05/);
+  assert.doesNotMatch(markup(tree), /한국\s*시간/);
   rows.forEach((row) => row.props.onClick());
   assert.deepEqual(opened, [future.work_log_id, edited.work_log_id]);
   const top = summary(tree).tree;
@@ -141,6 +142,7 @@ test("고객·날짜별 업무 이력은 listing 전용 상단을 만들지 않�
   const row = timeline(tree)[0];
   assert.match(markup(row), /업무일 2026\.09\.01/);
   assert.match(markup(row), /최근 저장.*2026\.09\.13 13:05/);
+  assert.doesNotMatch(markup(row), /한국\s*시간/);
   assert.match(markup(row), /합성 연락 방식 변경/);
   const css = readFileSync(new URL("../app/workflow-history-backup.css", import.meta.url), "utf8");
   const savedStyle = css.match(/\.history-list \.history-entry-saved\s*\{([^}]*)\}/)?.[1];

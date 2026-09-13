@@ -3860,7 +3860,7 @@ function HistoryModal({
                   {isEvent && <small>{raw.customer_name}</small>}
                   <span className="history-entry-open">{id ? <>내용 보기 <Icon name="next" size={15} /></> : "원본 이력"}</span>
                 </div>
-                {savedLabel && <p className="history-entry-saved">최근 저장 · <time>{savedLabel}</time> <span>(한국 시간)</span></p>}
+                {savedLabel && <p className="history-entry-saved">최근 저장 · <time>{savedLabel}</time></p>}
                 {!isEvent && (raw.customer_name || property) && (
                   <div className="history-entry-context">
                     {raw.customer_name && <span><Icon name="customers" size={16} /><span>고객 · {raw.customer_name}</span></span>}

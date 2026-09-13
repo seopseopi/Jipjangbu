@@ -372,7 +372,7 @@ function HistoryRecordRow({
           <span className="history-record-current">현재 수정 중 · 저장된 내용</span>
         )}
       </div>
-      {record.savedAt && <span className="history-record-saved-at">최근 저장 · {record.savedAt} (한국시간)</span>}
+      {record.savedAt && <span className="history-record-saved-at">최근 저장 · {record.savedAt}</span>}
       <p className="history-record-content">
         {record.content || "기록된 내용 없음"}
       </p>
@@ -454,7 +454,7 @@ function SavedWorkDetails({ workId }: { workId: string }) {
         <div><dt>업무일</dt><dd>{work.work_date}</dd></div>
         <div><dt>업무구분</dt><dd>{work.work_type}</dd></div>
         <div><dt>고객</dt><dd>{work.customer_name}</dd></div>
-        {(formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at)) && <div><dt>최근 저장 (한국시간)</dt><dd>{formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at)}</dd></div>}
+        {(formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at)) && <div><dt>최근 저장</dt><dd>{formatHistoryTimestamp(work.updated_at) || formatHistoryTimestamp(work.created_at)}</dd></div>}
       </dl>
       <p className="history-record-content">{work.content || "기록된 내용 없음"}</p>
       <div className="history-record-properties">

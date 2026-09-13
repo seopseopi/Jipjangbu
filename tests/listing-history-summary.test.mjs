@@ -24,7 +24,8 @@ test("상단은 최신 업무일이 아닌 최근 저장한 업무의 전체 내
   assert.match(html, /지금 수정하여 저장한 내용\n둘째 줄/);
   assert.match(html, /업무일 · <time dateTime="2026-08-20">2026\.08\.20/);
   assert.match(html, /매물수정/);
-  assert.match(html, /최근 저장 · 2026\.09\.13 13:05 \(한국시간\)/);
+  assert.match(html, /최근 저장 · 2026\.09\.13 13:05/);
+  assert.doesNotMatch(html, /한국\s*시간/);
   assert.doesNotMatch(html, /미래 업무일의 이전 저장 내용|2026\.12\.31/);
   const button = descendants(tree).find((element) => element.type === "button");
   assert.equal(button.props.type, "button");
@@ -68,6 +69,7 @@ test("저장 시각이 전부 없거나 무효이면 최근 저장으로 단정�
 test("잘못된 업무 저장 시각은 유효한 이벤트 시각으로 대체하고 한국시간 날짜 경계를 적용한다", () => {
   const tree = ListingHistorySummary({ events: [{ ...events[1], work_updated_at: "bad-value", created_at: "2026-09-13T20:03:00Z" }] });
   assert.match(markup(tree), /최근 저장 · 2026\.09\.14 05:03/);
+  assert.doesNotMatch(markup(tree), /한국\s*시간/);
   assert.doesNotMatch(markup(tree), /저장 시각 정보 없음|bad-value/);
 });
 

@@ -77,6 +77,7 @@ test("보조 매물 이력도 같은 최근 저장 요약을 쓰되 개별 이�
   const latestHtml = markup(summary);
   assert.match(latestHtml, /과거 업무에서 방금 고친 메모/);
   assert.match(latestHtml, /2026\.09\.13 14:10/);
+  assert.doesNotMatch(markup(tree), /한국\s*시간/);
   assert.doesNotMatch(latestHtml, /미래 업무의 원래 메모/);
   const records = descendants(tree).filter((element) => element.type === Row).map((element) => element.props.record);
   assert.deepEqual(records.map((record) => record.id), ["future", "changed"]);
@@ -98,6 +99,7 @@ test("보조 이력의 저장 시각은 유효한 이벤트 시각으로 대체�
   assert.equal(rows[0].props.record.savedAt, "2026.09.14 05:03");
   assert.equal(rows[1].props.record.savedAt, "");
   assert.match(markup(rows[0]), /최근 저장 · 2026\.09\.14 05:03/);
+  assert.doesNotMatch(markup(rows[0]), /한국\s*시간/);
   assert.doesNotMatch(markup(rows[1]), /최근 저장 ·|한국시간|Invalid Date/);
 });
 
@@ -112,6 +114,7 @@ test("고객 보조 이력은 원래 업무일과 업무 저장시각을 분리�
   assert.equal(rows[1].props.record.savedAt, "");
   assert.match(markup(rows[0]), /업무일 · 2026\.08\.20/);
   assert.match(markup(rows[0]), /최근 저장 · 2026\.09\.13 10:02/);
+  assert.doesNotMatch(markup(rows[0]), /한국\s*시간/);
   assert.equal(descendants(tree).some((element) => element.type === ListingHistorySummary), false);
   const request = new URL(h.requests[0].url, "https://test.invalid");
   assert.equal(request.searchParams.get("customerId"), customerTarget.id);
@@ -157,7 +160,8 @@ test("펼친 저장 업무도 업무일과 실제 저장시각을 따로 보여�
     });
     const html = markup(View({ workId: "synthetic" }));
     assert.match(html, /<dt>업무일<\/dt><dd>2026-08-20/);
-    assert.equal(html.includes("최근 저장 (한국시간)"), Boolean(updated_at));
+    assert.equal(html.includes("<dt>최근 저장</dt>"), Boolean(updated_at));
+    assert.doesNotMatch(html, /한국\s*시간/);
     if (updated_at) assert.match(html, /2026\.09\.13 10:02/);
   }
 });

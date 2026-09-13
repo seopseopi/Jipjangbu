@@ -39,7 +39,7 @@ export function ListingHistorySummary({ events, sourceNotes, onOpenWork }: {
           <div className="listing-latest-save-meta">
             <span>업무일 · {latest.event_date ? <time dateTime={latest.event_date}>{latest.event_date.replaceAll("-", ".")}</time> : "미기재"}</span>
             {latest.status && <strong>{latest.status}</strong>}
-            {savedAt && <span>최근 저장 · {savedAt} (한국시간)</span>}
+            {savedAt && <span>최근 저장 · {savedAt}</span>}
           </div>
           {!savedAt && <p className="listing-save-time-unknown">저장 시각 정보 없음 · 업무일 기준으로 표시합니다.</p>}
           <p className="listing-latest-save-content">{latest.notes?.trim() ? latest.notes : "기록된 내용 없음"}</p>
