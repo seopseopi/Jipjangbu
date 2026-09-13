@@ -114,10 +114,12 @@
 .followup-urgency-count small { margin-left: 3px; font-size: 12px; font-weight: 600; }
 .followup-urgency-count.is-overdue { border-color: #f0cdc9; color: #a32d2d; background: #fff2f0; }
 .followup-urgency-count.is-today { border-color: #eddaa5; color: #855200; background: #fff7e4; }
-.followup-compact { padding: 24px; background: #fff; border: 1px solid var(--followup-line); border-radius: 20px; }
-.followup-compact .followup-heading { margin-bottom: 16px; }
+.followup-compact { min-width: 0; padding: 24px; background: #fff; border: 1px solid var(--followup-line); border-radius: 20px; }
+.followup-compact .followup-heading { flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; margin-bottom: 16px; }
+.followup-compact .followup-heading > div { flex: 1 1 160px; min-width: 0; }
 .followup-compact .followup-heading h2 { font-size: 20px; }
 .followup-compact .followup-heading p { font-size: 14px; }
+.followup-compact .followup-urgency { grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr)); }
 .followup-compact .followup-list { border: 0; box-shadow: none; border-radius: 0; background: transparent; }
 .followup-compact .followup-item { gap: 8px; padding: 18px 0 13px; background: transparent; }
 .followup-compact .followup-item.is-overdue { padding-left: 10px; background: #fff8f7; }
@@ -131,8 +133,8 @@
 .followup-compact .followup-form-compact .followup-date-field > label { white-space: nowrap; }
 .followup-compact .followup-form-compact .followup-date-field input { max-width: 190px; }
 .followup-compact .followup-form-compact .followup-date-shortcuts { flex-basis: 100%; }
-.followup-compact .followup-form-actions { justify-content: stretch; }
-.followup-compact .followup-form-actions > button { flex: 1; }
+.followup-compact .followup-form-actions { flex-wrap: wrap; justify-content: stretch; }
+.followup-compact .followup-form-actions > button { flex: 1 1 100px; white-space: normal; }
 .followup-show-more { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 48px; margin-top: 12px; padding: 10px 2px; border: 0; background: transparent; color: #486642; font-size: 15px; font-weight: 600; }
 .followup-show-more:hover { color: #213e22; }
 @media (max-width: 700px) {

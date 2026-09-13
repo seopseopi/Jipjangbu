@@ -231,7 +231,6 @@ type WorkHistoryActions = {
 
 const navItems: Array<[View, string]> = [
   ["today", "홈"],
-  ["tasks", "다시 연락할 일"],
   ["insights", "업무 현황"],
   ["journal", "업무일지"],
   ["listings", "매물 관리"],
@@ -706,7 +705,7 @@ export function WorkManager() {
   useEffect(() => {
     const syncView = () => {
       const key = window.location.hash.slice(1) as View;
-      const next = navItems.some(([viewKey]) => viewKey === key)
+      const next = key === "tasks" || navItems.some(([viewKey]) => viewKey === key)
         ? key
         : "today";
       if (next !== currentView.current && (followUpBusy.current || workBusy.current || customerBusy.current)) {
@@ -1135,7 +1134,7 @@ export function WorkManager() {
   }).format(new Date());
   const titles: Record<View, [string, string]> = {
     today: ["오늘의 업무", dateLabel],
-    tasks: ["다시 연락할 일", "고객 연락과 매물 확인을 놓치지 않도록"],
+    tasks: ["챙겨야 할 일", "따로 적어 둔 확인 사항을 관리합니다"],
     insights: ["업무 현황", "쌓인 기록에서 지금 확인할 흐름을 정리합니다"],
     journal: ["업무일지", "모든 업무 기록을 검색하고 관리합니다"],
     listings: ["매물 관리", "업무 기록에서 자동으로 갱신된 현재 상태입니다"],
@@ -1589,8 +1588,8 @@ function DashboardView({
             <Icon name="calendar" size={16} />
             {displayDate(seoulDate())}
           </p>
-          <h2>오늘 확인할 일부터 시작하세요.</h2>
-          <p>연락할 일과 일정을 확인하고, 새 업무를 바로 기록하세요.</p>
+          <h2>오늘 업무와 다가오는 일정을 한눈에.</h2>
+          <p>오늘 기록과 앞으로 7일 일정을 확인하고, 새 업무를 바로 기록하세요.</p>
         </div>
         <div className="home-hero-actions">
           <span className="home-section-label">자주 하는 업무 바로 등록</span>
@@ -1663,7 +1662,6 @@ function DashboardView({
         </article>
       </div>
       <div className="home-body-grid">
-        {followUps}
         <section className="panel schedule-panel dashboard-schedule">
           <div className="panel-head">
             <h2 className="heading-icon">
@@ -1702,6 +1700,7 @@ function DashboardView({
             empty="앞으로 7일간 등록된 일정이 없습니다."
           />
         </section>
+        {followUps}
       </div>
       <section className="panel recent-panel">
         <div className="panel-head">
@@ -3756,19 +3755,6 @@ function HistoryModal({
             onClick={() => onNewWork(data.customer!.id)}
           >
             <Icon name="plus" size={18} /> 이 고객 업무 등록
-          </button>
-          <button
-            type="button"
-            className="secondary-button"
-            onClick={() =>
-              onFollowUp({
-                title: `${data.customer!.name} 다시 연락`,
-                customerId: data.customer!.id,
-                customerName: data.customer!.name,
-              })
-            }
-          >
-            <Icon name="tasks" size={18} /> 다시 연락할 일 추가
           </button>
           <button
             type="button"

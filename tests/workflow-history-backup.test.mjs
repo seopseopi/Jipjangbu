@@ -237,15 +237,17 @@ test("매물 이력에서 같은 매물로 새 업무와 확인할 일을 시작
   assert.equal(button(pending, "이 매물로 업무 등록").props.disabled, true);
 });
 
-test("고객 이력에서 새 업무 및 후속 연락은 고객 ID와 표시 이름을 유지한다", () => {
-  const customer = { id: "synthetic-customer", name: "예시 고객" }, calls = [], tasks = [];
+test("고객 이력은 사용하지 않는 후속 연락 버튼 없이 새 업무와 연락처 복사를 유지한다", () => {
+  const customer = { id: "synthetic-customer", name: "예시 고객" }, calls = [], copies = [];
   const tree = history({ title: "고객 이력", subtitle: "", customer, items: [] }, {
-    onNewWork: (id) => calls.push(id), onFollowUp: (draft) => tasks.push(draft),
+    onNewWork: (id) => calls.push(id), onCopy: (id) => copies.push(id),
+    onFollowUp: () => assert.fail("unused customer follow-up control must not be reachable"),
   });
   button(tree, "이 고객 업무 등록").props.onClick();
-  button(tree, "다시 연락할 일 추가").props.onClick();
+  button(tree, "연락처·ID 복사").props.onClick();
   assert.deepEqual(calls, [customer.id]);
-  assert.deepEqual(tasks, [{ title: "예시 고객 다시 연락", customerId: customer.id, customerName: customer.name }]);
+  assert.deepEqual(copies, [customer.id]);
+  assert.doesNotMatch(markup(tree), /다시 연락할 일 추가/);
 });
 
 test("7일·30일 전체 일정 조회 실패는 빈 기록 대신 오류와 다시 불러오기를 표시한다", () => {

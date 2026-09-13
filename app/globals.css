@@ -926,7 +926,7 @@ button.table-row:hover { background: #f4f8f5; }
   .insights-loading-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-/* All eight mobile destinations are visible in a 2 × 4 navigation grid. */
+/* Keep all primary destinations visible in a four-column mobile navigation grid. */
 @media (max-width: 720px) {
   .app-shell { display: block; }
   .sidebar { position: static; height: auto; padding: 13px 14px 12px; border-right: 0; border-bottom: 1px solid var(--line); box-shadow: 0 2px 8px rgba(39, 57, 26, .025); }
