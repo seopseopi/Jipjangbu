@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { clientJsonFetch } from "./client-api";
 import { Icon } from "./icons";
+import { WorkSummaryProperties } from "./work-summary-properties";
 import {
   createHistoryRequestScope,
   HISTORY_PAGE_SIZE,
@@ -33,6 +34,7 @@ type SavedWork = SavedProperty & {
   customer_name: string;
   content: string;
   property_count?: number;
+  properties_json?: string;
   details: SavedProperty[];
 };
 
@@ -52,7 +54,7 @@ type HistoryRecord = {
   workType: string;
   customerName: string;
   content: string;
-  property: SavedProperty;
+  property: SavedProperty & { properties_json?: string };
   propertyCount: number;
 };
 
@@ -351,8 +353,6 @@ function HistoryRecordRow({
 }) {
   const detailsId = useId();
   const [expanded, setExpanded] = useState(false);
-  const property = propertyLabel(record.property);
-  const prices = priceLabel(record.property);
   return (
     <article className={`history-record${current ? " is-current" : ""}`}>
       <div className="history-record-meta">
@@ -366,13 +366,7 @@ function HistoryRecordRow({
       <p className="history-record-content">
         {record.content || "기록된 내용 없음"}
       </p>
-      {property && (
-        <p className="history-record-property-summary">
-          {property}
-          {record.propertyCount > 1 && ` 외 ${record.propertyCount - 1}개`}
-        </p>
-      )}
-      {prices && <p className="history-record-property-summary">{prices}</p>}
+      <WorkSummaryProperties work={{ ...record.property, property_count: record.propertyCount }} showSingle showPrices />
       {record.workId ? (
         <button
           type="button"

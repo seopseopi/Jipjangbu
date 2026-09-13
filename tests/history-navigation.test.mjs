@@ -31,7 +31,7 @@ function stateBox(initial = null) {
   return state;
 }
 
-test("opening work A then B cannot replace B's draft with A's late response", async () => {
+test("explicitly editing work A then B cannot replace B's draft with A's late response", async () => {
   const a = deferred(), b = deferred(), state = stateBox(), version = { current: 0 };
   const open = handler("openWork", {
     workOpenVersion: version,
@@ -50,7 +50,7 @@ test("opening work A then B cannot replace B's draft with A's late response", as
   assert.equal(state.current.unsavedDraft, "keep this");
 });
 
-test("closing the originating history invalidates a pending work open", async () => {
+test("closing the originating history invalidates a pending explicit edit open", async () => {
   const pending = deferred(), state = stateBox(), version = { current: 0 };
   const open = handler("openWork", {
     workOpenVersion: version, loadReferenceData: async () => {},
@@ -132,6 +132,9 @@ test("work table and editor expose separate history controls without nested butt
   assert.match(table, /className="table-row work-record-row"/);
   assert.match(table, /고객 이력 보기/);
   assert.match(table, /매물 이력 보기/);
+  assert.match(table, /업무 내용 보기/);
+  assert.doesNotMatch(table, /업무 수정|내용 확인 및 수정|외 \{Number\(item\.property_count\) - 1\}건/);
+  assert.match(table, /getWorkProperties\(item\)\.map/);
   assert.doesNotMatch(table, /<button\s+className="table-row/);
   for (const button of table.matchAll(/<button\b[\s\S]*?>/g)) assert.match(button[0], /type="button"/);
   const editor = source.slice(source.indexOf("function WorkModal("), source.indexOf("function CustomerModal("));

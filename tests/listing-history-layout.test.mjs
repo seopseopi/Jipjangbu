@@ -4,6 +4,7 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 
 // Exercise the actual modal markup without a browser or real customer records.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -13,9 +14,9 @@ assert.ok(declaration, "HistoryModal exists");
 const compiled = ts.transpileModule(declaration.getText(ast), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
 }).outputText;
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", `${compiled}; return HistoryModal;`)(
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", `${compiled}; return HistoryModal;`)(
   React, ({ children }) => children, "span", "aside", () => "예시 매물",
-  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`,
+  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel,
 );
 
 function elements(children) {

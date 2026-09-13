@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { fetchCustomerDirectory } from "../app/customer-directory.ts";
+import { calendarWorkPresentation } from "./helpers/calendar-presentation.mjs";
 
 // Execute production UI callbacks and markup with synthetic data and controlled
 // network responses, including cross-screen transitions rather than text checks.
@@ -55,7 +56,7 @@ function button(tree, label) {
   assert.ok(element, `${label} exists`);
   return element;
 }
-const environment = { React, Icon: () => null, useMemo: (callback) => callback(), seoulDate: () => "2026-09-13" };
+const environment = { React, Icon: () => null, useMemo: (callback) => callback(), seoulDate: () => "2026-09-13", calendarWorkPresentation };
 const common = ["displayDate", "targetText", "statusTone", "EmptyState", "Toolbar", "ListReadFeedback"];
 const Feedback = compile(["ListReadFeedback"], environment);
 const Listings = compile([...common, "Price", "ListingsView"], environment);
@@ -152,10 +153,13 @@ test("홈의 의미형 바로가기는 해당 화면 필터만 초기화하고 �
 
 test("일반 메뉴 이동은 목록 조건을 초기화하지 않고 기존 탐색과 뒤로가기 경로를 유지한다", () => {
   const views = [], paths = [], active = { current: "today" };
+  const reader = state({ id: "previous-screen-work", loading: true }), reference = state({ kind: "customer", id: "previous" });
+  const readVersion = { current: 0 };
   const navigate = compile(["navigate"], {
     view: "today", followUpBusy: { current: false }, followUpDirty: { current: false },
     workBusy: { current: false }, customerBusy: { current: false },
     workOpenVersion: { current: 0 }, currentView: active, setView: (value) => views.push(value),
+    workReadVersion: readVersion, setWorkReader: reader.set, setReaderReference: reference.set,
     window: { scrollTo: noop, history: { pushState: (...args) => paths.push(args) }, location: { pathname: "/", search: "" }, confirm: () => true },
     refreshBase: async () => {}, showLoadError: assert.fail,
   });
@@ -163,6 +167,9 @@ test("일반 메뉴 이동은 목록 조건을 초기화하지 않고 기존 탐
   assert.deepEqual(views, ["listings"]);
   assert.equal(active.current, "listings");
   assert.deepEqual(paths, [[{ view: "listings" }, "", "/#listings"]]);
+  assert.equal(reader.current, null);
+  assert.equal(reference.current, null);
+  assert.equal(readVersion.current, 1);
   // No setters for list filters are injected: a reset would fail this callback.
 });
 

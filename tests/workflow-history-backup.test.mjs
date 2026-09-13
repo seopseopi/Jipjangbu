@@ -4,6 +4,8 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
+import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
 const ast = ts.createSourceFile("work-manager.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -192,24 +194,28 @@ test("로그인 HTML 응답을 성공한 백업 파일로 저장하지 않는다
   assert.match(markup(harness.render()), /로그인 상태를 확인/);
 });
 
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", `${compile("HistoryModal")}; return HistoryModal;`)(
-  React, ({ children }) => children, "span", "aside", (item) => `${item.building_name} ${item.building_dong}동 ${item.unit_number}호`, (value) => value, () => "normal",
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", `${compile("HistoryModal")}; return HistoryModal;`)(
+  React, ({ children }) => children, "span", "aside", (item) => `${item.building_name} ${item.building_dong}동 ${item.unit_number}호`, (value) => value, () => "normal", getWorkProperties, workPropertyLabel,
 );
 function history(data, extra = {}) {
   return HistoryModal({ data, onClose() {}, onRefresh() {}, onOpenWork() {}, onNewWork() {}, onFollowUp() {}, onCopy() {}, ...extra });
 }
 const listing = { identity_key: "아파트|예시단지|106|1503", building_name: "예시단지", building_dong: "106", unit_number: "1503", status: "상담" };
-test("날짜별 이력은 고객·대표 물건·함께 연결된 물건 수로 각 업무를 구별한다", () => {
+test("날짜별 이력은 고객·모든 물건·함께 연결된 물건 수로 각 업무를 구별한다", () => {
   const calls = [];
+  const properties = ["1503", "1504", "1505"].map((unit, index) => ({ ...listing, id: `property-${index}`, unit_number: unit }));
   const tree = history({ title: "하루 업무", subtitle: "2건", items: [
-    { id: "one", work_date: "2026-09-13", work_type: "상담", customer_name: "가상 고객 A", content: "동일 메모", ...listing, property_count: 3 },
+    { id: "one", work_date: "2026-09-13", work_type: "상담", customer_name: "가상 고객 A", content: "동일 메모", ...listing, property_count: 3, properties_json: JSON.stringify(properties) },
     { id: "two", work_date: "2026-09-13", work_type: "상담", customer_name: "가상 고객 B", content: "동일 메모", property_count: 0 },
   ] }, { onOpenWork: (id) => calls.push(id) });
   const list = findClass(tree, "history-list");
   const rows = React.Children.toArray(list.props.children);
   assert.match(markup(rows[0]), /가상 고객 A/);
   assert.match(markup(rows[0]), /예시단지 106동 1503호/);
-  assert.match(markup(rows[0]), /외 2건/);
+  assert.match(markup(rows[0]), /함께 기록한 물건 3개/);
+  assert.match(markup(rows[0]), /예시단지 106동 1504호/);
+  assert.match(markup(rows[0]), /예시단지 106동 1505호/);
+  assert.doesNotMatch(markup(rows[0]), /외 2건/);
   assert.match(markup(rows[1]), /가상 고객 B/);
   assert.doesNotMatch(markup(rows[1]), /undefined|물건 ·/);
   for (const row of rows) row.props.onClick();
@@ -281,8 +287,8 @@ test("업무 현황은 제한된 일정 미리보기를 총건수처럼 표시�
   };
   let index = 0;
   const states = [data, false, "", 0];
-  const View = new Function("React", "useState", "useEffect", "useMemo", "Icon", `${compiled}; return InsightsView;`)(
-    React, () => [states[index++], () => {}], () => {}, (callback) => callback(), "span",
+  const View = new Function("React", "useState", "useEffect", "useMemo", "Icon", "WorkSummaryProperties", `${compiled}; return InsightsView;`)(
+    React, () => [states[index++], () => {}], () => {}, (callback) => callback(), "span", WorkSummaryProperties,
   );
   const scheduleCalls = [], workCalls = [];
   const tree = View({ onOpenSchedule: () => scheduleCalls.push("30-days"), onOpenWork: (id) => workCalls.push(id), onOpenListing() {} });

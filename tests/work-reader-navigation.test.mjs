@@ -1,0 +1,263 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import ts from "typescript";
+
+// Exercise production callbacks with controlled promises. All records are
+// synthetic and no API, browser, or persistence binding is contacted.
+const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
+const ast = ts.createSourceFile("work-manager.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function findAll(predicate) {
+  const found = [];
+  function visit(node) { if (predicate(node)) found.push(node); ts.forEachChild(node, visit); }
+  visit(ast);
+  return found;
+}
+function declaration(name) {
+  const node = findAll((node) => ts.isFunctionDeclaration(node) && node.name?.text === name)[0];
+  assert.ok(node, `Production handler ${name} exists`);
+  return node.getText(ast);
+}
+function evaluate(code, environment) {
+  const output = ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React } }).outputText;
+  return new Function(...Object.keys(environment), `${output}; return result;`)(...Object.values(environment));
+}
+function callbacks(component, prop, environment) {
+  const nodes = findAll((node) => (ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(ast) === component);
+  const expressions = nodes.flatMap((node) => node.attributes.properties.filter((attribute) => ts.isJsxAttribute(attribute) && attribute.name.getText(ast) === prop).map((attribute) => attribute.initializer?.expression));
+  assert.ok(expressions.length, `${component}.${prop} exists`);
+  return expressions.map((expression) => evaluate(`const result = ${expression.getText(ast)};`, environment));
+}
+function state(current = null) {
+  const result = { current };
+  result.set = (value) => { result.current = typeof value === "function" ? value(result.current) : value; };
+  return result;
+}
+function deferred() {
+  let resolve, reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+const noop = () => {};
+function harness(fetch, extra = {}) {
+  const reader = state(), editor = state(), reference = state({ kind: "customer", id: "previous" }), search = state(true);
+  const workReadVersion = { current: 0 }, workOpenVersion = { current: 0 };
+  const environment = {
+    workReadVersion, workOpenVersion,
+    setWorkReader: reader.set, setWorkModal: editor.set,
+    setReaderReference: reference.set, setGlobalSearchOpen: search.set,
+    jsonFetch: fetch, loadReferenceData: async () => {},
+    isAborted: (error) => error?.name === "AbortError", showLoadError: assert.fail,
+    ...extra,
+  };
+  const handlers = evaluate(`${["openWork", "readWork", "closeWorkReader"].map(declaration).join("\n")}\nconst result = { openWork, readWork, closeWorkReader };`, environment);
+  return { reader, editor, reference, search, workReadVersion, workOpenVersion, ...handlers };
+}
+
+test("기존 업무는 수정창 대신 읽기 대기를 즉시 열고 해당 업무의 모든 물건을 읽는다", async () => {
+  const pending = deferred(), requests = [];
+  const h = harness((url) => { requests.push(url); return pending.promise; });
+  const task = h.readWork("synthetic work/1");
+  assert.deepEqual(h.reader.current, { id: "synthetic work/1", loading: true });
+  assert.equal(h.editor.current, null);
+  assert.equal(h.reference.current, null);
+  assert.equal(h.search.current, false);
+  assert.deepEqual(requests, ["/api/work-logs/synthetic%20work%2F1"]);
+  const item = { id: "synthetic work/1", content: "합성 업무 원문", details: [{ unit_number: "101" }, { unit_number: "202" }, { unit_number: "303" }] };
+  pending.resolve({ workLog: item });
+  await task;
+  assert.deepEqual(h.reader.current, { id: item.id, item, loading: false });
+  assert.equal(h.editor.current, null);
+});
+
+test("업무 A를 읽다가 B를 열면 A의 늦은 성공·오류가 B 화면을 덮어쓰지 않는다", async () => {
+  for (const lateError of [false, true]) {
+    const a = deferred(), b = deferred();
+    const h = harness((url) => url.endsWith("/a") ? a.promise : b.promise);
+    const first = h.readWork("a"), second = h.readWork("b");
+    const item = { id: "b", content: "합성 B", details: [] };
+    b.resolve({ workLog: item });
+    await second;
+    if (lateError) a.reject(new Error("합성 A 조회 실패")); else a.resolve({ workLog: { id: "a" } });
+    await first;
+    assert.deepEqual(h.reader.current, { id: "b", item, loading: false });
+  }
+});
+
+test("읽기 실패는 대상과 재시도 오류를 유지하며 성공한 재조회는 오류를 해제한다", async () => {
+  let requests = 0;
+  const item = { id: "retry", content: "합성 재조회 성공", details: [] };
+  const h = harness(async () => { if (++requests === 1) throw new Error("합성 연결 오류"); return { workLog: item }; });
+  await h.readWork("retry");
+  assert.deepEqual(h.reader.current, { id: "retry", loading: false, error: "합성 연결 오류" });
+  assert.equal(h.editor.current, null);
+  await h.readWork(h.reader.current.id);
+  assert.deepEqual(h.reader.current, { id: "retry", item, loading: false });
+});
+
+test("내부 취소도 무한 읽기 대기 대신 명시적인 재시도 안내가 된다", async () => {
+  const h = harness(async () => { throw new DOMException("Synthetic cancelled read", "AbortError"); });
+  await h.readWork("cancelled");
+  assert.equal(h.reader.current.loading, false);
+  assert.equal(h.reader.current.id, "cancelled");
+  assert.match(h.reader.current.error, /중단.*다시/);
+  assert.equal(h.reader.current.item, undefined);
+});
+
+test("읽기창을 닫은 뒤 늦은 성공이나 오류가 창을 다시 열지 않는다", async () => {
+  for (const lateError of [false, true]) {
+    const pending = deferred(), h = harness(() => pending.promise);
+    const task = h.readWork("closed");
+    h.reference.set({ kind: "listing", key: "synthetic" });
+    const readVersion = h.workReadVersion.current, editVersion = h.workOpenVersion.current;
+    h.closeWorkReader();
+    assert.equal(h.reader.current, null);
+    assert.equal(h.reference.current, null);
+    assert.ok(h.workReadVersion.current > readVersion);
+    assert.ok(h.workOpenVersion.current > editVersion);
+    if (lateError) pending.reject(new Error("합성 늦은 오류")); else pending.resolve({ workLog: { id: "closed" } });
+    await task;
+    assert.equal(h.reader.current, null);
+  }
+});
+
+test("다른 업무 읽기를 시작하면 앞서 대기하던 수정창 열기가 새 읽기 화면을 가리지 않는다", async () => {
+  const oldEdit = deferred(), nextRead = deferred();
+  const h = harness((url) => url.endsWith("/edit-a") ? oldEdit.promise : nextRead.promise);
+  const editing = h.openWork("edit-a");
+  const reading = h.readWork("read-b");
+  nextRead.resolve({ workLog: { id: "read-b", details: [] } });
+  await reading;
+  oldEdit.resolve({ workLog: { id: "edit-a", details: [] } });
+  await editing;
+  assert.equal(h.reader.current.id, "read-b");
+  assert.equal(h.editor.current, null);
+});
+
+test("새 업무 등록은 기존 업무 읽기 API를 요청하지 않고 빈 수정 폼으로 시작한다", async () => {
+  const h = harness(() => assert.fail("new work must not fetch an existing record"));
+  await h.readWork();
+  assert.equal(h.reader.current, null);
+  assert.equal(h.editor.current.mode, "new");
+  assert.equal(h.editor.current.item, undefined);
+});
+
+test("홈·업무일지·달력·현황·통합검색·이력의 기존 업무 진입은 읽기 콜백으로 연결된다", async () => {
+  const calls = [];
+  for (const [component, prop] of [["DashboardView", "onOpen"], ["JournalView", "onOpen"], ["CalendarView", "onOpen"], ["InsightsView", "onOpenWork"], ["GlobalSearch", "onOpenWork"], ["HistoryModal", "onOpenWork"]]) {
+    const handlers = callbacks(component, prop, { readWork: (id) => calls.push([component, id]), openWork: () => assert.fail(`${component} must not edit existing work directly`) });
+    for (const handler of handlers) await handler("synthetic-existing");
+    assert.ok(calls.some(([name, id]) => name === component && id === "synthetic-existing"));
+  }
+});
+
+test("고객·매물에서 새 업무를 만들거나 매물을 수정할 때는 새 이력용 폼을 연다", () => {
+  const calls = [];
+  const environment = { openWork: (...args) => calls.push(args), readWork: () => assert.fail("new work must not open a historical reader") };
+  callbacks("HistoryModal", "onNewWork", environment)[0]("synthetic-customer");
+  const listing = { identity_key: "synthetic-listing", building_name: "합성단지" };
+  callbacks("HistoryModal", "onNewListingWork", environment)[0](listing);
+  callbacks("HistoryModal", "onModifyListing", environment)[0](listing, "synthetic-customer");
+  assert.deepEqual(calls, [[undefined, "synthetic-customer"], [undefined, undefined, undefined, listing], [undefined, "synthetic-customer", "매물수정", listing]]);
+});
+
+test("읽기에서 명시적으로 수정한 뒤 취소하면 읽던 업무·원래 이력을 그대로 유지한다", async () => {
+  const item = { id: "synthetic-work", content: "저장된 합성 내용", details: [{ unit_number: "101" }] };
+  const reader = state({ id: item.id, item, loading: false }), editor = state({ mode: "edit", item }), version = { current: 0 };
+  const edits = [];
+  await callbacks("WorkDetailView", "onEdit", { workReader: reader.current, openWork: (id) => edits.push(id) })[0]();
+  assert.deepEqual(edits, [item.id]);
+  callbacks("WorkModal", "onClose", { workOpenVersion: version, setWorkModal: editor.set })[0]();
+  assert.equal(editor.current, null);
+  assert.equal(reader.current.item, item);
+  assert.match(source, /historyModal\s*&&\s*!workReader/);
+  assert.match(source, /workReader\s*&&\s*!workModal/);
+});
+
+test("수정 저장은 폼을 닫고 읽던 업무와 원래 이력을 새로 조회한다", async () => {
+  const reader = { id: "synthetic-work", item: { id: "synthetic-work" }, loading: false };
+  const previous = { title: "합성 고객 이력", items: [{ id: "synthetic-work" }] };
+  const editor = state({ mode: "edit" }), calls = [], version = { current: 0 };
+  await callbacks("WorkModal", "onSaved", {
+    workOpenVersion: version, setWorkModal: editor.set, workReader: reader, historyModal: previous,
+    afterMutation: async (message) => calls.push(["list", message]),
+    refreshHistory: async (history) => calls.push(["history", history]),
+    readWork: async (id) => calls.push(["reader", id]),
+    closeWorkReader: () => assert.fail("saved work should retain its reader"),
+  })[0]("업무를 수정했습니다.");
+  assert.equal(editor.current, null);
+  assert.equal(version.current, 1);
+  assert.deepEqual(calls, [["list", "업무를 수정했습니다."], ["history", previous], ["reader", reader.id]]);
+});
+
+test("업무 삭제 후에는 없는 업무를 다시 읽지 않고 원래 목록·이력만 갱신한다", async () => {
+  const editor = state({ mode: "edit" }), calls = [];
+  await callbacks("WorkModal", "onSaved", {
+    workOpenVersion: { current: 0 }, setWorkModal: editor.set, workReader: { id: "deleted" }, historyModal: { title: "합성 이력" },
+    afterMutation: async () => calls.push("list"), refreshHistory: async () => calls.push("history"),
+    readWork: async () => assert.fail("deleted work must not be reloaded"), closeWorkReader: () => calls.push("close-reader"),
+  })[0]("업무를 삭제했습니다.");
+  assert.equal(editor.current, null);
+  assert.deepEqual(calls, ["close-reader", "list", "history"]);
+});
+
+test("승인된 메뉴 이동은 읽기 대기를 무효화하고 새 화면에 이전 업무를 다시 띄우지 않는다", async () => {
+  const pending = deferred(), h = harness(() => pending.promise);
+  const task = h.readWork("old-view-work");
+  const changed = [];
+  const navigate = evaluate(`${declaration("navigate")}\nconst result = navigate;`, {
+    view: "journal", followUpBusy: { current: false }, workBusy: { current: false }, customerBusy: { current: false }, followUpDirty: { current: false },
+    workOpenVersion: h.workOpenVersion, workReadVersion: h.workReadVersion,
+    closeWorkReader: h.closeWorkReader, setWorkReader: h.reader.set, setReaderReference: h.reference.set,
+    currentView: { current: "journal" }, setView: (next) => changed.push(next),
+    window: { scrollTo: noop, confirm: () => true, location: { pathname: "/", search: "" }, history: { pushState: noop } },
+    refreshBase: async () => {}, showLoadError: assert.fail,
+  });
+  assert.equal(navigate("calendar"), true);
+  assert.deepEqual(changed, ["calendar"]);
+  pending.resolve({ workLog: { id: "old-view-work" } });
+  await task;
+  assert.equal(h.reader.current, null);
+});
+
+test("이동을 취소하거나 저장 중이면 읽던 업무와 대기 요청을 그대로 보존한다", () => {
+  for (const saving of [false, true]) {
+    const h = harness(async () => ({ workLog: { id: "current" } }));
+    h.reader.set({ id: "current", loading: false, item: { id: "current" } });
+    const original = h.reader.current;
+    const navigate = evaluate(`${declaration("navigate")}\nconst result = navigate;`, {
+      view: "journal", followUpBusy: { current: false }, workBusy: { current: saving }, customerBusy: { current: false }, followUpDirty: { current: !saving },
+      workOpenVersion: h.workOpenVersion, workReadVersion: h.workReadVersion,
+      closeWorkReader: h.closeWorkReader, setWorkReader: h.reader.set, setReaderReference: h.reference.set,
+      currentView: { current: "journal" }, setView: () => assert.fail("cancelled navigation must not change the view"), setNotice: noop,
+      window: { scrollTo: noop, confirm: () => false, location: { pathname: "/", search: "" }, history: { pushState: () => assert.fail("cancelled navigation must not add browser history") } },
+      refreshBase: async () => {}, showLoadError: assert.fail,
+    });
+    assert.equal(navigate("calendar"), false);
+    assert.equal(h.reader.current, original);
+    assert.equal(h.workReadVersion.current, 0);
+  }
+});
+
+test("브라우저 뒤로가기도 읽기 대기를 닫고 늦은 응답이 이전 화면으로 덮지 못하게 한다", async () => {
+  const pending = deferred(), h = harness(() => pending.promise);
+  const task = h.readWork("previous-work");
+  const node = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "syncView")[0];
+  assert.ok(node?.initializer, "production popstate callback exists");
+  const currentView = { current: "journal" }, views = [];
+  const sync = evaluate(`const result = ${node.initializer.getText(ast)};`, {
+    navItems: [["today"], ["journal"], ["calendar"]], currentView,
+    followUpBusy: { current: false }, workBusy: { current: false }, customerBusy: { current: false }, followUpDirty: { current: false },
+    workOpenVersion: h.workOpenVersion, workReadVersion: h.workReadVersion,
+    setWorkReader: h.reader.set, setReaderReference: h.reference.set,
+    setView: (view) => views.push(view), setNotice: noop,
+    window: { location: { hash: "#calendar", pathname: "/" }, history: { pushState: noop }, confirm: () => true },
+  });
+  sync();
+  assert.equal(currentView.current, "calendar");
+  assert.deepEqual(views, ["calendar"]);
+  pending.resolve({ workLog: { id: "previous-work" } });
+  await task;
+  assert.equal(h.reader.current, null);
+  assert.equal(h.reference.current, null);
+});

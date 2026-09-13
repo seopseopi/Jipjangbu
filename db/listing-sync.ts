@@ -14,8 +14,6 @@ export type PropertyInput = {
 
 export { LISTING_WORK_TYPES } from "../app/listing-work-types.js";
 
-const ACTIVE_WORK_TYPES = new Set(["매물등록", "매물수정"]);
-
 export function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
 }
@@ -30,50 +28,47 @@ export function isPropertyComplete(detail: PropertyInput): boolean {
   return Boolean(clean(detail.propertyType) && clean(detail.buildingName) && clean(detail.unitNumber));
 }
 
-export async function rebuildListings(keys: Iterable<string>) {
+// The work, its events, and the current listing are one durable change. Return
+// SQL instead of reading events here so callers can append these projections to
+// the same D1 batch, after the event mutations. All reads below therefore see
+// the newly saved events and a failure rolls the entire user action back.
+export function listingRebuildStatements(keys: Iterable<string>) {
   const db = getD1();
+  const statements: D1PreparedStatement[] = [];
   for (const key of new Set([...keys].filter(Boolean))) {
-    const latest = await db.prepare(`
-      SELECT * FROM listing_events
-      WHERE listing_key = ?
-      ORDER BY event_date DESC, event_order DESC, created_at DESC, id DESC
-      LIMIT 1
-    `).bind(key).first<Record<string, string | number | null>>();
-
-    if (!latest) {
-      await db.prepare("DELETE FROM listings WHERE identity_key = ?").bind(key).run();
-      continue;
-    }
-
-    const [firstRegistration, history, existingListing] = await Promise.all([
-      db.prepare(`
-        SELECT MIN(event_date) AS registered_at
-        FROM listing_events
-        WHERE listing_key = ? AND status = '매물등록'
-      `).bind(key).first<{ registered_at: string | null }>(),
-      db.prepare(`
-        SELECT event_date, event_order, status, notes FROM listing_events
+    statements.push(db.prepare(`
+      DELETE FROM listings
+      WHERE identity_key = ?
+        AND NOT EXISTS (SELECT 1 FROM listing_events WHERE listing_key = ?)
+    `).bind(key, key));
+    statements.push(db.prepare(`
+      WITH ordered_events AS (
+        SELECT * FROM listing_events
         WHERE listing_key = ?
         ORDER BY event_date DESC, event_order DESC, created_at DESC, id DESC
-      `).bind(key).all<{ event_date: string; event_order: number; status: string; notes: string }>(),
-      db.prepare("SELECT source_notes FROM listings WHERE identity_key = ?")
-        .bind(key).first<{ source_notes: string }>(),
-    ]);
-
-    const registeredAt = firstRegistration?.registered_at ?? latest.event_date;
-    const closedAt = ACTIVE_WORK_TYPES.has(String(latest.status)) ? null : latest.event_date;
-    const eventNotes = history.results
-      .map((event) => `${event.notes || ""} (${event.status}) (${event.event_date})`.trim())
-      .join("\n");
-    const sourceNotes = existingListing?.source_notes ?? "";
-    const notes = [sourceNotes, eventNotes].filter(Boolean).join("\n");
-
-    await db.prepare(`
+      ), latest AS (
+        SELECT * FROM ordered_events LIMIT 1
+      ), summary AS (
+        SELECT MIN(CASE WHEN status = '매물등록' THEN event_date END) AS registered_at,
+          GROUP_CONCAT(TRIM(COALESCE(notes, '') || ' (' || status || ') (' || event_date || ')'), char(10)) AS event_notes
+        FROM ordered_events
+      )
       INSERT INTO listings (
         id, identity_key, registered_at, closed_at, status, property_type, building_name,
         building_dong, unit_number, size_type, sale_price, jeonse_price, monthly_rent,
         notes, source_notes, is_demo, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      )
+      SELECT ?, latest.listing_key, COALESCE(summary.registered_at, latest.event_date),
+        CASE WHEN latest.status IN ('매물등록', '매물수정') THEN NULL ELSE latest.event_date END,
+        latest.status, latest.property_type, latest.building_name, latest.building_dong,
+        latest.unit_number, latest.size_type, latest.sale_price, latest.jeonse_price, latest.monthly_rent,
+        CASE WHEN COALESCE(previous.source_notes, '') = '' THEN COALESCE(summary.event_notes, '')
+          WHEN COALESCE(summary.event_notes, '') = '' THEN previous.source_notes
+          ELSE previous.source_notes || char(10) || summary.event_notes END,
+        COALESCE(previous.source_notes, ''), latest.is_demo, CURRENT_TIMESTAMP
+      FROM latest CROSS JOIN summary
+      LEFT JOIN listings previous ON previous.identity_key = latest.listing_key
+      WHERE 1
       ON CONFLICT(identity_key) DO UPDATE SET
         registered_at = excluded.registered_at,
         closed_at = excluded.closed_at,
@@ -90,10 +85,12 @@ export async function rebuildListings(keys: Iterable<string>) {
         source_notes = excluded.source_notes,
         is_demo = excluded.is_demo,
         updated_at = CURRENT_TIMESTAMP
-    `).bind(
-      crypto.randomUUID(), key, registeredAt, closedAt, latest.status, latest.property_type,
-      latest.building_name, latest.building_dong, latest.unit_number, latest.size_type,
-      latest.sale_price, latest.jeonse_price, latest.monthly_rent, notes, sourceNotes, latest.is_demo,
-    ).run();
+    `).bind(key, crypto.randomUUID()));
   }
+  return statements;
+}
+
+export async function rebuildListings(keys: Iterable<string>) {
+  const statements = listingRebuildStatements(keys);
+  if (statements.length) await getD1().batch(statements);
 }

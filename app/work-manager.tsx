@@ -24,6 +24,9 @@ import "./work-form-feedback.css";
 import { LISTING_WORK_TYPES, findWorkDraftIssue } from "./work-form-rules";
 import { CustomerPicker } from "./customer-picker";
 import { fetchCustomerDirectory } from "./customer-directory";
+import { calendarWorkPresentation } from "./calendar-presentation";
+import { getWorkProperties, workPropertyLabel } from "./work-property-summary";
+import type { RelatedHistoryTarget } from "./history-query";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
 import { Icon, workTypeIcon } from "./icons";
 import { canAppendPage } from "./client-paging";
@@ -50,6 +53,9 @@ const RelatedHistory = lazy(() =>
 );
 const ListingPicker = lazy(() =>
   import("./listing-picker").then((module) => ({ default: module.ListingPicker })),
+);
+const WorkDetailView = lazy(() =>
+  import("./work-detail-view").then((module) => ({ default: module.WorkDetailView })),
 );
 
 function isAborted(error: unknown) {
@@ -89,6 +95,8 @@ type WorkSummary = {
   sale_price?: string;
   jeonse_price?: string;
   monthly_rent?: string;
+  source?: string;
+  properties_json?: string;
   property_count: number;
   search_property_match?: number;
   is_demo: number;
@@ -397,6 +405,10 @@ export function WorkManager() {
   const [customerSort, setCustomerSort] = useState("recent");
   const [calendarMonth, setCalendarMonth] = useState(seoulDate().slice(0, 7));
   const [workModal, setWorkModal] = useState<WorkModalState | null>(null);
+  const [workReader, setWorkReader] = useState<{ id: string; item?: WorkDetail; loading: boolean; error?: string } | null>(null);
+  const workReadVersion = useRef(0);
+  const [readerReference, setReaderReference] = useState<RelatedHistoryTarget | null>(null);
+  const readerReferenceTrigger = useRef<HTMLElement | null>(null);
   const workOpenVersion = useRef(0);
   const historyOpenVersion = useRef(0);
   const [customerModal, setCustomerModal] = useState<{
@@ -706,7 +718,12 @@ export function WorkManager() {
         );
         return;
       }
-      if (next !== currentView.current) workOpenVersion.current += 1;
+      if (next !== currentView.current) {
+        workOpenVersion.current += 1;
+        workReadVersion.current += 1;
+        setWorkReader(null);
+        setReaderReference(null);
+      }
       currentView.current = next;
       setView(next);
     };
@@ -763,6 +780,9 @@ export function WorkManager() {
       return false;
     const hash = next === "today" ? "" : `#${next}`;
     workOpenVersion.current += 1;
+    workReadVersion.current += 1;
+    setWorkReader(null);
+    setReaderReference(null);
     window.history.pushState(
       { view: next },
       "",
@@ -804,6 +824,35 @@ export function WorkManager() {
       return;
     }
     }
+  }
+  async function readWork(id?: string) {
+    if (!id) { await openWork(); return; }
+    workOpenVersion.current += 1;
+    const version = ++workReadVersion.current;
+    setGlobalSearchOpen(false);
+    setReaderReference(null);
+    setWorkReader({ id, loading: true });
+    try {
+      const data = await jsonFetch<{ workLog: WorkDetail }>(`/api/work-logs/${encodeURIComponent(id)}`);
+      if (version === workReadVersion.current) setWorkReader({ id, item: data.workLog, loading: false });
+    } catch (error) {
+      if (version === workReadVersion.current) setWorkReader({ id, loading: false, error: isAborted(error) ? "업무 내용 조회가 중단되었습니다. 다시 불러와 주세요." : (error as Error).message });
+    }
+  }
+  function closeWorkReader() {
+    workReadVersion.current += 1;
+    workOpenVersion.current += 1;
+    setWorkReader(null);
+    setReaderReference(null);
+  }
+  function openReaderReference(target: RelatedHistoryTarget) {
+    readerReferenceTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setReaderReference(target);
+  }
+  function closeReaderReference() {
+    setReaderReference(null);
+    const trigger = readerReferenceTrigger.current;
+    window.requestAnimationFrame(() => { if (trigger?.isConnected) { trigger.focus(); trigger.scrollIntoView({ block: "nearest" }); } });
   }
   async function afterMutation(message: string) {
     setNotice(message);
@@ -1209,7 +1258,7 @@ export function WorkManager() {
               {view === "today" && dashboard && (
                 <DashboardView
                   dashboard={dashboard}
-                  onOpen={openWork}
+                  onOpen={readWork}
                   onCustomerHistory={showCustomerHistory}
                   onListingHistory={showWorkListingHistory}
                   onNavigate={navigateFromDashboard}
@@ -1266,7 +1315,7 @@ export function WorkManager() {
                       navigate("listings");
                     }}
                     onOpenWork={(id) => {
-                      void openWork(id);
+                      void readWork(id);
                     }}
                     onOpenListing={(item) => {
                       void showListingHistory(item);
@@ -1305,7 +1354,7 @@ export function WorkManager() {
                     ) && queries.journal === journalSearch && journalStatus === "ready"
                   }
                   onExport={exportWorkLogs}
-                  onOpen={openWork}
+                  onOpen={readWork}
                   onCustomerHistory={showCustomerHistory}
                   onListingHistory={showWorkListingHistory}
                 />
@@ -1368,7 +1417,7 @@ export function WorkManager() {
                   setWorkType={setCalendarWorkType}
                   items={calendarLogs}
                   lookups={lookups}
-                  onOpen={openWork}
+                  onOpen={readWork}
                   onShowDay={(date, items) => {
                     historyOpenVersion.current += 1;
                     setHistoryModal({
@@ -1416,7 +1465,7 @@ export function WorkManager() {
             refreshKey={insightsRefreshKey}
             onClose={() => setGlobalSearchOpen(false)}
             onOpenWork={(id) => {
-              void openWork(id);
+              void readWork(id);
             }}
             onOpenCustomer={(item) => {
               void showCustomerHistory(item);
@@ -1427,19 +1476,32 @@ export function WorkManager() {
           />
         </Suspense>
       )}
-      {historyModal && (
+      {historyModal && !workReader && (
         <HistoryModal
           data={historyModal}
           onClose={() => { historyOpenVersion.current += 1; workOpenVersion.current += 1; setHistoryModal(null); }}
           onRefresh={() => void refreshHistory(historyModal)}
           onOpenWork={(id) => {
-            void openWork(id);
+            void readWork(id);
           }}
           onNewWork={(id) => void openWork(undefined, id)}
           onNewListingWork={(listing) => void openWork(undefined, undefined, undefined, listing)}
+          onModifyListing={(listing, customerId) => void openWork(undefined, customerId, "매물수정", listing)}
           onFollowUp={addFollowUp}
           onCopy={copyCustomerId}
         />
+      )}
+      {workReader && !workModal && (
+        <Modal title="업무 내용" subtitle="내용과 연결된 물건을 먼저 확인하세요. 변경은 ‘업무 수정’을 눌러 시작합니다." onClose={closeWorkReader} reading>
+          {workReader.loading && <p className="form-help" role="status">업무 내용과 연결된 물건을 불러오고 있습니다…</p>}
+          {workReader.error && <div className="form-error" role="alert"><p>{workReader.error}</p><button type="button" className="secondary-button" onClick={() => void readWork(workReader.id)}><Icon name="refresh" size={16} /> 다시 불러오기</button></div>}
+          {workReader.item && <Suspense fallback={<p role="status">읽기 화면을 준비하고 있습니다…</p>}>
+            <WorkDetailView item={workReader.item} onEdit={() => void openWork(workReader.id)}
+              onCustomerHistory={() => openReaderReference({ kind: "customer", id: workReader.item!.customer_id, name: workReader.item!.customer_name })}
+              onListingHistory={(key) => { const [, building_name, building_dong, unit_number] = key.split("|"); openReaderReference({ kind: "listing", key, name: workPropertyLabel({ building_name, building_dong, unit_number }) }); }} />
+          </Suspense>}
+          {readerReference && <ReaderReferencePanel target={readerReference} onClose={closeReaderReference} />}
+        </Modal>
       )}
       {workModal && (
         <WorkModal
@@ -1454,7 +1516,8 @@ export function WorkManager() {
           onSaved={async (message) => {
             workOpenVersion.current += 1;
             setWorkModal(null);
-            await Promise.all([afterMutation(message), refreshHistory(historyModal)]);
+            if (message === "업무를 삭제했습니다.") closeWorkReader();
+            await Promise.all([afterMutation(message), refreshHistory(historyModal), workReader && message !== "업무를 삭제했습니다." ? readWork(workReader.id) : undefined]);
           }}
         />
       )}
@@ -1676,10 +1739,10 @@ function WorkRows({
           </span>
           <span className="schedule-copy">
             <strong>
-              {targetText(item) === "물건 없음"
-                ? item.customer_name
-                : targetText(item)}
+              {item.customer_name}
             </strong>
+            {getWorkProperties(item).length > 1 && <span className="work-property-group-label">함께 기록한 물건 {getWorkProperties(item).length}개</span>}
+            {getWorkProperties(item).map((property, index) => <span className="work-property-line" key={property.id || index}>{workPropertyLabel(property)}</span>)}
             <small>
               {showDate && `${displayDate(item.work_date)} · `}
               {item.content || item.customer_name}
@@ -1852,7 +1915,7 @@ function JournalView({
             </p>
           </div>
           <span className="helper-text">
-            고객·물건을 누르면 이력, 일자·내용을 누르면 업무 수정
+            고객·물건은 이력 보기 · 일자·내용은 읽기 화면 · 수정은 내용 확인 후
           </span>
         </div>
         {status === "refreshing" && (
@@ -1922,7 +1985,7 @@ function WorkTable({
           className="table-row work-record-row"
           key={item.id}
         >
-          <span data-label="일자"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${displayDate(item.work_date)} ${item.customer_name} 업무 수정`}>{displayDate(item.work_date)}<small><Icon name="edit" size={13} /> 업무 수정</small></button></span>
+          <span data-label="일자"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${displayDate(item.work_date)} ${item.customer_name} 업무 내용 보기`}>{displayDate(item.work_date)}<small><Icon name="journal" size={13} /> 내용 보기</small></button></span>
           <span data-label="업무구분">
             <i className={`tag ${statusTone(item.work_type)}`}>
               {item.work_type}
@@ -1936,19 +1999,22 @@ function WorkTable({
             </button>
           </span>
           <span data-label="물건">
-            {Number(item.search_property_match) === 1 && (
-              <small className="work-property-match" title="여러 물건이 검색에 일치하면 첫 번째 일치 물건을 표시합니다.">검색 일치 물건</small>
-            )}
-            {item.property_type?.trim() && item.building_name?.trim() && item.unit_number?.trim() ? (
-              <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory(item)} aria-label={`${targetText(item)} 매물 이력 보기`}>
-                {targetText(item)}<small><Icon name="clock" size={13} /> 매물 이력</small>
-              </button>
-            ) : targetText(item)}
-            {Number(item.property_count) > 1 && (
-              <button type="button" className="work-extra-properties" onClick={() => onOpen(item.id)}>외 {Number(item.property_count) - 1}건 보기</button>
-            )}
+            {Number(item.property_count) > 1 && <strong className="work-property-group-label">함께 기록한 물건 {item.property_count}개</strong>}
+            <ol className="work-property-list">
+              {getWorkProperties(item).map((property, index) => {
+                const matched = Number(item.search_property_match) === 1 && property.property_type === item.property_type && property.building_name === item.building_name && property.building_dong === item.building_dong && property.unit_number === item.unit_number;
+                return <li key={property.id || index}>
+                  {matched && <small className="work-property-match" title="이 업무에서 검색에 일치한 물건입니다. 함께 기록된 다른 물건도 아래에 표시합니다.">검색 일치 물건</small>}
+                  {property.property_type.trim() && property.building_name.trim() && property.unit_number.trim() ? <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory({ ...item, ...property, id: item.id })} aria-label={`${workPropertyLabel(property)} 매물 이력 보기`}>
+                    {workPropertyLabel(property)}<small><Icon name="clock" size={13} /> 매물 이력</small>
+                  </button> : <span>{workPropertyLabel(property)}</span>}
+                </li>;
+              })}
+            </ol>
+            {!getWorkProperties(item).length && <span>물건 없음</span>}
+            {Number(item.property_count) > 1 && <button type="button" className="work-extra-properties" onClick={() => onOpen(item.id)}>전체 업무 내용 보기 <Icon name="next" size={14} /></button>}
           </span>
-          <span data-label="내용"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${item.customer_name} 업무 내용 확인 및 수정`}>{item.content || "내용 확인·수정"}</button></span>
+          <span data-label="내용"><button type="button" className="work-cell-button" onClick={() => onOpen(item.id)} aria-label={`${item.customer_name} 업무 내용 보기`}>{item.content || "내용 보기"}</button></span>
         </div>
       ))}
     </div>
@@ -2110,7 +2176,7 @@ function ListingsView({
           <span className="helper-text">
             {state === "stale"
               ? "진행 중 매물 중 마지막 갱신이 90일 이상 지난 매물입니다. 이력에서 확인할 일을 추가하세요."
-              : "매물을 누르면 이력 확인과 해당 매물로 업무 등록을 할 수 있습니다"}
+              : "매물을 누르면 전체 이력을 읽고 ‘매물 수정 이력 추가’로 변경 사항을 기록할 수 있습니다"}
           </span>
         </div>
         <ListReadFeedback status={status} error={error} onRetry={onRetry} label="매물 목록" />
@@ -2438,6 +2504,7 @@ function CalendarView({
       <ListReadFeedback status={status} error={error} onRetry={onRetry} label="달력 기록" />
       {resultsVisible && <>
       <p className="calendar-result-summary">{displayedMonth.replace("-", "년 ")}월 · {workType || "모든 업무구분"} · {Object.values(grouped).reduce((count, rows) => count + rows.length, 0)}건</p>
+      <p className="calendar-reading-guide">매물·계약 업무는 물건 중심, 전화·방문 등은 고객 중심으로 표시합니다. 누르면 먼저 내용을 읽을 수 있습니다.</p>
       <section className="panel calendar-panel calendar-desktop-panel" aria-label="월간 업무 달력">
         <div className="calendar-week">
           <span>일</span>
@@ -2458,21 +2525,22 @@ function CalendarView({
                 <>
                   <b>{day}</b>
                   <div>
-                    {(grouped[day] || []).slice(0, 4).map((item) => (
+                    {(grouped[day] || []).slice(0, 4).map((item) => {
+                      const presentation = calendarWorkPresentation(item);
+                      return (
                       <button
                         type="button"
                         className={statusTone(item.work_type)}
                         onClick={() => onOpen(item.id)}
                         key={item.id}
+                        aria-label={`${item.work_type} · ${presentation.entries.join(" · ")} 내용 보기`}
                       >
-                        <span>{item.work_type}</span>
-                        <small>
-                          {targetText(item) === "물건 없음"
-                            ? item.customer_name
-                            : targetText(item)}
-                        </small>
+                        <span className="calendar-card-heading"><span>{item.work_type}</span>{presentation.properties.length > 1 && <span className="calendar-property-count">물건 {presentation.properties.length}개</span>}</span>
+                        <span className="calendar-card-subjects">{presentation.entries.map((entry, entryIndex) => <small key={entryIndex}>{entry}</small>)}</span>
+                        {!presentation.propertyFocused && presentation.properties.length > 0 && <span className="calendar-card-properties" aria-label="관련 물건">{presentation.properties.map((property) => <small key={property.key}>{property.label}</small>)}</span>}
                       </button>
-                    ))}
+                    );
+                    })}
                     {(grouped[day]?.length || 0) > 4 && (
                       <button
                         className="calendar-more"
@@ -2510,12 +2578,14 @@ function CalendarView({
               </header>
               <div className="calendar-agenda-events">
                 {dayItems.slice(0, 4).map((item) => {
-                  const target = targetText(item);
+                  const presentation = calendarWorkPresentation(item);
                   return (
                     <button className="calendar-agenda-event" type="button" key={item.id} onClick={() => onOpen(item.id)}>
-                      <span className="calendar-agenda-event-head"><span className={`tag ${statusTone(item.work_type)}`}>{item.work_type}</span><span className="calendar-agenda-open">업무 열기 <Icon name="next" size={16} /></span></span>
-                      <strong>{target === "물건 없음" ? item.customer_name : target}</strong>
-                      {target !== "물건 없음" && item.customer_name && <small>고객 · {item.customer_name}</small>}
+                      <span className="calendar-agenda-event-head"><span className={`tag ${statusTone(item.work_type)}`}>{item.work_type}</span><span className="calendar-agenda-open">내용 보기 <Icon name="next" size={16} /></span></span>
+                      {presentation.properties.length > 1 && <span className="calendar-property-count">관련 물건 {presentation.properties.length}개</span>}
+                      {presentation.entries.map((entry, entryIndex) => <strong key={entryIndex}>{entry}</strong>)}
+                      {presentation.propertyFocused && item.customer_name && <small>고객 · {presentation.customerLabel}</small>}
+                      {!presentation.propertyFocused && presentation.properties.length > 0 && <span className="calendar-agenda-properties" aria-label="관련 물건">{presentation.properties.map((property) => <span key={property.key}>{property.label}</span>)}</span>}
                       {item.content && <span className="calendar-agenda-notes">{item.content}</span>}
                     </button>
                   );
@@ -3124,7 +3194,7 @@ function WorkModal({
           ? "업무 수정"
           : modal.mode === "copy"
             ? "기존 기록으로 새 업무"
-            : "새 업무 등록"
+            : modal.initialListing && modal.initialWorkType === "매물수정" ? "매물 수정 이력 추가" : "새 업무 등록"
       }
       subtitle="한 업무에 물건을 최대 10개까지 함께 기록할 수 있습니다"
       onClose={requestClose}
@@ -3144,6 +3214,7 @@ function WorkModal({
             확인하고 저장해 주세요.
           </p>
         )}
+        {modal.initialListing && modal.initialWorkType === "매물수정" && <p className="editor-context">기존 기록을 덮어쓰지 않고 새 매물 수정 업무를 추가합니다. 날짜는 오늘, 고객은 최근 이력 기준이므로 실제 업무에 맞는지 확인해 주세요. 현재 매물 정보는 업무일이 가장 최근인 이력으로 표시됩니다.</p>}
         <div className="work-form-section"><h3>1. 기본 업무</h3><p>* 표시한 항목은 꼭 입력해 주세요.</p></div>
         <div className="form-grid three">
           <label>
@@ -3658,6 +3729,7 @@ function HistoryModal({
   onOpenWork,
   onNewWork,
   onNewListingWork,
+  onModifyListing,
   onFollowUp,
   onCopy,
 }: {
@@ -3667,6 +3739,7 @@ function HistoryModal({
   onOpenWork: (id: string) => void;
   onNewWork: (id: string) => void;
   onNewListingWork?: (listing: Listing) => void;
+  onModifyListing?: (listing: Listing, customerId?: string) => void;
   onFollowUp: (draft: FollowUpDraft) => void;
   onCopy: (id: string) => void;
 }) {
@@ -3725,10 +3798,16 @@ function HistoryModal({
           )}
         </div>
         <div className="listing-history-actions">
+          {onModifyListing && !data.listing.closed_at && (
+            <button type="button" className="primary-button" disabled={Boolean(data.loading || data.error)}
+              onClick={() => onModifyListing(data.listing!, data.items.find((item) => "event_date" in item && item.customer_id)?.customer_id)}>
+              <Icon name="edit" size={18} /> 매물 수정 이력 추가
+            </button>
+          )}
           {onNewListingWork && (
             <button
               type="button"
-              className="primary-button"
+              className="secondary-button"
               disabled={Boolean(data.loading || data.error)}
               onClick={() => onNewListingWork(data.listing!)}
             >
@@ -3751,7 +3830,8 @@ function HistoryModal({
         </div>
         </>
       )}
-      {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 연결된 업무가 열립니다.</p>}
+      {data.listing && <p className="history-list-guide">매물 수정은 새 업무와 이력으로 남습니다. 이전 기록은 유지되며 현재 매물은 업무일이 가장 최근인 이력을 기준으로 표시합니다.</p>}
+      {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" aria-busy={Boolean(data.loading)}>
         {!data.items.length ? (
           !data.loading && !data.error ? <EmptyState title="기록이 없습니다." /> : null
@@ -3762,7 +3842,7 @@ function HistoryModal({
             const status = isEvent ? raw.status : raw.work_type;
             const content = isEvent ? raw.notes : raw.content;
             const id = isEvent ? raw.work_log_id : raw.id;
-            const property = !isEvent && (raw.building_name || raw.building_dong || raw.unit_number) ? targetText(raw) : "";
+            const property = !isEvent && getWorkProperties(raw).length > 0;
             return (
               <button
                 type="button"
@@ -3775,12 +3855,12 @@ function HistoryModal({
                   <time dateTime={date}>{displayDate(date)}</time>
                   <strong>{status}</strong>
                   {isEvent && <small>{raw.customer_name}</small>}
-                  <span className="history-entry-open">{id ? <>업무 열기 <Icon name="next" size={15} /></> : "원본 이력"}</span>
+                  <span className="history-entry-open">{id ? <>내용 보기 <Icon name="next" size={15} /></> : "원본 이력"}</span>
                 </div>
                 {!isEvent && (raw.customer_name || property) && (
                   <div className="history-entry-context">
                     {raw.customer_name && <span><Icon name="customers" size={16} /><span>고객 · {raw.customer_name}</span></span>}
-                    {property && <span><Icon name="listings" size={16} /><span>물건 · {property}{raw.property_count > 1 && <small> 외 {raw.property_count - 1}건 · 업무에서 전체 확인</small>}</span></span>}
+                    {property && <span><Icon name="listings" size={16} /><span>{getWorkProperties(raw).length > 1 && <small>함께 기록한 물건 {raw.property_count}개</small>}{getWorkProperties(raw).map((item, index) => <span className="work-property-line" key={item.id || index}>{workPropertyLabel(item)}</span>)}</span></span>}
                   </div>
                 )}
                 <p className="history-entry-content">{content || "기록된 내용 없음"}</p>
@@ -3911,6 +3991,14 @@ function Modal({
       </section>
     </div>
   );
+}
+function ReaderReferencePanel({ target, onClose }: { target: RelatedHistoryTarget; onClose: () => void }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    panel.current?.scrollIntoView({ block: "start" });
+    panel.current?.focus({ preventScroll: true });
+  }, [target]);
+  return <div ref={panel} tabIndex={-1} aria-label="선택한 관련 이력"><Suspense fallback={<p role="status">관련 이력을 준비하고 있습니다…</p>}><RelatedHistory target={target} onClose={onClose} /></Suspense></div>;
 }
 function EmptyState({ title }: { title: string }) {
   return (

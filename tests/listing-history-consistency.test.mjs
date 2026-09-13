@@ -1,0 +1,315 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { registerHooks } from "node:module";
+import { DatabaseSync } from "node:sqlite";
+import test from "node:test";
+import ts from "typescript";
+
+// Execute the actual API handlers and schema against synthetic in-memory data.
+// The binding adapter models D1's all-or-nothing batch, including a deliberately
+// failing derived-listing write. No Cloudflare binding or real record is used.
+const root = new URL("../", import.meta.url);
+const roots = [new URL("app/", root).href, new URL("db/", root).href];
+const bindingKey = "jipjangbu-listing-consistency-db";
+const moduleUrl = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
+const hook = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (roots.some((prefix) => context.parentURL?.startsWith(prefix)) && specifier.startsWith(".")) {
+      const resolved = new URL(specifier, context.parentURL).href;
+      if (["db", "db/", "db/index.ts"].some((path) => resolved === new URL(path, root).href)) {
+        return { url: moduleUrl(`export function getD1() { return globalThis[Symbol.for(${JSON.stringify(bindingKey)})]; }`), shortCircuit: true };
+      }
+      if (["db/bootstrap", "db/bootstrap.ts"].some((path) => resolved === new URL(path, root).href)) {
+        return { url: moduleUrl("export async function ensureDatabase() {}"), shortCircuit: true };
+      }
+      const candidate = new URL(`${specifier}.ts`, context.parentURL);
+      if (existsSync(candidate)) return { url: candidate.href, shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+  load(url, context, nextLoad) {
+    if (roots.some((prefix) => url.startsWith(prefix)) && url.endsWith(".ts")) {
+      return { format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(new URL(url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText };
+    }
+    return nextLoad(url, context);
+  },
+});
+const [workRoute, detailRoute, listingRoute, historyRoute] = await Promise.all([
+  import("../app/api/work-logs/route.ts"), import("../app/api/work-logs/[id]/route.ts"),
+  import("../app/api/listings/route.ts"), import("../app/api/listings/[key]/route.ts"),
+]);
+hook.deregister();
+
+function database(t) {
+  const sqlite = new DatabaseSync(":memory:");
+  sqlite.exec("PRAGMA foreign_keys = ON");
+  const migrations = new URL("drizzle/", root);
+  for (const name of readdirSync(migrations).filter((name) => /^\d+_.*\.sql$/.test(name)).sort()) {
+    assert.doesNotMatch(name, /private/);
+    sqlite.exec(readFileSync(new URL(name, migrations), "utf8"));
+  }
+  for (const [id, name] of [["synthetic-customer", "합성 고객 가"], ["synthetic-other", "합성 고객 나"]]) sqlite.prepare("INSERT INTO customers(id,name) VALUES (?,?)").run(id, name);
+  for (const type of ["매물등록", "매물수정", "매물취소", "계약작성", "전화"]) sqlite.prepare("INSERT INTO work_types(name) VALUES (?)").run(type);
+  let failure = null;
+  const batches = [];
+  globalThis[Symbol.for(bindingKey)] = {
+    prepare(sql) {
+      const query = sqlite.prepare(sql);
+      let bindings = [];
+      const execute = () => {
+        if (failure?.(sql, bindings)) throw new Error("Synthetic listing projection failure");
+        if (query.columns().length) return { results: query.all(...bindings), success: true, meta: { changes: 0 } };
+        const result = query.run(...bindings);
+        return { results: [], success: true, meta: { changes: Number(result.changes) } };
+      };
+      return {
+        bind(...values) { bindings = values; return this; },
+        async first() { return execute().results[0] ?? null; },
+        async all() { return execute(); },
+        async run() { return execute(); },
+        sql, execute,
+      };
+    },
+    async batch(statements) {
+      batches.push(statements.map((statement) => statement.sql));
+      sqlite.exec("SAVEPOINT synthetic_batch");
+      try {
+        const results = statements.map((statement) => statement.execute());
+        sqlite.exec("RELEASE SAVEPOINT synthetic_batch");
+        return results;
+      } catch (error) {
+        sqlite.exec("ROLLBACK TO SAVEPOINT synthetic_batch");
+        sqlite.exec("RELEASE SAVEPOINT synthetic_batch");
+        throw error;
+      }
+    },
+  };
+  t.mock.method(console, "error", () => {});
+  t.after(() => { sqlite.close(); delete globalThis[Symbol.for(bindingKey)]; });
+  return {
+    sqlite, batches,
+    failProjection(predicate = () => true) { failure = (sql, bindings) => /(?:INSERT INTO|DELETE FROM) listings\b/i.test(sql) && predicate(sql, bindings); },
+    clearFailure() { failure = null; },
+    snapshot() { return Object.fromEntries(["work_logs", "work_log_properties", "listing_events", "listings"].map((table) => [table, sqlite.prepare(`SELECT * FROM ${table} ORDER BY id`).all()])); },
+  };
+}
+
+const property = (overrides = {}) => ({ propertyType: "아파트", buildingName: "합성단지", buildingDong: "106", unitNumber: "1503", sizeType: "33", salePrice: "55000", jeonsePrice: "30000", monthlyRent: "", source: "합성 업소", ...overrides });
+const key = (detail = property()) => [detail.propertyType, detail.buildingName, detail.buildingDong, detail.unitNumber].join("|");
+const payload = (overrides = {}) => ({ workDate: "2026-09-13", customerId: "synthetic-customer", workType: "매물등록", content: "합성 최초 등록", details: [property()], ...overrides });
+async function mutate(method, value, id, expectedStatus = method === "POST" ? 201 : 200) {
+  const request = new Request(`https://synthetic.invalid/api/work-logs${id ? `/${id}` : ""}`, { method, ...(method === "DELETE" ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) }) });
+  const result = method === "POST" ? await workRoute.POST(request) : await detailRoute[method](request, { params: Promise.resolve({ id }) });
+  const body = await result.json();
+  assert.equal(result.status, expectedStatus, JSON.stringify(body));
+  return body.workLog ?? body;
+}
+async function history(identity = key(), expectedStatus = 200) {
+  const response = await historyRoute.GET(new Request("https://synthetic.invalid/api/listings/example"), { params: Promise.resolve({ key: encodeURIComponent(identity) }) });
+  const body = await response.json();
+  assert.equal(response.status, expectedStatus, JSON.stringify(body));
+  return body;
+}
+
+test("매물 수정 업무는 이전 이력을 보존하며 현재 가격·메모·고객 이력을 함께 갱신한다", async (t) => {
+  const db = database(t);
+  const registration = await mutate("POST", payload({ workDate: "2026-09-12" }));
+  db.sqlite.prepare("UPDATE listings SET source_notes='합성 엑셀 원문' WHERE identity_key=?").run(key());
+  const modification = await mutate("POST", payload({ workType: "매물수정", content: "합성 가격 인하", details: [property({ salePrice: "53000", jeonsePrice: "28000" })] }));
+  const result = await history();
+  assert.equal(result.listing.sale_price, "53000");
+  assert.equal(result.listing.jeonse_price, "28000");
+  assert.equal(result.listing.status, "매물수정");
+  assert.equal(result.listing.closed_at, null);
+  assert.equal(result.listing.registered_at, "2026-09-12");
+  assert.equal(result.listing.source_notes, "합성 엑셀 원문");
+  assert.equal(result.listing.notes, "합성 엑셀 원문\n합성 가격 인하 (매물수정) (2026-09-13)\n합성 최초 등록 (매물등록) (2026-09-12)");
+  assert.deepEqual(result.events.map((event) => event.work_log_id), [modification.id, registration.id]);
+  assert.deepEqual(result.events.map((event) => event.sale_price), ["53000", "55000"]);
+  assert.equal(result.events[0].customer_name, "합성 고객 가");
+  const customer = await workRoute.GET(new Request("https://synthetic.invalid/api/work-logs?customerId=synthetic-customer"));
+  assert.equal((await customer.json()).total, 2);
+  const listings = await listingRoute.GET(new Request("https://synthetic.invalid/api/listings?state=active"));
+  assert.equal((await listings.json()).listings[0].sale_price, "53000");
+});
+
+test("매물 투영 저장이 실패하면 신규 업무·물건·이력을 모두 원상태로 되돌린다", async (t) => {
+  const db = database(t);
+  const before = db.snapshot();
+  db.failProjection();
+  await mutate("POST", payload(), undefined, 500);
+  assert.deepEqual(db.snapshot(), before);
+  db.clearFailure();
+  await mutate("POST", payload());
+  assert.equal((await history()).events.length, 1, "retry cannot duplicate a previously half-saved event");
+});
+
+test("기존 수정 업무 정정은 중복 이력 없이 가격·내용·연결 고객을 바꾼다", async (t) => {
+  database(t);
+  const work = await mutate("POST", payload());
+  const before = await history();
+  await mutate("PUT", payload({ workType: "매물수정", customerId: "synthetic-other", content: "합성 메모 정정", details: [property({ salePrice: "51000", monthlyRent: "2000/80" })] }), work.id);
+  const after = await history();
+  assert.equal(after.listing.id, before.listing.id, "the listing record identity stays stable");
+  assert.equal(after.events.length, 1);
+  assert.equal(after.events[0].work_log_id, work.id);
+  assert.equal(after.events[0].customer_id, "synthetic-other");
+  assert.equal(after.events[0].customer_name, "합성 고객 나");
+  assert.equal(after.events[0].notes, "합성 메모 정정");
+  assert.equal(after.events[0].sale_price, "51000");
+  assert.equal(after.listing.sale_price, "51000");
+  assert.equal(after.listing.monthly_rent, "2000/80");
+  assert.equal(after.events[0].event_order, before.events[0].event_order);
+});
+
+test("과거 업무를 고쳐도 더 최근 날짜의 매물 상태·가격을 덮어쓰지 않는다", async (t) => {
+  database(t);
+  const first = await mutate("POST", payload({ workDate: "2026-09-01" }));
+  const latest = await mutate("POST", payload({ workDate: "2026-09-15", workType: "매물수정", content: "합성 최신 가격", details: [property({ salePrice: "51000" })] }));
+  await mutate("PUT", payload({ workDate: "2026-09-02", content: "합성 과거 기록 정정", details: [property({ salePrice: "54000" })] }), first.id);
+  const result = await history();
+  assert.equal(result.listing.sale_price, "51000");
+  assert.equal(result.listing.registered_at, "2026-09-02");
+  assert.equal(result.events[0].work_log_id, latest.id);
+  assert.equal(result.events[1].sale_price, "54000");
+  assert.match(result.listing.notes, /합성 과거 기록 정정/);
+});
+
+test("같은 날 이전 업무를 수정해도 기존 시간순서와 최신 매물 가격을 유지한다", async (t) => {
+  const db = database(t);
+  const first = await mutate("POST", payload());
+  const second = await mutate("POST", payload({ workType: "매물수정", details: [property({ salePrice: "52000" })] }));
+  // Deterministic event ordering models two real saves on the same business day.
+  db.sqlite.prepare("UPDATE listing_events SET event_order=100 WHERE work_log_id=?").run(first.id);
+  db.sqlite.prepare("UPDATE listing_events SET event_order=200 WHERE work_log_id=?").run(second.id);
+  await mutate("PUT", payload({ content: "합성 이전 업무 내용 정정", details: [property({ salePrice: "54000" })] }), first.id);
+  const result = await history();
+  assert.deepEqual(result.events.map((event) => event.work_log_id), [second.id, first.id]);
+  assert.equal(result.listing.sale_price, "52000");
+  assert.equal(result.events[1].event_order, 100);
+});
+
+test("최신 취소 업무 삭제는 이전 매물을 복원하고 마지막 이력 삭제는 현재 매물도 제거한다", async (t) => {
+  const db = database(t);
+  const first = await mutate("POST", payload({ workDate: "2026-09-12" }));
+  const cancelled = await mutate("POST", payload({ workType: "매물취소", content: "합성 취소", details: [property({ salePrice: "0" })] }));
+  const closed = await history();
+  assert.equal(closed.listing.closed_at, "2026-09-13");
+  assert.equal(closed.listing.status, "매물취소");
+  await mutate("DELETE", undefined, cancelled.id);
+  const restored = await history();
+  assert.equal(restored.listing.closed_at, null);
+  assert.equal(restored.listing.status, "매물등록");
+  assert.equal(restored.listing.sale_price, "55000");
+  assert.equal(restored.events.length, 1);
+  assert.doesNotMatch(restored.listing.notes, /합성 취소/);
+  await mutate("DELETE", undefined, first.id);
+  await history(key(), 404);
+  assert.deepEqual(db.snapshot(), { work_logs: [], work_log_properties: [], listing_events: [], listings: [] });
+});
+
+test("물건 주소를 정정하면 기존 주소·새 주소 이력과 현재 매물을 각각 재계산한다", async (t) => {
+  database(t);
+  const original = await mutate("POST", payload({ workDate: "2026-09-12" }));
+  const corrected = await mutate("POST", payload({ workType: "매물수정", details: [property({ salePrice: "52000" })] }));
+  const moved = property({ unitNumber: "1504", salePrice: "51000" });
+  await mutate("PUT", payload({ workType: "매물수정", content: "합성 주소 정정", details: [moved] }), corrected.id);
+  const previous = await history();
+  const next = await history(key(moved));
+  assert.equal(previous.listing.sale_price, "55000");
+  assert.deepEqual(previous.events.map((event) => event.work_log_id), [original.id]);
+  assert.equal(next.listing.sale_price, "51000");
+  assert.equal(next.listing.unit_number, "1504");
+  assert.deepEqual(next.events.map((event) => event.work_log_id), [corrected.id]);
+});
+
+test("묶음 업무의 한 물건 제거는 그 매물만 정리하며 남은 물건은 수정 이력을 반영한다", async (t) => {
+  database(t);
+  const second = property({ buildingDong: "205", unitNumber: "802", salePrice: "40000" });
+  const work = await mutate("POST", payload({ details: [property(), second] }));
+  await mutate("PUT", payload({ workType: "매물수정", details: [{ ...second, salePrice: "39000" }], content: "합성 두 번째 물건만 유지" }), work.id);
+  await history(key(), 404);
+  const remaining = await history(key(second));
+  assert.equal(remaining.events.length, 1);
+  assert.equal(remaining.listing.sale_price, "39000");
+  assert.equal(remaining.events[0].work_log_id, work.id);
+});
+
+test("매물 상태 업무를 일반 상담으로 정정하면 이력과 현재 매물도 함께 되돌린다", async (t) => {
+  database(t);
+  const first = await mutate("POST", payload({ workDate: "2026-09-12" }));
+  const second = await mutate("POST", payload({ workType: "매물취소", details: [property({ salePrice: "0" })] }));
+  await mutate("PUT", payload({ workType: "전화", content: "합성 상담 기록 정정", details: [property()] }), second.id);
+  const result = await history();
+  assert.equal(result.listing.closed_at, null);
+  assert.equal(result.listing.status, "매물등록");
+  assert.deepEqual(result.events.map((event) => event.work_log_id), [first.id]);
+  const detail = await detailRoute.GET(new Request("https://synthetic.invalid/api/work-logs/example"), { params: Promise.resolve({ id: second.id }) });
+  assert.equal((await detail.json()).workLog.work_type, "전화");
+});
+
+test("수정 중 투영 오류가 나면 고객·내용·금액·이력과 매물 모두 원상태를 유지한다", async (t) => {
+  const db = database(t);
+  const work = await mutate("POST", payload());
+  const before = db.snapshot();
+  db.failProjection();
+  await mutate("PUT", payload({ customerId: "synthetic-other", content: "저장되면 안 되는 합성 변경", details: [property({ salePrice: "1" })] }), work.id, 500);
+  assert.deepEqual(db.snapshot(), before);
+});
+
+test("삭제 중 투영 오류가 나면 업무·이력·매물을 어느 것도 삭제하지 않는다", async (t) => {
+  const db = database(t);
+  const work = await mutate("POST", payload());
+  const before = db.snapshot();
+  db.failProjection();
+  await mutate("DELETE", undefined, work.id, 500);
+  assert.deepEqual(db.snapshot(), before);
+});
+
+test("묶음 업무의 두 번째 매물 갱신 실패도 먼저 갱신한 매물을 포함해 전부 롤백한다", async (t) => {
+  const db = database(t);
+  const first = property();
+  const second = property({ buildingDong: "205", unitNumber: "802" });
+  const work = await mutate("POST", payload({ details: [first, second] }));
+  const before = db.snapshot();
+  db.failProjection((_sql, bindings) => bindings.includes(key(second)));
+  await mutate("PUT", payload({ workType: "매물수정", details: [{ ...first, salePrice: "1" }, { ...second, salePrice: "2" }] }), work.id, 500);
+  assert.deepEqual(db.snapshot(), before);
+});
+
+test("매물 현재값·이력은 동일 조회 묶음으로 읽고 신규 수정은 한 쓰기 묶음에 포함한다", async (t) => {
+  const db = database(t);
+  await mutate("POST", payload());
+  const mutation = db.batches.find((batch) => batch.some((sql) => /INSERT INTO work_logs/.test(sql)));
+  assert.ok(mutation.some((sql) => /INSERT INTO listing_events/.test(sql)));
+  assert.ok(mutation.some((sql) => /INSERT INTO listings/.test(sql)));
+  const before = db.batches.length;
+  await history();
+  const reads = db.batches.slice(before);
+  assert.equal(reads.length, 1);
+  assert.equal(reads[0].length, 2);
+  assert.match(reads[0][0], /SELECT \* FROM listings/);
+  assert.match(reads[0][1], /FROM listing_events/);
+});
+
+test("불완전한 매물 수정 요청은 저장 전에 거절하고 기존 매물·이력을 유지한다", async (t) => {
+  const db = database(t);
+  const work = await mutate("POST", payload());
+  const before = db.snapshot();
+  await mutate("PUT", payload({ workType: "매물수정", details: [property({ unitNumber: "" })] }), work.id, 400);
+  assert.deepEqual(db.snapshot(), before);
+});
+
+test("묶음 업무 상세는 업무 내용과 모든 물건을 같은 조회 묶음에서 순서대로 읽는다", async (t) => {
+  const db = database(t);
+  const work = await mutate("POST", payload({ details: [property(), property({ unitNumber: "1504" }), property({ unitNumber: "1505" })] }));
+  const before = db.batches.length;
+  const response = await detailRoute.GET(new Request("https://synthetic.invalid/api/work-logs/example"), { params: Promise.resolve({ id: work.id }) });
+  const body = await response.json();
+  assert.equal(response.status, 200);
+  assert.equal(body.workLog.content, "합성 최초 등록");
+  assert.deepEqual(body.workLog.details.map((detail) => detail.unit_number), ["1503", "1504", "1505"]);
+  assert.deepEqual(body.workLog.details.map((detail) => detail.sequence), [1, 2, 3]);
+  assert.equal(db.batches.length - before, 1);
+  assert.equal(db.batches.at(-1).length, 2);
+});

@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { canAppendPage } from "../app/client-paging.ts";
+import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 
 // Execute the production handlers and markup with synthetic records and controlled I/O.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -29,8 +30,10 @@ const status = compile(["journalSearchStatus"]);
 const JournalView = compile(["displayDate", "targetText", "statusTone", "EmptyState", "Toolbar", "WorkTable", "JournalView"], {
   React,
   Icon: () => null,
+  getWorkProperties,
+  workPropertyLabel,
 });
-const WorkTable = compile(["displayDate", "targetText", "statusTone", "EmptyState", "WorkTable"], { React, Icon: () => null });
+const WorkTable = compile(["displayDate", "targetText", "statusTone", "EmptyState", "WorkTable"], { React, Icon: () => null, getWorkProperties, workPropertyLabel });
 const synthetic = {
   id: "work-example", work_date: "2026-09-13", work_type: "전화", customer_id: "customer-example", customer_name: "합성 고객",
   content: "이전 검색에만 속한 내용", property_type: "아파트", building_name: "예시단지", building_dong: "106", unit_number: "1503", property_count: 3,
@@ -103,17 +106,25 @@ test("같은 조건의 갱신은 긴 목록을 유지하되 갱신 상태와 잠
 });
 
 test("검색 일치 물건 표시와 매물 이력은 서버가 반환한 같은 물건을 가리킨다", () => {
+  const properties = ["1503", "1504", "1505"].map((unit, index) => ({
+    id: `property-${index}`, sequence: index + 1, property_type: synthetic.property_type,
+    building_name: synthetic.building_name, building_dong: synthetic.building_dong, unit_number: unit,
+  }));
   for (const match of [1, 0, undefined]) {
-    const item = { ...synthetic, search_property_match: match };
+    const item = { ...synthetic, properties_json: JSON.stringify(properties), search_property_match: match };
     const opened = [];
     const tree = WorkTable({ items: [item], onOpen() {}, onCustomerHistory() {}, onListingHistory: (selected) => opened.push(selected) });
     const html = renderToStaticMarkup(tree);
     assert.equal(html.includes("검색 일치 물건"), match === 1);
     assert.match(html, /예시단지 106동 1503호/);
-    assert.match(html, /외 2건 보기/);
+    assert.match(html, /함께 기록한 물건 3개/);
+    assert.match(html, /예시단지 106동 1504호/);
+    assert.match(html, /예시단지 106동 1505호/);
+    assert.doesNotMatch(html, /외 2건/);
     const listing = descendants(tree).find((element) => element.type === "button" && element.props["aria-label"]?.endsWith("매물 이력 보기"));
     listing.props.onClick();
-    assert.equal(opened[0], item);
+    assert.equal(opened[0].id, item.id);
+    for (const key of ["property_type", "building_name", "building_dong", "unit_number"]) assert.equal(opened[0][key], item[key]);
   }
 });
 

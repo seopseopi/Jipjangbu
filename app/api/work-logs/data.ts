@@ -1,5 +1,5 @@
 import { getD1 } from "../../../db";
-import { clean, isPropertyComplete, listingKey, LISTING_WORK_TYPES, PropertyInput, rebuildListings } from "../../../db/listing-sync";
+import { clean, isPropertyComplete, listingKey, LISTING_WORK_TYPES, listingRebuildStatements, type PropertyInput } from "../../../db/listing-sync";
 import { normalizeDate } from "../_shared";
 
 export type WorkLogPayload = {
@@ -15,12 +15,14 @@ const detailColumns = `id, work_log_id, sequence, property_type, building_name, 
 
 export async function getWorkLog(id: string) {
   const db = getD1();
-  const workLog = await db.prepare(`
-    SELECT w.*, c.name AS customer_name FROM work_logs w JOIN customers c ON c.id = w.customer_id WHERE w.id = ?
-  `).bind(id).first();
+  const [headers, details] = await db.batch([
+    db.prepare(`
+      SELECT w.*, c.name AS customer_name FROM work_logs w JOIN customers c ON c.id = w.customer_id WHERE w.id = ?
+    `).bind(id),
+    db.prepare(`SELECT ${detailColumns} FROM work_log_properties WHERE work_log_id = ? ORDER BY sequence`).bind(id),
+  ]);
+  const workLog = headers.results[0];
   if (!workLog) return null;
-  const details = await db.prepare(`SELECT ${detailColumns} FROM work_log_properties WHERE work_log_id = ? ORDER BY sequence`)
-    .bind(id).all();
   return { ...workLog, details: details.results };
 }
 
@@ -122,8 +124,7 @@ export async function saveWorkLog(payload: WorkLogPayload, existingId?: string) 
       ));
     }
   });
-  await db.batch(statements);
-  await rebuildListings(affectedKeys);
+  await db.batch([...statements, ...listingRebuildStatements(affectedKeys)]);
   return getWorkLog(id);
 }
 
@@ -139,8 +140,8 @@ export async function removeWorkLog(id: string) {
     db.prepare("DELETE FROM listing_events WHERE work_log_id = ?").bind(id),
     db.prepare("DELETE FROM work_log_properties WHERE work_log_id = ?").bind(id),
     db.prepare("DELETE FROM work_logs WHERE id = ?").bind(id),
+    ...listingRebuildStatements(affectedKeys),
   ]);
-  await rebuildListings(affectedKeys);
 }
 
 export class InputError extends Error {

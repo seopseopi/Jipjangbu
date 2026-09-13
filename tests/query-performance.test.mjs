@@ -147,7 +147,13 @@ const request = (params = {}) =>
   );
 const ids = (rows) => rows.map((row) => row.id);
 
-test("업무 요약은 매물 없는 행·여러 매물·동일 순번의 기존 값을 보존하면서 반복 조회를 9회에서 2회로 줄인다", (t) => {
+const legacyProjection = (rows) => rows.map(({ source, properties_json, ...row }) => {
+  assert.equal(typeof source === "string" || source === null, true);
+  assert.equal(typeof properties_json, "string");
+  return row;
+});
+
+test("전체 물건을 포함한 업무 요약은 기존 대표 값을 보존하면서 반복 조회를 9회에서 3회로 줄인다", (t) => {
   const { sqlite, customer, work, property, plan } = database(t);
   customer();
   work("none", "2026-01-01");
@@ -159,13 +165,13 @@ test("업무 요약은 매물 없는 행·여러 매물·동일 순번의 기존
   property("inserted-next", "same-sequence", 1);
   const legacy = `${LEGACY_SUMMARY_SQL} ${RECENT_ORDER}`;
   const current = `${WORK_SUMMARY_SQL} ${RECENT_ORDER}`;
-  assert.deepEqual(sqlite.prepare(current).all(), sqlite.prepare(legacy).all());
+  assert.deepEqual(legacyProjection(sqlite.prepare(current).all()), sqlite.prepare(legacy).all().map((row) => ({ ...row })));
   const counts = (query) =>
     plan(query).filter((detail) =>
       detail.includes("CORRELATED SCALAR SUBQUERY"),
     ).length;
   assert.equal(counts(legacy), 9);
-  assert.equal(counts(current), 2);
+  assert.equal(counts(current), 3);
   assert.ok(
     plan(current).some((detail) =>
       /first_property USING COVERING INDEX idx_work_log_properties_log/.test(
@@ -348,7 +354,7 @@ test("확장 fixture 12,000건에서 이전 요약과 결과가 같고 조회 �
   const optimized = sqlite.prepare(
     `${WORK_SUMMARY_SQL} ${RECENT_ORDER} LIMIT 1000`,
   );
-  assert.deepEqual(optimized.all(), legacy.all());
+  assert.deepEqual(legacyProjection(optimized.all()), legacy.all().map((row) => ({ ...row })));
   const timed = (query) => {
     const samples = [];
     for (let iteration = 0; iteration < 7; iteration++) {

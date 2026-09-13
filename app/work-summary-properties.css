@@ -1,0 +1,14 @@
+.work-summary-properties { display: grid; gap: 7px; min-width: 0; margin-top: 9px; text-align: left; }
+.work-summary-property-count { display: block; color: var(--green); font-size: var(--text-caption); font-weight: 650; line-height: 1.6; }
+.work-summary-property-list { display: grid; min-width: 0; gap: 7px; }
+.work-summary-property { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #f8fbf9; }
+.work-summary-property.is-search-match { border-color: #a0c3ad; background: #eff8f2; }
+.work-summary-property-number { display: inline-grid; place-items: center; flex: 0 0 21px; min-height: 21px; margin-top: 2px; border-radius: 5px; background: #e1eee6; color: var(--green-dark); font-size: var(--text-caption); font-weight: 650; }
+.work-summary-property-copy { display: grid; gap: 3px; min-width: 0; }
+.work-summary-property-label { display: block; min-width: 0; color: var(--ink); font-size: var(--text-small); font-weight: 600; line-height: 1.7; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
+.work-summary-property-meta { display: block; color: var(--muted); font-size: var(--text-caption); line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }
+.work-summary-property-match { display: block; color: var(--green-dark); font-size: var(--text-caption); font-weight: 650; line-height: 1.6; }
+@media (max-width: 720px) {
+  .work-summary-property { padding: 9px; }
+  .work-summary-property-label { font-size: var(--text-base); }
+}

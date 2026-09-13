@@ -209,6 +209,14 @@ button.table-row:hover { background: #f4f8f5; }
 .work-record-row .history-link .work-customer-id { color: var(--muted); }
 .work-record-row .history-link:hover b { text-decoration: underline; text-underline-offset: 4px; }
 .work-extra-properties { min-height: 44px; padding: 4px 3px; border: 0; background: transparent; color: var(--green-dark); font-size: var(--text-caption); text-decoration: underline; text-underline-offset: 3px; }
+.work-property-line { display: block; margin-top: 5px; line-height: 1.65; white-space: normal; overflow-wrap: anywhere; }
+.work-property-group-label { display: block; margin-bottom: 8px; color: var(--ink); font-size: var(--text-caption); }
+.work-property-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.work-property-list > li { min-width: 0; }
+.work-property-list > li + li { padding-top: 10px; border-top: 1px dashed var(--line); }
+.work-property-list .work-cell-button { width: 100%; }
+.work-property-list .work-property-match { margin-bottom: 4px; }
+.work-extra-properties { display: inline-flex; align-items: center; gap: 3px; text-align: left; }
 .row-actions { display: flex; gap: 7px; overflow: visible !important; }
 .row-actions .tiny-button { padding-inline: 10px; }
 .load-more { display: flex; justify-content: center; padding: 17px 20px; border-top: 1px solid #e3eae6; background: #fafcfb; }

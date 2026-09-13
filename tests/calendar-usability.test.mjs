@@ -4,6 +4,7 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { calendarWorkPresentation } from "./helpers/calendar-presentation.mjs";
 
 // Run the actual calendar markup and handlers with synthetic records only.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -16,8 +17,8 @@ const declarations = ["ListReadFeedback", "CalendarView", "targetText", "statusT
 const compiled = ts.transpileModule(declarations.join("\n"), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
 }).outputText;
-const CalendarView = new Function("React", "useMemo", "seoulDate", "Icon", `${compiled}; return CalendarView;`)(
-  React, (callback) => callback(), () => "2026-09-12", "span",
+const CalendarView = new Function("React", "useMemo", "seoulDate", "Icon", "calendarWorkPresentation", `${compiled}; return CalendarView;`)(
+  React, (callback) => callback(), () => "2026-09-12", "span", calendarWorkPresentation,
 );
 
 function descendants(element) {
@@ -99,6 +100,48 @@ test("긴 주소·고객명과 업무 원문을 유지하고 해당 업무를 �
   assert.deepEqual(calls, []);
   event.props.onClick();
   assert.deepEqual(calls, ["long"]);
+});
+
+test("매물·계약 달력 카드는 모든 물건을 각각 표시하며 desktop과 모바일에 같은 엑셀 규칙을 적용한다", () => {
+  const properties = [
+    { id: "first", sequence: 1, building_name: "첫번째단지", building_dong: "101", unit_number: "1001", source: "" },
+    { id: "second", sequence: 2, building_name: "두번째단지", building_dong: "202", unit_number: "2002", source: "합성협력업소" },
+    { id: "third", sequence: 3, building_name: "세번째단지", building_dong: "303", unit_number: "3003", source: "마전현대" },
+  ];
+  const item = syntheticWork("multi", "2026-09-12", { work_type: "가계약", property_count: 3, properties_json: JSON.stringify(properties) });
+  const opened = [];
+  const tree = renderCalendar({ items: [item], onOpen: (id) => opened.push(id) });
+  const desktop = findByClass(tree, "calendar-desktop-panel")[0];
+  const mobile = findByClass(tree, "calendar-agenda-event")[0];
+  for (const element of [desktop, mobile]) {
+    const html = renderToStaticMarkup(element);
+    assert.match(html, /물건 3개/);
+    assert.match(html, /첫번째단지 101동 1001호 \(단독\)/);
+    assert.match(html, /두번째단지 202동 2002호 \(합성협력업소\)/);
+    assert.match(html, /세번째단지 303동 3003호 \(단독\)/);
+    assert.doesNotMatch(html, /외 2건|업무 수정/);
+  }
+  const desktopCard = descendants(desktop).find((element) => element.type === "button");
+  assert.match(desktopCard.props["aria-label"], /내용 보기$/);
+  assert.match(renderToStaticMarkup(mobile), /내용 보기/);
+  desktopCard.props.onClick();
+  mobile.props.onClick();
+  assert.deepEqual(opened, ["multi", "multi"]);
+});
+
+test("전화·방문 달력 카드는 고객이 첫 정보이며 여러 관련 물건을 숨기지 않는다", () => {
+  const properties = [{ id: "a", building_name: "첫번째단지", unit_number: "101" }, { id: "b", building_name: "두번째단지", unit_number: "202" }];
+  const item = syntheticWork("call", "2026-09-12", { work_type: "전화", customer_id: "합성업소ID", customer_name: "합성부동산", property_count: 2, properties_json: JSON.stringify(properties) });
+  const tree = renderCalendar({ items: [item] });
+  const [subjects] = findByClass(tree, "calendar-card-subjects");
+  assert.equal(renderToStaticMarkup(subjects), '<span class="calendar-card-subjects"><small>합성업소ID 합성부동산</small></span>');
+  const [mobile] = findByClass(tree, "calendar-agenda-event");
+  assert.deepEqual(descendants(mobile).filter((element) => element.type === "strong").map((element) => element.props.children), ["합성업소ID 합성부동산"]);
+  for (const element of [findByClass(tree, "calendar-desktop-panel")[0], mobile]) {
+    const html = renderToStaticMarkup(element);
+    assert.match(html, /첫번째단지 101호/);
+    assert.match(html, /두번째단지 202호/);
+  }
 });
 
 test("하루 4건 초과 업무는 기존 날짜별 이력으로 전체를 열 수 있고 데스크톱 동작도 유지한다", () => {
