@@ -17,6 +17,7 @@ import type {
 } from "./global-search";
 import { FollowUpsView } from "./follow-ups";
 import "./calendar.css";
+import "./journal-search-feedback.css";
 import { CustomerPicker } from "./customer-picker";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
 import { Icon, workTypeIcon } from "./icons";
@@ -84,6 +85,7 @@ type WorkSummary = {
   jeonse_price?: string;
   monthly_rent?: string;
   property_count: number;
+  search_property_match?: number;
   is_demo: number;
 };
 type PropertyDetail = {
@@ -167,6 +169,8 @@ type BackupSummary = {
   reason: string;
 };
 type SearchView = "journal" | "listings" | "customers";
+type JournalSearchError = { queryKey: string; message: string } | null;
+type JournalSearchStatus = "loading" | "refreshing" | "error" | "ready";
 type WorkModalState = {
   mode: "new" | "edit" | "copy";
   item?: WorkDetail;
@@ -225,6 +229,19 @@ const seoulDate = () =>
     month: "2-digit",
     day: "2-digit",
   }).format(new Date());
+
+function journalSearchStatus(
+  loadedQuery: string | null,
+  currentQuery: string,
+  firstPageLoading: boolean,
+  searchPending: boolean,
+  error: JournalSearchError,
+): JournalSearchStatus {
+  if (searchPending) return "loading";
+  if (firstPageLoading) return loadedQuery === currentQuery ? "refreshing" : "loading";
+  if (error?.queryKey === currentQuery) return "error";
+  return loadedQuery === currentQuery ? "ready" : "loading";
+}
 
 async function fetchAllWorkLogs(
   params: URLSearchParams,
@@ -333,6 +350,9 @@ export function WorkManager() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [workFirstPageLoading, setWorkFirstPageLoading] = useState(false);
+  const [workSearchError, setWorkSearchError] = useState<JournalSearchError>(null);
+  const [exportingWork, setExportingWork] = useState(false);
+  const workExportPending = useRef(false);
   const [loadedWorkQuery, setLoadedWorkQuery] = useState<string | null>(null);
   const loadedWorkQueryRef = useRef<string | null>(null);
   const workFirstRequest = useRef<number | null>(null);
@@ -382,6 +402,13 @@ export function WorkManager() {
     workTypeFilter,
     ...periodBounds(workPeriod),
   ]);
+  const journalStatus = journalSearchStatus(
+    loadedWorkQuery,
+    workQueryKey,
+    workFirstPageLoading,
+    queries.journal !== journalSearch,
+    workSearchError,
+  );
   const showGlobalSearch = useCallback(() => {
     setGlobalSearchLoaded(true);
     setGlobalSearchOpen(true);
@@ -448,6 +475,7 @@ export function WorkManager() {
       const version = ++requestVersion.current.work;
       workFirstRequest.current = version;
       setWorkFirstPageLoading(true);
+      setWorkSearchError(null);
       const params = new URLSearchParams({ limit: "100" });
       if (journalSearch) params.set("q", journalSearch);
       if (workTypeFilter) params.set("workType", workTypeFilter);
@@ -472,6 +500,15 @@ export function WorkManager() {
         setLoadedWorkQuery(queryKey);
         setWorkLogs(data.workLogs);
         setWorkTotal(data.total);
+      } catch (error) {
+        if (version !== requestVersion.current.work) return;
+        if (!isAborted(error)) {
+          setWorkSearchError({
+            queryKey,
+            message: error instanceof Error ? error.message : "업무 기록을 불러오지 못했습니다.",
+          });
+        }
+        throw error;
       } finally {
         if (workFirstRequest.current === version) {
           workFirstRequest.current = null;
@@ -724,6 +761,7 @@ export function WorkManager() {
         workMorePending.current,
       ) ||
       workLogs.length >= workTotal ||
+      journalStatus !== "ready" ||
       queries.journal !== journalSearch
     )
       return;
@@ -755,8 +793,22 @@ export function WorkManager() {
     }
   }
   async function exportWorkLogs() {
+    if (
+      journalStatus !== "ready" ||
+      !workTotal ||
+      workExportPending.current ||
+      !canAppendPage(
+        loadedWorkQueryRef.current,
+        workQueryKey,
+        workFirstRequest.current !== null,
+        workMorePending.current,
+      ) ||
+      queries.journal !== journalSearch
+    ) return;
+    workExportPending.current = true;
+    setExportingWork(true);
     try {
-      setNotice("전체 업무 기록을 준비하고 있습니다.");
+      setNotice("현재 조건에 맞는 전체 업무 기록을 준비하고 있습니다.");
       const params = new URLSearchParams();
       if (queries.journal) params.set("q", queries.journal);
       if (workTypeFilter) params.set("workType", workTypeFilter);
@@ -766,7 +818,7 @@ export function WorkManager() {
       const items = await fetchAllWorkLogs(params);
       downloadCsv(
         `업무일지-${seoulDate()}.csv`,
-        ["일자", "업무구분", "고객명", "고객ID", "물건", "내용"],
+        ["일자", "업무구분", "고객명", "고객ID", "대표 물건(업무당 1건)", "내용"],
         items.map((item) => [
           item.work_date,
           item.work_type,
@@ -777,10 +829,13 @@ export function WorkManager() {
         ]),
       );
       setNotice(
-        `${items.length.toLocaleString("ko-KR")}건을 빠짐없이 저장했습니다.`,
+        `현재 조건에 맞는 업무 ${items.length.toLocaleString("ko-KR")}건을 저장했습니다. 물건은 업무당 대표 1건입니다.`,
       );
     } catch (error) {
       setNotice((error as Error).message);
+    } finally {
+      workExportPending.current = false;
+      setExportingWork(false);
     }
   }
   async function copyCustomerId(value: string) {
@@ -1132,13 +1187,17 @@ export function WorkManager() {
                   }}
                   onLoadMore={loadMoreWorkLogs}
                   loadingMore={loadingMore}
+                  status={journalStatus}
+                  error={workSearchError?.queryKey === workQueryKey ? workSearchError.message : ""}
+                  onRetry={() => loadWorkLogs().catch(showLoadError)}
+                  exporting={exportingWork}
                   canLoadMore={
                     canAppendPage(
                       loadedWorkQuery,
                       workQueryKey,
                       workFirstPageLoading,
                       loadingMore,
-                    ) && queries.journal === journalSearch
+                    ) && queries.journal === journalSearch && journalStatus === "ready"
                   }
                   onExport={exportWorkLogs}
                   onOpen={openWork}
@@ -1563,6 +1622,10 @@ function JournalView({
   onReset,
   onLoadMore,
   loadingMore,
+  status,
+  error,
+  onRetry,
+  exporting,
   canLoadMore,
   onExport,
   onOpen,
@@ -1581,11 +1644,16 @@ function JournalView({
   onReset: () => void;
   onLoadMore: () => void | Promise<void>;
   loadingMore: boolean;
+  status: JournalSearchStatus;
+  error: string;
+  onRetry: () => void | Promise<void>;
+  exporting: boolean;
   canLoadMore: boolean;
   onExport: () => void | Promise<void>;
   onOpen: (id?: string) => void;
 } & WorkHistoryActions) {
   const filtered = Boolean(query || workType || period);
+  const resultsVisible = status === "ready" || status === "refreshing";
   return (
     <>
       <Toolbar
@@ -1623,15 +1691,16 @@ function JournalView({
           onClick={() => {
             void onExport();
           }}
-          disabled={!total}
+          disabled={status !== "ready" || !total || loadingMore || exporting}
           type="button"
+          title="현재 조건에 맞는 전체 업무를 저장합니다. 물건은 업무당 대표 1건이며, 물건 검색 시 첫 일치 물건입니다."
         >
-          <Icon name="download" size={18} /> CSV 저장
+          <Icon name={exporting ? "refresh" : "download"} size={18} /> {exporting ? "CSV 준비 중…" : "CSV 저장"}
         </button>
       </Toolbar>
       {filtered && (
         <div className="active-filter-row">
-          <strong>적용 중</strong>
+          <strong>{status === "loading" ? "검색 중" : status === "refreshing" ? "갱신 중" : status === "error" ? "다시 확인 필요" : "적용 중"}</strong>
           {query && <span>검색: {query}</span>}
           {workType && <span>{workType}</span>}
           {period && (
@@ -1645,14 +1714,14 @@ function JournalView({
           )}
         </div>
       )}
-      <section className="panel data-panel">
+      <section className="panel data-panel" aria-busy={status === "loading" || status === "refreshing"}>
         <div className="panel-head">
           <div>
             <p className="eyebrow">WORK RECORDS</p>
             <h2>
               업무 기록{" "}
               <span className="count-badge">
-                {items.length} / {total}
+                {resultsVisible ? `${items.length} / ${total}` : status === "loading" ? "검색 중…" : "조회 실패"}
               </span>
             </h2>
             <p className="sort-summary">
@@ -1664,8 +1733,26 @@ function JournalView({
             고객·물건을 누르면 이력, 일자·내용을 누르면 업무 수정
           </span>
         </div>
-        <WorkTable items={items} onOpen={onOpen} onCustomerHistory={onCustomerHistory} onListingHistory={onListingHistory} />
-        {items.length < total && (
+        {status === "refreshing" && (
+          <p className="journal-refresh-notice" role="status">업무 기록을 갱신하고 있습니다. 같은 조건의 기존 결과를 표시 중입니다.</p>
+        )}
+        {status === "loading" ? (
+          <div className="journal-search-feedback" role="status">
+            <Icon name="search" size={24} />
+            <strong>조건에 맞는 업무를 찾고 있습니다.</strong>
+            <p>검색이 끝나면 결과와 건수를 표시합니다.</p>
+          </div>
+        ) : status === "error" ? (
+          <div className="journal-search-feedback journal-search-error" role="alert">
+            <strong>업무 기록을 불러오지 못했습니다.</strong>
+            <p>{error || "연결 상태를 확인한 뒤 다시 시도해 주세요."}</p>
+            <p>조회에 실패한 상태이며, 검색 결과가 0건이라는 뜻은 아닙니다.</p>
+            <button type="button" className="secondary-button" onClick={() => { void onRetry(); }}>
+              <Icon name="refresh" size={18} /> 다시 시도
+            </button>
+          </div>
+        ) : <WorkTable items={items} onOpen={onOpen} onCustomerHistory={onCustomerHistory} onListingHistory={onListingHistory} />}
+        {resultsVisible && items.length < total && (
           <div className="load-more">
             <button
               type="button"
@@ -1681,6 +1768,9 @@ function JournalView({
               </small>
             </button>
           </div>
+        )}
+        {resultsVisible && total > 0 && (
+          <p className="journal-export-note">CSV는 현재 조건에 맞는 전체 업무를 저장합니다. 물건은 업무당 대표 1건이며, 물건 검색 시 첫 일치 물건입니다.</p>
         )}
       </section>
     </>
@@ -1724,6 +1814,9 @@ function WorkTable({
             </button>
           </span>
           <span data-label="물건">
+            {Number(item.search_property_match) === 1 && (
+              <small className="work-property-match" title="여러 물건이 검색에 일치하면 첫 번째 일치 물건을 표시합니다.">검색 일치 물건</small>
+            )}
             {item.property_type?.trim() && item.building_name?.trim() && item.unit_number?.trim() ? (
               <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory(item)} aria-label={`${targetText(item)} 매물 이력 보기`}>
                 {targetText(item)}<small><Icon name="clock" size={13} /> 매물 이력</small>

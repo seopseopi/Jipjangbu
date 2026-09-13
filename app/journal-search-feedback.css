@@ -1,0 +1,59 @@
+.journal-search-feedback {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 40px 22px;
+  color: var(--muted, #5d6963);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.journal-search-feedback strong {
+  color: var(--ink, #202925);
+  font-size: var(--text-base, 15px);
+}
+
+.journal-search-feedback p {
+  margin: 0;
+  font-size: var(--text-small, 14px);
+  line-height: 1.7;
+}
+
+.journal-search-error > button {
+  margin-top: 4px;
+  max-width: 100%;
+  white-space: normal;
+}
+
+.journal-export-note {
+  margin: 0;
+  padding: 14px 22px;
+  border-top: 1px solid #e3ebe6;
+  color: var(--muted, #5d6963);
+  font-size: var(--text-small, 14px);
+  line-height: 1.7;
+}
+
+.journal-refresh-notice {
+  margin: 0;
+  padding: 10px 22px;
+  background: var(--green-soft, #eaf5ee);
+  color: var(--green-dark, #105537);
+  font-size: var(--text-small, 14px);
+  line-height: 1.7;
+}
+
+.work-property-match {
+  display: block;
+  margin-bottom: 5px;
+  color: #105537;
+  font-size: var(--text-caption, 13px);
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* Keep 1503호 together at normal word boundaries, including larger mobile type. */
+.work-record-row > [data-label="물건"] .history-link {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}

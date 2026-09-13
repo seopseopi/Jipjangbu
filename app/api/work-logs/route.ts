@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { apiError, integerQueryParam, ready } from "../_shared";
-import { WORK_SUMMARY_SQL } from "../_queries";
+import { searchedWorkSummary, WORK_SUMMARY_SQL } from "../_queries";
+import { propertySearch, workSearch } from "../_search.js";
 import { InputError, saveWorkLog, type WorkLogPayload } from "./data";
 
 export async function GET(request: Request) {
@@ -53,14 +54,12 @@ export async function GET(request: Request) {
       binds.push(to);
     }
     if (q) {
-      where.push(`(w.content LIKE ? OR c.id LIKE ? OR c.name LIKE ? OR EXISTS (
-        SELECT 1 FROM work_log_properties p WHERE p.work_log_id = w.id AND
-        (p.building_name LIKE ? OR p.building_dong LIKE ? OR p.unit_number LIKE ? OR p.source LIKE ?)
-      ))`);
-      const like = `%${q}%`;
-      binds.push(like, like, like, like, like, like, like);
+      const search = workSearch(q);
+      where.push(search.sql);
+      binds.push(...search.bindings);
     }
     const db = getD1();
+    const summary = q ? searchedWorkSummary(propertySearch(q, "sp", "work")) : { sql: WORK_SUMMARY_SQL, bindings: [] };
     const predicate = where.length ? `WHERE ${where.join(" AND ")}` : "";
     // One D1 round trip also gives the page and its total a consistent snapshot.
     const [count, rows] = await db.batch<Record<string, unknown>>([
@@ -71,9 +70,9 @@ export async function GET(request: Request) {
         .bind(...binds),
       db
         .prepare(
-          `${WORK_SUMMARY_SQL} ${predicate} ORDER BY w.work_date DESC, w.updated_at DESC, w.id DESC LIMIT ? OFFSET ?`,
+          `${summary.sql} ${predicate} ORDER BY w.work_date DESC, w.updated_at DESC, w.id DESC LIMIT ? OFFSET ?`,
         )
-        .bind(...binds, limit, offset),
+        .bind(...summary.bindings, ...binds, limit, offset),
     ]);
     return Response.json({
       workLogs: rows.results,

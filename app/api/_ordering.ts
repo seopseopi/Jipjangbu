@@ -29,10 +29,7 @@ export const HOME_RECENT_WHERE = "w.work_date <= date('now','+9 hours')";
 export const WORK_RECENT_ORDER = "w.work_date DESC, w.updated_at DESC, w.id DESC";
 export const HOME_UPCOMING_ORDER = "w.work_date, w.created_at, w.id";
 
-export function escapedLike(value: string, prefixOnly = false): string {
-  const literal = value.replace(/[\\%_]/g, "\\$&");
-  return prefixOnly ? `${literal}%` : `%${literal}%`;
-}
+export { escapedLike } from "./_search.js";
 
 export const CUSTOMER_SEARCH_RANK = `CASE
   WHEN c.id = ? COLLATE NOCASE OR c.name = ? COLLATE NOCASE THEN 0

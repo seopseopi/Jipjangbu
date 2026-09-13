@@ -21,6 +21,7 @@ export type GlobalSearchWorkLog = {
   jeonse_price?: string;
   monthly_rent?: string;
   property_count: number;
+  search_property_match?: number;
   is_demo: number;
   updated_at?: string;
 };
@@ -261,7 +262,7 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
                 {results.workLogs.map((item) => (
                   <button className="global-search-result global-search-work" type="button" key={item.id} onClick={() => chooseWork(item.id)}>
                     <span className="global-search-result-date">{displayDate(item.work_date)}</span>
-                    <span className="global-search-result-copy"><strong>{workTarget(item)}</strong><small>{searchExcerpt(item.content, trimmedQuery) || item.customer_name}</small></span>
+                    <span className="global-search-result-copy"><strong>{workTarget(item)}</strong>{item.search_property_match === 1 && <small>검색 일치 물건{item.property_count > 1 ? ` · 함께 기록한 물건 ${item.property_count}개` : ""}</small>}<small>{searchExcerpt(item.content, trimmedQuery) || item.customer_name}</small></span>
                     <span className="global-search-result-meta">{item.work_type}</span>
                     <Icon name="next" className="global-search-result-arrow" size={18} />
                   </button>

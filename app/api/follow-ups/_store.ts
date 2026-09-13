@@ -128,11 +128,10 @@ export async function getFollowUps(db: D1Database, params: URLSearchParams, now 
   if (due === "overdue") { where.push("f.due_date < ?"); bindings.push(today); }
   if (due === "upcoming") { where.push("f.due_date > ? AND f.due_date <= ?"); bindings.push(today, endDate); }
   if (q) {
-    const like = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-    where.push(`(f.title LIKE ? ESCAPE '\\' OR f.notes LIKE ? ESCAPE '\\'
-      OR c.name LIKE ? ESCAPE '\\' OR l.building_name LIKE ? ESCAPE '\\'
-      OR l.building_dong LIKE ? ESCAPE '\\' OR l.unit_number LIKE ? ESCAPE '\\')`);
-    bindings.push(like, like, like, like, like, like);
+    const text = textSearch(["f.title", "f.notes", "c.name", "c.id"], q, ["c.id"]);
+    const property = propertySearch(q, "l");
+    where.push(`(${text.sql} OR ${property.sql})`);
+    bindings.push(...text.bindings, ...property.bindings);
   }
   const [items, summary] = await db.batch([
     db.prepare(`${ITEM_SQL} ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
@@ -208,3 +207,4 @@ export async function readFollowUpBody(request: Request): Promise<unknown> {
   try { return await request.json(); }
   catch { throw new FollowUpError("할 일 정보를 올바른 형식으로 보내 주세요."); }
 }
+import { propertySearch, textSearch } from "../_search.js";

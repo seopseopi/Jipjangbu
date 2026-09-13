@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { apiError, badRequest, ready } from "../_shared";
 import { CUSTOMER_HISTORY_ORDER, CUSTOMER_LAST_WORK_DATE_SQL, CUSTOMER_NAME_ORDER, CUSTOMER_RECENT_ORDER } from "../_ordering";
+import { textSearch } from "../_search.js";
 
 export async function GET(request: Request) {
   try {
@@ -9,14 +10,14 @@ export async function GET(request: Request) {
     const q = params.get("q")?.trim() ?? "";
     const sort = params.get("sort") ?? "recent";
     const orderBy = sort === "name" ? CUSTOMER_NAME_ORDER : sort === "history" ? CUSTOMER_HISTORY_ORDER : CUSTOMER_RECENT_ORDER;
-    const like = `%${q}%`;
+    const search = q ? textSearch(["c.id", "c.name", "c.notes"], q, ["c.id"]) : { sql: "1", bindings: [] };
     const rows = await getD1().prepare(`
       SELECT c.id, c.name, c.notes, c.created_at, c.updated_at, c.is_demo,
         COUNT(w.id) AS history_count, ${CUSTOMER_LAST_WORK_DATE_SQL} AS last_work_date
       FROM customers c LEFT JOIN work_logs w ON w.customer_id = c.id
-      WHERE (? = '' OR c.id LIKE ? OR c.name LIKE ? OR c.notes LIKE ?)
+      WHERE ${search.sql}
       GROUP BY c.id ORDER BY ${orderBy} LIMIT 1000
-    `).bind(q, like, like, like).all();
+    `).bind(...search.bindings).all();
     return Response.json({ customers: rows.results });
   } catch (error) {
     return apiError(error, "고객 목록을 불러오지 못했습니다.");

@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { apiError, ready } from "../_shared";
 import { LISTING_BUILDING_ORDER, LISTING_OLDEST_ORDER, LISTING_RECENT_ORDER, LISTING_UPDATED_ORDER } from "../_ordering";
+import { propertySearch } from "../_search.js";
 
 export async function GET(request: Request) {
   try {
@@ -19,9 +20,9 @@ export async function GET(request: Request) {
     if (state === "closed") where.push("closed_at IS NOT NULL");
     if (state === "stale") where.push("closed_at IS NULL AND date(COALESCE(NULLIF(updated_at, ''), registered_at, '1900-01-01')) <= date('now','+9 hours','-90 days')");
     if (q) {
-      where.push("(building_name LIKE ? OR building_dong LIKE ? OR unit_number LIKE ? OR notes LIKE ?)");
-      const like = `%${q}%`;
-      binds.push(like, like, like, like);
+      const search = propertySearch(q);
+      where.push(search.sql);
+      binds.push(...search.bindings);
     }
     const rows = await getD1().prepare(`
       SELECT * FROM listings WHERE ${where.join(" AND ")}
