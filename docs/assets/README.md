@@ -1,4 +1,21 @@
-# 집장부 README 배너
+# 집장부 포트폴리오 이미지
+
+## 화면 갤러리
+
+아래 파일은 합성 자료로 수행했던 실제 앱 검증의 캡처를 **편집 없이 복사**한 것입니다. 고객·매물·내용을 임의로 덧씌운 화면 모형이 아닙니다. 2026-09-13~14 검증 시점의 화면이므로 현재 운영 메뉴·배치와 일부 다를 수 있습니다.
+
+| 공개 파일 | 검증 내용 | 출처 |
+| --- | --- | --- |
+| [journal-search.png](journal-search.png) | 묶음 업무의 두 번째 매물이 주소 검색에 일치하는 표시 | 2026-09-13, `workflow-review/layout-journal-two.png` |
+| [work-detail.png](work-detail.png) | 여러 매물의 주소·가격·업소를 펼쳐 읽기 | 2026-09-13, `workflow-review/layout-detail-ten.png` |
+| [safe-deletion.png](safe-deletion.png) | 저장된 원문·연결 매물·휴지통 복구 안내를 포함한 삭제 확인 | 2026-09-14, `deletion-geBX0y/delete-confirm-desktop.png` |
+| [mobile-trash.png](mobile-trash.png) | 390px 휴대폰·큰 글씨의 휴지통 검색·기록·복구 | 2026-09-14, `deletion-geBX0y/trash-mobile-large.png` |
+
+원본 캡처와 로컬 fixture는 개발 작업공간의 `output/playwright/` 아래에 보관되며 Git에서는 제외됩니다. 공개에는 위 이미지 4개만 선택했습니다. 출처 환경은 [실제 업무 흐름 점검](../workflow-review.md)과 [삭제·복구 E2E](../deletion-e2e-review.md)에 기록되어 있습니다.
+
+공개 전 원본 이미지를 직접 열어 고객명·단지명·업무 내용이 `검증 고객`, `합성 업무`, `삭제 검증 고객` 등 합성 자료임을 확인했습니다. 계정·암호·운영 인증 값·실제 연락처가 포함된 화면, 로컬 인증 설정, SQLite 저장소, 백업 파일은 추가하지 않았습니다. 캡처의 수치와 가격은 운영 성과가 아닙니다.
+
+## 브랜드 배너
 
 ![집장부 소개 배너](jipjangbu-cover.png)
 
