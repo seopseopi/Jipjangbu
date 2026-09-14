@@ -429,7 +429,7 @@ export function WorkManager() {
   const [calendarWorkType, setCalendarWorkType] = useState("");
   const [listingState, setListingState] = useState("active");
   const [propertyTypeFilter, setPropertyTypeFilter] = useState("");
-  const [listingSort, setListingSort] = useState("building");
+  const [listingSort, setListingSort] = useState("type");
   const [customerSort, setCustomerSort] = useState("recent");
   const [calendarMonth, setCalendarMonth] = useState(seoulDate().slice(0, 7));
   const [workModal, setWorkModal] = useState<WorkModalState | null>(null);
@@ -1165,7 +1165,7 @@ export function WorkManager() {
     if (!navigate(next)) return;
     if (next === "listings") {
       setQueries((current) => ({ ...current, listings: "" }));
-      setListingState("active"); setPropertyTypeFilter(""); setListingSort("building");
+      setListingState("active"); setPropertyTypeFilter(""); setListingSort("type");
     } else if (next === "customers") {
       setQueries((current) => ({ ...current, customers: "" })); setCustomerSort("recent");
     } else if (next === "journal") {
@@ -1467,7 +1467,7 @@ export function WorkManager() {
                     setQuery("");
                     setListingState("active");
                     setPropertyTypeFilter("");
-                    setListingSort("building");
+                    setListingSort("type");
                   }}
                   onHistory={showListingHistory}
                 />
@@ -1722,6 +1722,19 @@ function DashboardView({
         </article>
         <article className="metric-card">
           <p className="metric-label">
+            <Icon name="upcoming" size={19} />
+            다가오는 일정
+          </p>
+          <strong>
+            {metrics.upcoming_count}
+            <small>건</small>
+          </strong>
+          <button className="attention" onClick={onOpenSchedule}>
+            7일 일정 확인 <Icon name="next" size={16} />
+          </button>
+        </article>
+        <article className="metric-card">
+          <p className="metric-label">
             <Icon name="listings" size={19} />
             진행 중 매물
           </p>
@@ -1744,19 +1757,6 @@ function DashboardView({
           </strong>
           <button onClick={() => onNavigate("customers")}>
             고객 목록 보기 <Icon name="next" size={16} />
-          </button>
-        </article>
-        <article className="metric-card">
-          <p className="metric-label">
-            <Icon name="upcoming" size={19} />
-            다가오는 일정
-          </p>
-          <strong>
-            {metrics.upcoming_count}
-            <small>건</small>
-          </strong>
-          <button className="attention" onClick={onOpenSchedule}>
-            7일 일정 확인 <Icon name="next" size={16} />
           </button>
         </article>
       </div>
@@ -2163,8 +2163,33 @@ function ListingsView({
 }) {
   const resultsVisible = status === "ready" || status === "refreshing";
   const filtered = Boolean(
-    query || state !== "active" || propertyType || sort !== "building",
+    query || state !== "active" || propertyType || sort !== "type",
   );
+  const dateSorted = ["recent", "updated", "oldest"].includes(sort);
+  const sortDescription = ({
+    type: "매물종류 가나다순 → 이름 → 동·호수",
+    "type-desc": "매물종류 역순 → 이름 → 동·호수",
+    building: "이름 가나다순 → 동·호수",
+    "building-desc": "이름 역순 → 동·호수",
+    recent: "최근 등록순",
+    updated: "최근 변경순",
+    oldest: "마지막 갱신이 오래된 순",
+  } as Record<string, string>)[sort] ?? "매물종류 가나다순 → 이름 → 동·호수";
+  const sortButton = (column: "type" | "building", label: string) => {
+    const selected = sort === column || sort === `${column}-desc`;
+    const descending = sort === `${column}-desc`;
+    return <button
+      type="button"
+      className={`listing-sort-button${selected ? " is-selected" : ""}`}
+      aria-pressed={selected}
+      aria-label={`${label} ${selected && !descending ? "역순" : "가나다순"}으로 정렬`}
+      title={selected ? `현재 ${descending ? "역순" : "가나다순"} · 다시 누르면 반대 순서` : `${label}을 첫 번째 정렬 기준으로 변경`}
+      onClick={() => setSort(sort === column ? `${column}-desc` : column)}
+    >
+      <span>{label}</span>
+      {selected ? <span className="listing-sort-direction" aria-hidden="true">{descending ? "↓" : "↑"}</span> : <Icon name="sort" size={16} />}
+    </button>;
+  };
   return (
     <>
       <Toolbar
@@ -2180,7 +2205,7 @@ function ListingsView({
             setState(next);
             if (next === "stale") setSort("oldest");
             else if (state === "stale" && sort === "oldest")
-              setSort("building");
+              setSort("type");
           }}
         >
           <option value="active">진행 중</option>
@@ -2189,11 +2214,11 @@ function ListingsView({
           <option value="all">전체</option>
         </select>
         <select
-          aria-label="물건구분 필터"
+          aria-label="매물종류 필터"
           value={propertyType}
           onChange={(event) => setPropertyType(event.target.value)}
         >
-          <option value="">모든 물건구분</option>
+          <option value="">모든 매물종류</option>
           {lookups.propertyTypes.map((type) => (
             <option key={type}>{type}</option>
           ))}
@@ -2203,7 +2228,10 @@ function ListingsView({
           value={sort}
           onChange={(event) => setSort(event.target.value)}
         >
-          <option value="building">건물·동·호수순</option>
+          <option value="type">매물종류 → 이름순 (기본)</option>
+          <option value="type-desc">매물종류 역순 → 이름순</option>
+          <option value="building">이름 가나다순</option>
+          <option value="building-desc">이름 역순</option>
           <option value="recent">최근 등록순</option>
           <option value="updated">최근 변경순</option>
           <option value="oldest">오래 미갱신순</option>
@@ -2262,16 +2290,11 @@ function ListingsView({
             </h2>
             <p className="sort-summary">
               <Icon name="sort" size={16} />
-              {sort === "recent"
-                ? "최근 등록순"
-                : sort === "updated"
-                  ? "최근 변경순"
-                  : sort === "oldest"
-                    ? "마지막 갱신이 오래된 순"
-                    : "건물명 → 동 → 호수순"}
-              {state === "all" ? " · 진행 중 우선" : ""}
-              {sort === "building" ? " · 동·호수는 숫자순" : ""}
+              {sortDescription}
+              {state === "all" && dateSorted ? " · 진행 중 우선" : ""}
+              {!dateSorted ? " · 동·호수는 숫자순" : ""}
             </p>
+            <p className="listing-sort-hint">매물종류·이름 제목을 누르면 정렬 변경, 한 번 더 누르면 역순</p>
           </div>
           <span className="helper-text">
             {state === "stale"
@@ -2279,15 +2302,19 @@ function ListingsView({
               : "매물을 누르면 전체 이력을 읽고 ‘매물 수정 이력 추가’로 변경 사항을 기록할 수 있습니다"}
           </span>
         </div>
+        <div className="listing-mobile-sort" role="group" aria-label="매물 정렬 기준">
+          {sortButton("type", "매물종류")}
+          {sortButton("building", "이름")}
+        </div>
         <ListReadFeedback status={status} error={error} onRetry={onRetry} label="매물 목록" />
         {resultsVisible && (!items.length ? (
           <EmptyState title="조건에 맞는 매물이 없습니다." />
         ) : (
           <div className="responsive-table listing-table">
             <div className="table-head">
+              {sortButton("type", "매물종류")}
+              {sortButton("building", "이름")}
               <span>상태</span>
-              <span>물건</span>
-              <span>구분·타입</span>
               <span>가격</span>
               <span>등록·말소</span>
             </div>
@@ -2297,16 +2324,17 @@ function ListingsView({
                 key={item.id}
                 onClick={() => onHistory(item)}
               >
+                <span data-label="매물종류">
+                  {item.property_type || "미지정"}
+                  {item.size_type && <small>타입 {item.size_type}</small>}
+                </span>
+                <span data-label="이름">
+                  <b>{targetText(item)}</b>
+                </span>
                 <span data-label="상태">
                   <i className={`tag ${statusTone(item.status)}`}>
                     {item.status}
                   </i>
-                </span>
-                <span data-label="물건">
-                  <b>{targetText(item)}</b>
-                </span>
-                <span data-label="구분·타입">
-                  {item.property_type} · {item.size_type || "-"}
                 </span>
                 <span data-label="가격">
                   <Price item={item} />

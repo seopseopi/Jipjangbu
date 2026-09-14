@@ -107,6 +107,82 @@ test("매물·고객 목록은 다른 조건 조회 중과 오류에서 이전 �
   }
 });
 
+test("매물 종류·이름 제목은 기본 정렬과 역순을 표시하고 클릭 시 해당 기준만 변경한다", () => {
+  for (const [sort, column, next, direction] of [
+    ["type", "매물종류", "type-desc", "↑"],
+    ["type-desc", "매물종류", "type", "↓"],
+    ["building", "이름", "building-desc", "↑"],
+    ["building-desc", "이름", "building", "↓"],
+    ["updated", "매물종류", "type", null],
+    ["type", "이름", "building", null],
+  ]) {
+    const changed = [], opened = [];
+    const tree = Listings({ ...listingProps, sort, setSort: (value) => changed.push(value), onHistory: (item) => opened.push(item) });
+    const header = descendants(tree).find((item) => item.props.className === "table-head");
+    const control = button(header, column);
+    assert.equal(control.props.type, "button");
+    assert.equal(control.props["aria-pressed"], direction !== null);
+    if (direction) assert.ok(renderToStaticMarkup(control).includes(direction));
+    assert.match(control.props["aria-label"], /으로 정렬$/);
+    control.props.onClick();
+    assert.deepEqual(changed, [next]);
+    assert.deepEqual(opened, [], "sorting never opens a listing history or editor");
+    const row = descendants(tree).find((item) => item.props.className === "table-row");
+    row.props.onClick();
+    assert.deepEqual(opened, [listing], "the original listing history flow is preserved");
+  }
+});
+
+test("매물 정렬 선택·요약·모바일 제목 버튼은 같은 정렬 상태를 사용한다", () => {
+  for (const sort of ["type", "type-desc", "building", "building-desc", "recent", "updated", "oldest"]) {
+    const changed = [];
+    const tree = Listings({ ...listingProps, sort, state: "all", setSort: (value) => changed.push(value) });
+    const select = descendants(tree).find((item) => item.type === "select" && item.props["aria-label"] === "매물 정렬");
+    assert.equal(select.props.value, sort);
+    assert.deepEqual(React.Children.toArray(select.props.children).map((item) => item.props.value), ["type", "type-desc", "building", "building-desc", "recent", "updated", "oldest"]);
+    select.props.onChange({ target: { value: "updated" } });
+    assert.deepEqual(changed, ["updated"]);
+    const summary = descendants(tree).find((item) => item.props.className === "sort-summary");
+    assert.equal(renderToStaticMarkup(summary).includes("진행 중 우선"), ["recent", "updated", "oldest"].includes(sort));
+    const mobile = descendants(tree).find((item) => item.props.className === "listing-mobile-sort");
+    assert.equal(mobile.props["aria-label"], "매물 정렬 기준");
+    button(mobile, "이름").props.onClick();
+    assert.equal(changed.at(-1), sort === "building" ? "building-desc" : "building");
+  }
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.listing-sort-button\s*\{[^}]*min-height:\s*44px/);
+  const mobileCss = css.slice(css.indexOf("@media (max-width: 920px)"));
+  assert.match(mobileCss, /\.listing-mobile-sort\s*\{[^}]*display:\s*flex/);
+});
+
+test("매물관리 초기화·오래된 매물 필터 복귀는 종류→이름 기본 정렬로 돌아온다", () => {
+  assert.match(source, /\[listingSort, setListingSort\] = useState\("type"\)/);
+  const changes = [];
+  callback("ListingsView", "onReset", Object.fromEntries(["setQuery", "setListingState", "setPropertyTypeFilter", "setListingSort"].map((name) => [name, (value) => changes.push([name, value])])) )();
+  assert.deepEqual(changes, [["setQuery", ""], ["setListingState", "active"], ["setPropertyTypeFilter", ""], ["setListingSort", "type"]]);
+  const base = Listings({ ...listingProps, query: "", sort: "type" });
+  assert.equal(descendants(base).some((item) => item.props.className === "filter-reset"), false);
+  const sorted = [], states = [];
+  const stale = Listings({ ...listingProps, state: "stale", sort: "oldest", setState: (value) => states.push(value), setSort: (value) => sorted.push(value) });
+  descendants(stale).find((item) => item.props["aria-label"] === "매물 상태 필터").props.onChange({ target: { value: "active" } });
+  assert.deepEqual(states, ["active"]);
+  assert.deepEqual(sorted, ["type"]);
+});
+
+test("정렬 변경 뒤 CSV는 화면에 받은 순서를 보존하며 이름·종류·상태 셀이 올바르게 대응한다", () => {
+  const exported = [];
+  const View = compile([...common, "Price", "ListingsView"], { ...environment, downloadCsv: (...args) => exported.push(args) });
+  const items = [
+    { ...listing, id: "villa", property_type: "빌라", building_name: "가람", building_dong: "2", unit_number: "10" },
+    { ...listing, id: "apartment", property_type: "아파트", building_name: "나래", building_dong: "10", unit_number: "2" },
+  ];
+  const tree = View({ ...listingProps, items, sort: "type" });
+  button(tree, "CSV 저장").props.onClick();
+  assert.deepEqual(exported[0][2].map((row) => [row[1], row[2]]), [["빌라", "가람"], ["아파트", "나래"]]);
+  const rows = descendants(tree).filter((item) => item.props.className === "table-row");
+  assert.deepEqual(React.Children.toArray(rows[0].props.children).map((item) => item.props["data-label"]), ["매물종류", "이름", "상태", "가격", "등록·말소"]);
+});
+
 test("달력은 불러오지 못한 달을 빈 달로 표시하지 않고 같은 조건 갱신에서만 이전 일정을 유지한다", () => {
   for (const status of ["loading", "error"]) {
     const html = renderToStaticMarkup(React.createElement(Calendar, { ...calendarProps, status, error: "합성 달력 오류" }));
@@ -134,7 +210,7 @@ function navigationHarness(allow = true) {
 }
 test("홈의 의미형 바로가기는 해당 화면 필터만 초기화하고 사용자가 이동을 취소하면 그대로 둔다", () => {
   const expected = {
-    listings: { ListingState: "active", PropertyTypeFilter: "", ListingSort: "building" },
+    listings: { ListingState: "active", PropertyTypeFilter: "", ListingSort: "type" },
     customers: { CustomerSort: "recent" },
     journal: { WorkTypeFilter: "", WorkPeriod: "" },
     calendar: { CalendarMonth: "2026-09", CalendarWorkType: "" },

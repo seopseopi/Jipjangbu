@@ -92,6 +92,21 @@ test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 
   assert.match(html(tree), /가까운 일정 1건 미리보기/);
 });
 
+test("홈 요약은 오늘 업무 바로 다음에 다가오는 일정을 두고 매물·고객은 그 뒤에 배치한다", () => {
+  const tree = render();
+  const grid = descendants(tree).find((item) => item.props.className === "metric-grid");
+  const cards = React.Children.toArray(grid.props.children);
+  const labels = cards.map((card) => renderToStaticMarkup(descendants(card).find((item) => item.props.className === "metric-label")));
+  for (const [index, expected] of ["오늘 업무", "다가오는 일정", "진행 중 매물", "전체 고객"].entries()) {
+    assert.ok(labels[index].includes(expected));
+  }
+  assert.ok(html(cards[0]).includes("1<small>건"));
+  assert.ok(html(cards[1]).includes("2<small>건"));
+  assert.ok(html(cards[2]).includes("3<small>건"));
+  assert.ok(html(cards[3]).includes("4<small>명"));
+  assert.match(html(cards[1]), /7일 일정 확인/);
+});
+
 test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 숨겨진 관리 화면 주소는 유지한다", () => {
   const nav = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "navItems")[0];
   const navItems = evaluate(`const result = ${nav.initializer.getText(ast)};`);

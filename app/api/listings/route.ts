@@ -1,6 +1,9 @@
 import { getD1 } from "../../../db";
 import { apiError, ready } from "../_shared";
-import { LISTING_BUILDING_ORDER, LISTING_OLDEST_ORDER, LISTING_RECENT_ORDER, LISTING_UPDATED_ORDER } from "../_ordering";
+import {
+  LISTING_NAME_ORDER, LISTING_NAME_DESC_ORDER, LISTING_TYPE_ORDER, LISTING_TYPE_DESC_ORDER,
+  LISTING_OLDEST_ORDER, LISTING_RECENT_ORDER, LISTING_UPDATED_ORDER,
+} from "../_ordering";
 import { propertySearch } from "../_search.js";
 
 export async function GET(request: Request) {
@@ -10,10 +13,13 @@ export async function GET(request: Request) {
     const q = params.get("q")?.trim() ?? "";
     const state = params.get("state") ?? "active";
     const type = params.get("type")?.trim() ?? "";
-    const sort = params.get("sort") ?? "building";
+    const sort = params.get("sort") ?? "type";
     const orderBy = sort === "recent" ? LISTING_RECENT_ORDER
       : sort === "updated" ? LISTING_UPDATED_ORDER
-      : sort === "oldest" ? LISTING_OLDEST_ORDER : LISTING_BUILDING_ORDER;
+      : sort === "oldest" ? LISTING_OLDEST_ORDER
+      : sort === "building" ? LISTING_NAME_ORDER
+      : sort === "building-desc" ? LISTING_NAME_DESC_ORDER
+      : sort === "type-desc" ? LISTING_TYPE_DESC_ORDER : LISTING_TYPE_ORDER;
     const where: string[] = [];
     const binds: unknown[] = [];
     if (type) {

@@ -62,10 +62,10 @@ function database(t) {
   const work = (id, customerId, workDate, updated = workDate, created = updated, type = "전화") =>
     sqlite.prepare("INSERT INTO work_logs (id,customer_id,work_date,work_type,created_at,updated_at) VALUES (?,?,?,?,?,?)")
       .run(id, customerId, workDate, type, created, updated);
-  const listing = (id, { building = "단지", dong = "2", unit = "2", closed = null, registered = date(-100), updated = date(-50), notes = "" } = {}) =>
+  const listing = (id, { type = "아파트", building = "단지", dong = "2", unit = "2", closed = null, registered = date(-100), updated = date(-50), notes = "" } = {}) =>
     sqlite.prepare(`INSERT INTO listings (id,identity_key,status,property_type,building_name,building_dong,
-      unit_number,closed_at,registered_at,updated_at,notes) VALUES (?,?,'매물등록','아파트',?,?,?,?,?,?,?)`)
-      .run(id, id, building, dong, unit, closed, registered, updated, notes);
+      unit_number,closed_at,registered_at,updated_at,notes) VALUES (?,?,'매물등록',?,?,?,?,?,?,?,?)`)
+      .run(id, id, type, building, dong, unit, closed, registered, updated, notes);
   return { sqlite, db, date, customer, work, listing };
 }
 
@@ -94,18 +94,87 @@ test("고객 최근 업무순은 미래 예약·일괄 수정일을 제외하고
   assert.deepEqual(ids(unknown), ids(recent));
 });
 
-test("매물 단지순은 진행중 우선·동과 호의 숫자순·빈 값 마지막·ID 동률 기준을 적용한다", async (t) => {
+test("매물 기본순과 이름순은 상태가 앞서지 않고 동과 호의 숫자순·빈 값 마지막·ID 동률 기준을 적용한다", async (t) => {
   const { date, listing } = database(t);
   listing("dong-10", { dong: "10" }); listing("unit-10", { unit: "10" });
   listing("tie-z"); listing("tie-a"); listing("no-unit", { unit: "" });
   listing("no-dong", { dong: "" }); listing("closed", { building: "가", closed: date() });
   listing("suffix-10", { dong: "10동" }); listing("suffix-2", { dong: "2동" });
   const result = (await (await listingsRoute.GET(request("listings", { state: "all" }))).json()).listings;
-  assert.deepEqual(ids(result), ["tie-a", "tie-z", "unit-10", "no-unit", "suffix-2", "dong-10", "suffix-10", "no-dong", "closed"]);
-  const again = (await (await listingsRoute.GET(request("listings", { state: "all" }))).json()).listings;
+  assert.deepEqual(ids(result), ["closed", "tie-a", "tie-z", "unit-10", "no-unit", "suffix-2", "dong-10", "suffix-10", "no-dong"]);
+  const again = (await (await listingsRoute.GET(request("listings", { state: "all", sort: "building" }))).json()).listings;
   assert.deepEqual(ids(again), ids(result));
   const active = (await (await listingsRoute.GET(request("listings"))).json()).listings;
   assert.equal(active.some((item) => item.id === "closed"), false);
+});
+
+test("매물 기본순은 종류 가나다순 다음 이름순이며 종류 역순에서도 빈 종류는 마지막이다", async (t) => {
+  const { date, listing } = database(t);
+  listing("villa-late", { type: "빌라", building: "하단지" });
+  listing("shop", { type: "상가", building: "가단지", closed: date() });
+  listing("apartment", { type: "아파트", building: "가단지" });
+  listing("office", { type: "오피스텔", building: "가단지" });
+  listing("villa-closed", { type: "빌라", building: "가단지", closed: date() });
+  listing("blank", { type: "", building: "가단지" });
+  listing("spaces", { type: "  ", building: "나단지" });
+  const load = async (sort) => ids((await (await listingsRoute.GET(request("listings", {
+    state: "all", ...(sort === undefined ? {} : { sort }),
+  }))).json()).listings);
+  const expected = ["villa-closed", "villa-late", "shop", "apartment", "office", "blank", "spaces"];
+  assert.deepEqual(await load(), expected);
+  assert.deepEqual(await load("type"), expected);
+  assert.deepEqual(await load("type-desc"), ["office", "apartment", "shop", "villa-closed", "villa-late", "blank", "spaces"]);
+  for (const invalid of ["", "unknown", "constructor", "__proto__", "building_name; DROP TABLE listings --"]) {
+    assert.deepEqual(await load(invalid), expected);
+  }
+});
+
+test("매물 종류·이름 열의 역순은 선택한 열만 뒤집고 동·호수·ID 동률 순서는 유지한다", async (t) => {
+  const { date, listing } = database(t);
+  listing("shop-a", { type: "상가", building: "가단지" });
+  listing("apartment-z", { building: "하단지" });
+  listing("office-a", { type: "오피스텔", building: "가단지" });
+  listing("shared-dong-10", { building: "공통단지", dong: "10" });
+  listing("shared-unit-10", { building: "공통단지", unit: "10" });
+  listing("shared-tie-z", { building: "공통단지" });
+  listing("shared-tie-a", { building: "공통단지", closed: date() });
+  listing("shared-no-dong", { building: "공통단지", dong: "" });
+  listing("shared-shop", { type: "상가", building: "공통단지", dong: "1" });
+  const load = async (sort, params = {}) => ids((await (await listingsRoute.GET(request("listings", {
+    state: "all", sort, ...params,
+  }))).json()).listings);
+  const shared = ["shared-shop", "shared-tie-a", "shared-tie-z", "shared-unit-10", "shared-dong-10", "shared-no-dong"];
+  assert.deepEqual(await load("building"), ["office-a", "shop-a", ...shared, "apartment-z"]);
+  assert.deepEqual(await load("building-desc"), ["apartment-z", ...shared, "office-a", "shop-a"]);
+  assert.deepEqual(await load("type"), ["shop-a", "shared-shop", ...shared.slice(1), "apartment-z", "office-a"]);
+  assert.deepEqual(await load("type-desc"), ["office-a", ...shared.slice(1), "apartment-z", "shop-a", "shared-shop"]);
+  assert.deepEqual(await load("building-desc", { q: "공통단지", type: "아파트" }), shared.slice(1));
+  assert.deepEqual(await load("type-desc", { q: "공통단지", state: "closed" }), ["shared-tie-a"]);
+  assert.deepEqual(await load("type", { q: "공통단지 2동", state: "active", type: "아파트" }), ["shared-tie-z", "shared-unit-10"]);
+});
+
+test("매물 열 정렬은 전체 검색 결과에서 적용한 뒤 1,000건을 제한한다", async (t) => {
+  const { listing } = database(t);
+  // Insert in reverse name order, with the first alphabetical category last.
+  // Sorting a previously limited client subset would miss its first result.
+  for (let index = 1001; index >= 1; index--) {
+    listing(`apartment-${String(index).padStart(4, "0")}`, { building: `검증단지${String(index).padStart(4, "0")}` });
+  }
+  listing("shop-first", { type: "상가", building: "검증단지끝" });
+  listing("unmatched", { type: "빌라", building: "별도단지" });
+  const load = async (sort) => (await (await listingsRoute.GET(request("listings", {
+    sort, q: "검증단지", state: "all",
+  }))).json()).listings;
+  const byType = await load("type");
+  assert.equal(byType.length, 1000);
+  assert.equal(byType[0].id, "shop-first");
+  assert.equal(byType[1].id, "apartment-0001");
+  assert.equal(byType.at(-1).id, "apartment-0999");
+  const byName = await load("building-desc");
+  assert.equal(byName.length, 1000);
+  assert.equal(byName[0].id, "shop-first");
+  assert.equal(byName[1].id, "apartment-1001");
+  assert.equal(byName.at(-1).id, "apartment-0003");
 });
 
 test("매물 등록순·변경순·오래 미갱신순은 서로 구분되고 필터와 함께 동작한다", async (t) => {

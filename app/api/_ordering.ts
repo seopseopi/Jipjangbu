@@ -24,6 +24,15 @@ export const LISTING_RECENT_ORDER = `${LISTING_ACTIVE_ORDER}, registered_at DESC
 export const LISTING_UPDATED_ORDER = `${LISTING_ACTIVE_ORDER}, ${LISTING_LAST_UPDATED_SQL} DESC, ${LISTING_LOCATION_ORDER}`;
 export const LISTING_OLDEST_ORDER = `${LISTING_ACTIVE_ORDER}, ${LISTING_LAST_UPDATED_SQL}, ${LISTING_LOCATION_ORDER}`;
 
+// Listing management follows the selected column across all states. Keep the
+// active-first orders above unchanged for date-based views and other consumers.
+const LISTING_TYPE_VALUE = "trim(COALESCE(property_type, ''))";
+export const LISTING_TYPE_ORDER = `${LISTING_TYPE_VALUE} = '', ${LISTING_TYPE_VALUE} COLLATE NOCASE, ${LISTING_LOCATION_ORDER}`;
+export const LISTING_TYPE_DESC_ORDER = `${LISTING_TYPE_VALUE} = '', ${LISTING_TYPE_VALUE} COLLATE NOCASE DESC, ${LISTING_LOCATION_ORDER}`;
+export const LISTING_NAME_ORDER = LISTING_LOCATION_ORDER;
+export const LISTING_NAME_DESC_ORDER = `building_name COLLATE NOCASE DESC,
+  ${naturalNumberOrder("building_dong")}, ${naturalNumberOrder("unit_number")}, id`;
+
 export const HOME_TODAY_ORDER = "w.updated_at DESC, w.id DESC";
 export const HOME_RECENT_WHERE = "w.work_date <= date('now','+9 hours')";
 export const WORK_RECENT_ORDER = "w.work_date DESC, w.updated_at DESC, w.id DESC";
