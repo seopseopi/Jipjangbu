@@ -99,7 +99,7 @@ async function snapshot(write, secret) {
   return JSON.parse(new TextDecoder().decode(value));
 }
 
-test("초기화 완료된 DB는 새 서버에서도 읽기 1회, 쓰기 0회로 준비되고 동시 요청을 공유한다", async (t) => {
+test("초기화 완료된 DB는 새 요청에서도 읽기 1회, 쓰기 0회로 준비되며 완료 여부만 공유한다", async (t) => {
   const { sqlite, db, binding } = database(t);
   await ensureDatabase(db);
   assert.equal(sqlite.prepare("SELECT value FROM app_runtime_state WHERE key = 'bootstrap_version'").get().value, "2");
@@ -107,13 +107,67 @@ test("초기화 완료된 DB는 새 서버에서도 읽기 1회, 쓰기 0회로 
   sqlite.prepare("DELETE FROM work_types WHERE name = '기타'").run();
   const cold = binding();
   const first = ensureDatabase(cold.db);
-  assert.equal(first, ensureDatabase(cold.db));
-  await first;
+  const second = ensureDatabase(cold.db);
+  assert.notEqual(first, second, "pending request-scoped I/O is never shared");
+  await Promise.all([first, second]);
   await ensureDatabase(cold.db);
-  assert.equal(cold.calls.length, 1);
+  assert.equal(cold.calls.length, 2, "each cold request reads once; warm calls read nothing");
   assert.match(cold.calls[0].sql, /^SELECT value FROM app_runtime_state/);
   assert.deepEqual(cold.batches, []);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM work_types WHERE name = '기타'").get().count, 0);
+});
+
+test("중단된 첫 요청의 초기화가 끝나지 않아도 새 요청은 독립적으로 준비해 화면을 연다", async (t) => {
+  const { db, binding } = database(t);
+  await ensureDatabase(db);
+  const cold = binding();
+  const prepare = cold.db.prepare.bind(cold.db);
+  let firstRead = true;
+  cold.db.prepare = (sql) => {
+    const statement = prepare(sql);
+    if (firstRead && /^SELECT value FROM app_runtime_state/.test(sql)) {
+      firstRead = false;
+      statement.first = () => new Promise(() => {});
+    }
+    return statement;
+  };
+  const abandoned = ensureDatabase(cold.db);
+  const retry = ensureDatabase(cold.db);
+  assert.notEqual(abandoned, retry);
+  let timeout;
+  try {
+    await Promise.race([
+      retry,
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error("Retry waited on cancelled request")), 500); }),
+    ]);
+  } finally {
+    clearTimeout(timeout);
+  }
+  await ensureDatabase(cold.db);
+  assert.equal(cold.calls.length, 1, "only the independent successful readiness read reaches the DB");
+  assert.deepEqual(cold.batches, []);
+});
+
+test("이전 초기화 요청이 늦게 실패해도 후속 요청의 준비 완료 상태를 지우지 않는다", async (t) => {
+  const { db, binding } = database(t);
+  await ensureDatabase(db);
+  const cold = binding();
+  const prepare = cold.db.prepare.bind(cold.db);
+  let rejectFirst;
+  cold.db.prepare = (sql) => {
+    const statement = prepare(sql);
+    if (!rejectFirst && /^SELECT value FROM app_runtime_state/.test(sql)) {
+      statement.first = () => new Promise((_, reject) => { rejectFirst = reject; });
+    }
+    return statement;
+  };
+  const abandoned = ensureDatabase(cold.db);
+  const rejected = assert.rejects(abandoned, /originating request cancelled/);
+  await ensureDatabase(cold.db);
+  rejectFirst(new Error("originating request cancelled"));
+  await rejected;
+  await ensureDatabase(cold.db);
+  assert.equal(cold.calls.length, 1);
 });
 
 test("첫 설치만 예시 데이터를 만들고 기존 DB가 비어도 예시를 다시 넣지 않는다", async (t) => {

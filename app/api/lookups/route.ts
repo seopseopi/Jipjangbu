@@ -5,12 +5,12 @@ export async function GET() {
   try {
     await ready();
     const db = getD1();
-    const [types, buildings] = await Promise.all([
-      db.prepare("SELECT name FROM work_types ORDER BY sort_order, name").all<{ name: string }>(),
-      db.prepare("SELECT id, property_type, building_name FROM property_buildings ORDER BY property_type, sort_order, building_name").all(),
+    const [types, buildings] = await db.batch<Record<string, unknown>>([
+      db.prepare("SELECT name FROM work_types ORDER BY sort_order, name"),
+      db.prepare("SELECT id, property_type, building_name FROM property_buildings ORDER BY property_type, sort_order, building_name"),
     ]);
     return Response.json({
-      workTypes: types.results.map((row) => row.name),
+      workTypes: types.results.map((row) => String(row.name)),
       propertyTypes: [...new Set(buildings.results.map((row) => String(row.property_type)))],
       buildings: buildings.results,
     });

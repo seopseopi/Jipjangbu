@@ -16,13 +16,24 @@ export async function GET(request: Request) {
     const search = q ? textSearch(["c.id", "c.name", "c.notes"], q, ["c.id"]) : { sql: "1", bindings: [] };
     const cursorPredicate = after !== null ? "AND c.id > ? COLLATE BINARY" : "";
     const pageBindings = directory ? after !== null ? [after] : [] : [offset];
+    // The immutable-ID directory can stop at the page boundary before reading
+    // histories. GROUP BY + a different ORDER BY previously aggregated every
+    // remaining customer and their work before retaining only 1,000 rows.
+    // Both subqueries use the existing customer/date covering index, and MAX
+    // seeks the latest past date without walking every future reservation.
+    const directoryLastWorkDate = `(SELECT MAX(w.work_date) FROM work_logs w
+      WHERE w.customer_id = c.id AND w.work_date <= date('now','+9 hours'))`;
+    const historyColumns = directory
+      ? `(SELECT COUNT(*) FROM work_logs w WHERE w.customer_id = c.id) AS history_count,
+        ${directoryLastWorkDate} AS last_work_date,
+        COALESCE(${directoryLastWorkDate}, date(c.created_at,'+9 hours'), '1900-01-01') AS directory_sort_date`
+      : `COUNT(w.id) AS history_count, ${CUSTOMER_LAST_WORK_DATE_SQL} AS last_work_date`;
     const rows = await getD1().prepare(`
       SELECT c.id, c.name, c.notes, c.created_at, c.updated_at, c.is_demo,
-        COUNT(w.id) AS history_count, ${CUSTOMER_LAST_WORK_DATE_SQL} AS last_work_date
-        ${directory ? `, COALESCE(${CUSTOMER_LAST_WORK_DATE_SQL}, date(c.created_at,'+9 hours'), '1900-01-01') AS directory_sort_date` : ""}
-      FROM customers c LEFT JOIN work_logs w ON w.customer_id = c.id
+        ${historyColumns}
+      FROM customers c ${directory ? "" : "LEFT JOIN work_logs w ON w.customer_id = c.id"}
       WHERE (${search.sql}) ${cursorPredicate}
-      GROUP BY c.id ORDER BY ${orderBy} LIMIT 1000 ${directory ? "" : "OFFSET ?"}
+      ${directory ? "" : "GROUP BY c.id"} ORDER BY ${orderBy} LIMIT 1000 ${directory ? "" : "OFFSET ?"}
     `).bind(...search.bindings, ...pageBindings).all();
     return Response.json({ customers: rows.results });
   } catch (error) {

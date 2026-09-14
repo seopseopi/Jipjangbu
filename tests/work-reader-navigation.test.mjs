@@ -55,19 +55,77 @@ test("마지막 업무를 삭제한 매물 이력은 주소 오류 대신 빈 �
   assert.match(history.current.error, /물건구분·건물명·동·호수/);
 });
 function harness(fetch, extra = {}) {
-  const reader = state(), editor = state(), reference = state({ kind: "customer", id: "previous" }), search = state(true);
+  const reader = state(), editor = state(), opening = state(), reference = state({ kind: "customer", id: "previous" }), search = state(true);
   const workReadVersion = { current: 0 }, workOpenVersion = { current: 0 };
   const environment = {
     workReadVersion, workOpenVersion,
     setWorkReader: reader.set, setWorkModal: editor.set,
+    setWorkOpening: opening.set,
     setReaderReference: reference.set, setGlobalSearchOpen: search.set,
     jsonFetch: fetch, loadReferenceData: async () => {},
     isAborted: (error) => error?.name === "AbortError", showLoadError: assert.fail,
     ...extra,
   };
-  const handlers = evaluate(`${["openWork", "readWork", "closeWorkReader"].map(declaration).join("\n")}\nconst result = { openWork, readWork, closeWorkReader };`, environment);
-  return { reader, editor, reference, search, workReadVersion, workOpenVersion, ...handlers };
+  const handlers = evaluate(`${["openWork", "closeWorkOpening", "readWork", "closeWorkReader"].map(declaration).join("\n")}\nconst result = { openWork, closeWorkOpening, readWork, closeWorkReader };`, environment);
+  return { reader, editor, opening, reference, search, workReadVersion, workOpenVersion, ...handlers };
 }
+
+test("새 업무·수정 버튼은 명부 조회가 늦어도 즉시 취소 가능한 대기창을 띄운다", async () => {
+  for (const id of [undefined, "synthetic edit/1"]) {
+    const reference = deferred(), detail = deferred(), urls = [];
+    const h = harness((url) => { urls.push(url); return detail.promise; }, { loadReferenceData: () => reference.promise });
+    const task = h.openWork(id, "synthetic-customer", "매물수정", { identity_key: "synthetic-listing" });
+    assert.deepEqual(h.opening.current, { id, initialCustomerId: "synthetic-customer", initialWorkType: "매물수정", initialListing: { identity_key: "synthetic-listing" } });
+    assert.equal(h.editor.current, null, "incomplete customer data must not enable a form");
+    if (id) assert.deepEqual(urls, ["/api/work-logs/synthetic%20edit%2F1"]);
+    reference.resolve();
+    detail.resolve({ workLog: { id, details: [] } });
+    await task;
+    assert.equal(h.opening.current, null);
+    assert.equal(h.editor.current.mode, id ? "edit" : "new");
+  }
+});
+
+test("대기창 취소 후 늦은 성공·실패가 창을 다시 띄우거나 기존 초안을 바꾸지 않는다", async () => {
+  for (const reject of [false, true]) {
+    const pending = deferred(), h = harness(async () => ({ workLog: { id: "requested" } }), { loadReferenceData: () => pending.promise });
+    const draft = { mode: "new", initialCustomerId: "preserved" };
+    h.editor.set(draft);
+    const task = h.openWork("requested");
+    h.closeWorkOpening();
+    assert.equal(h.opening.current, null);
+    if (reject) pending.reject(new Error("late synthetic failure")); else pending.resolve();
+    await task;
+    assert.equal(h.opening.current, null);
+    assert.equal(h.editor.current, draft);
+  }
+});
+
+test("입력창 준비 실패는 재시도할 고객·매물 조건과 오류를 대기창에 보존한다", async () => {
+  let attempts = 0;
+  const h = harness(async () => ({ workLog: { id: "retry", details: [] } }), {
+    loadReferenceData: async () => { if (++attempts === 1) throw new Error("합성 연결 오류"); },
+  });
+  await h.openWork("retry", "customer", "매물수정", { identity_key: "listing" });
+  assert.match(h.opening.current.error, /합성 연결 오류/);
+  assert.equal(h.opening.current.initialCustomerId, "customer");
+  assert.equal(h.editor.current, null);
+  const request = h.opening.current;
+  await h.openWork(request.id, request.initialCustomerId, request.initialWorkType, request.initialListing);
+  assert.equal(h.opening.current, null);
+  assert.equal(h.editor.current.item.id, "retry");
+});
+
+test("계속 중단되는 입력창 조회는 한 번만 재시도하고 무한 대기 없이 오류를 보여준다", async () => {
+  let attempts = 0;
+  const h = harness(async () => ({ workLog: { id: "aborted" } }), {
+    loadReferenceData: async () => { attempts += 1; throw new DOMException("Cancelled", "AbortError"); },
+  });
+  await h.openWork("aborted");
+  assert.equal(attempts, 2);
+  assert.match(h.opening.current.error, /중단.*다시/);
+  assert.equal(h.editor.current, null);
+});
 
 test("기존 업무는 수정창 대신 읽기 대기를 즉시 열고 해당 업무의 모든 물건을 읽는다", async () => {
   const pending = deferred(), requests = [];
@@ -228,6 +286,7 @@ test("승인된 메뉴 이동은 읽기 대기를 무효화하고 새 화면에 
     view: "journal", followUpBusy: { current: false }, workBusy: { current: false }, customerBusy: { current: false }, followUpDirty: { current: false },
     workOpenVersion: h.workOpenVersion, workReadVersion: h.workReadVersion,
     closeWorkReader: h.closeWorkReader, setWorkReader: h.reader.set, setReaderReference: h.reference.set,
+    setWorkOpening: h.opening.set,
     currentView: { current: "journal" }, setView: (next) => changed.push(next),
     window: { scrollTo: noop, confirm: () => true, location: { pathname: "/", search: "" }, history: { pushState: noop } },
     refreshBase: async () => {}, showLoadError: assert.fail,
@@ -248,6 +307,7 @@ test("이동을 취소하거나 저장 중이면 읽던 업무와 대기 요청�
       view: "journal", followUpBusy: { current: false }, workBusy: { current: saving }, customerBusy: { current: false }, followUpDirty: { current: !saving },
       workOpenVersion: h.workOpenVersion, workReadVersion: h.workReadVersion,
       closeWorkReader: h.closeWorkReader, setWorkReader: h.reader.set, setReaderReference: h.reference.set,
+      setWorkOpening: h.opening.set,
       currentView: { current: "journal" }, setView: () => assert.fail("cancelled navigation must not change the view"), setNotice: noop,
       window: { scrollTo: noop, confirm: () => false, location: { pathname: "/", search: "" }, history: { pushState: () => assert.fail("cancelled navigation must not add browser history") } },
       refreshBase: async () => {}, showLoadError: assert.fail,
@@ -269,6 +329,7 @@ test("브라우저 뒤로가기도 읽기 대기를 닫고 늦은 응답이 이�
     followUpBusy: { current: false }, workBusy: { current: false }, customerBusy: { current: false }, followUpDirty: { current: false },
     workOpenVersion: h.workOpenVersion, workReadVersion: h.workReadVersion,
     setWorkReader: h.reader.set, setReaderReference: h.reference.set,
+    setWorkOpening: h.opening.set,
     setView: (view) => views.push(view), setNotice: noop,
     window: { location: { hash: "#calendar", pathname: "/" }, history: { pushState: noop }, confirm: () => true },
   });

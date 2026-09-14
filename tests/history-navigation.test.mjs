@@ -38,6 +38,7 @@ test("explicitly editing work A then B cannot replace B's draft with A's late re
     loadReferenceData: async () => {},
     jsonFetch: (url) => url.endsWith("/a") ? a.promise : b.promise,
     setWorkModal: state.set,
+    setWorkOpening() {},
     showLoadError: assert.fail,
   });
   const first = open("a"), second = open("b");
@@ -55,6 +56,7 @@ test("closing the originating history invalidates a pending explicit edit open",
   const open = handler("openWork", {
     workOpenVersion: version, loadReferenceData: async () => {},
     jsonFetch: () => pending.promise, setWorkModal: state.set, showLoadError: assert.fail,
+    setWorkOpening() {},
   });
   const task = open("a");
   version.current += 1;

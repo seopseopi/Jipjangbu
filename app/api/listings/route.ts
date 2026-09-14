@@ -14,8 +14,12 @@ export async function GET(request: Request) {
     const orderBy = sort === "recent" ? LISTING_RECENT_ORDER
       : sort === "updated" ? LISTING_UPDATED_ORDER
       : sort === "oldest" ? LISTING_OLDEST_ORDER : LISTING_BUILDING_ORDER;
-    const where = ["(? = '' OR property_type = ?)"];
-    const binds: unknown[] = [type, type];
+    const where: string[] = [];
+    const binds: unknown[] = [];
+    if (type) {
+      where.push("property_type = ?");
+      binds.push(type);
+    }
     if (state === "active") where.push("closed_at IS NULL");
     if (state === "closed") where.push("closed_at IS NOT NULL");
     if (state === "stale") where.push("closed_at IS NULL AND date(COALESCE(NULLIF(updated_at, ''), registered_at, '1900-01-01')) <= date('now','+9 hours','-90 days')");
@@ -25,7 +29,7 @@ export async function GET(request: Request) {
       binds.push(...search.bindings);
     }
     const rows = await getD1().prepare(`
-      SELECT * FROM listings WHERE ${where.join(" AND ")}
+      SELECT * FROM listings ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       ORDER BY ${orderBy} LIMIT 1000
     `).bind(...binds).all();
     return Response.json({ listings: rows.results });

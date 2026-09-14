@@ -20,12 +20,12 @@ export async function GET(request: Request) {
     const customer = textSearch(["c.id", "c.name", "c.notes"], q, ["c.id"]);
     const listing = propertySearch(q);
     const db = getD1();
-    const [workLogs, customers, listings] = await Promise.all([
+    const [workLogs, customers, listings] = await db.batch<Record<string, unknown>>([
       db.prepare(`${summary.sql}
         WHERE ${work.sql}
         ORDER BY ${WORK_RECENT_ORDER}
         LIMIT 8
-      `).bind(...summary.bindings, ...work.bindings).all(),
+      `).bind(...summary.bindings, ...work.bindings),
       db.prepare(`
         SELECT c.id, c.name, c.notes, c.created_at, c.updated_at, c.is_demo,
           COUNT(w.id) AS history_count, ${CUSTOMER_LAST_WORK_DATE_SQL} AS last_work_date
@@ -35,14 +35,14 @@ export async function GET(request: Request) {
         GROUP BY c.id
         ORDER BY ${CUSTOMER_SEARCH_RANK}, ${CUSTOMER_RECENT_ORDER}
         LIMIT 8
-      `).bind(...customer.bindings, q, q, prefix, prefix).all(),
+      `).bind(...customer.bindings, q, q, prefix, prefix),
       db.prepare(`
         SELECT * FROM listings
         WHERE ${listing.sql}
         ORDER BY ${LISTING_SEARCH_RANK}, ${LISTING_ACTIVE_ORDER}, ${LISTING_LAST_UPDATED_SQL} DESC, ${LISTING_LOCATION_ORDER}
         LIMIT 8
       `).bind(...listing.bindings,
-        q, q, q, q, prefix, prefix, prefix, prefix).all(),
+        q, q, q, q, prefix, prefix, prefix, prefix),
     ]);
 
     return Response.json({

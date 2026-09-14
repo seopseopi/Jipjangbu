@@ -32,10 +32,15 @@ export function createJsonClient({
   let writes = 0;
   let readBytes = 0;
 
-  function clear() {
-    generation += 1;
+  function invalidateCompletedReads() {
     reads.clear();
     readBytes = 0;
+    return [...pending.values()].some((entry) => !entry.controller.signal.aborted);
+  }
+
+  function clear() {
+    generation += 1;
+    invalidateCompletedReads();
     for (const entry of pending.values()) entry.controller.abort();
     pending.clear();
   }
@@ -174,7 +179,7 @@ export function createJsonClient({
     return JSON.parse(body) as T;
   }
 
-  return { fetchJson, clear };
+  return { fetchJson, clear, invalidateCompletedReads };
 }
 
 const client = createJsonClient({
@@ -188,3 +193,6 @@ const client = createJsonClient({
 
 export const clientJsonFetch = client.fetchJson;
 export const clearClientReadCache = client.clear;
+// A focus refresh must not cancel the very reads the visible screen is waiting on.
+// Writes, logout and authorization failures still use clear() above.
+export const invalidateCompletedClientReads = client.invalidateCompletedReads;

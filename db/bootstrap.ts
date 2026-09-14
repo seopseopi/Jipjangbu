@@ -118,18 +118,16 @@ const schemaNames = schemaStatements.map((statement) => {
   if (!name) throw new Error("Invalid bootstrap schema statement");
   return name;
 });
-const initializations = new WeakMap<D1Database, Promise<void>>();
+// Cache only completed readiness, not an in-flight D1 request. Worker I/O is
+// request-scoped: if its originating request is cancelled, sharing that pending
+// promise can leave unrelated requests waiting forever. Cold requests may each
+// do the cheap readiness read; warm requests still require no extra DB calls.
+const initializedDatabases = new WeakSet<D1Database>();
 
-export function ensureDatabase(db: D1Database = getD1()): Promise<void> {
-  let initialization = initializations.get(db);
-  if (!initialization) {
-    initialization = initialize(db).catch((error) => {
-      initializations.delete(db);
-      throw error;
-    });
-    initializations.set(db, initialization);
-  }
-  return initialization;
+export async function ensureDatabase(db: D1Database = getD1()): Promise<void> {
+  if (initializedDatabases.has(db)) return;
+  await initialize(db);
+  initializedDatabases.add(db);
 }
 
 async function initialize(db: D1Database) {

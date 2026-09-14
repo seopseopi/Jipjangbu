@@ -44,6 +44,7 @@ import { hasPropertyDraft, propertyFromListing, type ListingDraftSource } from "
 import {
   clientJsonFetch as jsonFetch,
   clearClientReadCache,
+  invalidateCompletedClientReads,
 } from "./client-api";
 
 const GlobalSearch = lazy(() =>
@@ -206,6 +207,13 @@ type WorkModalState = {
   initialCustomerId?: string;
   initialWorkType?: string;
   initialListing?: Listing;
+};
+type WorkOpeningState = {
+  id?: string;
+  initialCustomerId?: string;
+  initialWorkType?: string;
+  initialListing?: Listing;
+  error?: string;
 };
 type FollowUpDraft = {
   title?: string;
@@ -387,6 +395,8 @@ export function WorkManager() {
     buildings: [],
   });
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const customerDirectoryRequested = useRef(false);
+  const appliedReferenceVersion = useRef(0);
   const [customerResults, setCustomerResults] = useState<Customer[]>([]);
   const [workLogs, setWorkLogs] = useState<WorkSummary[]>([]);
   const [workTotal, setWorkTotal] = useState(0);
@@ -423,6 +433,7 @@ export function WorkManager() {
   const [customerSort, setCustomerSort] = useState("recent");
   const [calendarMonth, setCalendarMonth] = useState(seoulDate().slice(0, 7));
   const [workModal, setWorkModal] = useState<WorkModalState | null>(null);
+  const [workOpening, setWorkOpening] = useState<WorkOpeningState | null>(null);
   const [workReader, setWorkReader] = useState<{ id: string; item?: WorkDetail; loading: boolean; error?: string } | null>(null);
   const workReadVersion = useRef(0);
   const [readerReference, setReaderReference] = useState<RelatedHistoryTarget | null>(null);
@@ -441,6 +452,7 @@ export function WorkManager() {
   const [globalSearchLoaded, setGlobalSearchLoaded] = useState(false);
   const [insightsRefreshKey, setInsightsRefreshKey] = useState(0);
   const lastFocusRefresh = useRef(0);
+  const focusRefreshInFlight = useRef(false);
   const requestVersion = useRef({
     dashboard: 0,
     references: 0,
@@ -478,15 +490,23 @@ export function WorkManager() {
     if (!isAborted(error)) setNotice((error as Error).message);
   }, []);
 
-  const loadReferenceData = useCallback(async () => {
+  const loadReferenceData = useCallback(async (includeCustomers = true) => {
+    // The full customer directory belongs to the work form, not the home page.
+    // Once a form has needed it, keep the existing focus/write refresh behavior.
+    if (includeCustomers) customerDirectoryRequested.current = true;
     const version = ++requestVersion.current.references;
     const [lookupData, customerData] = await Promise.all([
       jsonFetch<Lookups>("/api/lookups"),
-      fetchCustomerDirectory<Customer>((url) => jsonFetch(url)),
+      customerDirectoryRequested.current
+        ? fetchCustomerDirectory<Customer>((url) => jsonFetch(url))
+        : null,
     ]);
-    if (version !== requestVersion.current.references) return;
+    // A newer *pending* focus refresh must not discard the valid data an opening
+    // form is waiting for. Only an already-applied newer success wins the race.
+    if (version < appliedReferenceVersion.current) return;
+    appliedReferenceVersion.current = version;
     setLookups(lookupData);
-    setCustomers(customerData);
+    if (customerData) setCustomers(customerData);
   }, []);
   const refreshDashboard = useCallback(async () => {
     const version = ++requestVersion.current.dashboard;
@@ -501,7 +521,7 @@ export function WorkManager() {
     }
   }, []);
   const refreshBase = useCallback(async () => {
-    await Promise.all([refreshDashboard(), loadReferenceData()]);
+    await Promise.all([refreshDashboard(), loadReferenceData(false)]);
   }, [refreshDashboard, loadReferenceData]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -663,21 +683,34 @@ export function WorkManager() {
     const refreshVisibleData = () => {
       if (
         document.visibilityState !== "visible" ||
+        focusRefreshInFlight.current ||
         Date.now() - lastFocusRefresh.current < 1000
       )
         return;
       lastFocusRefresh.current = Date.now();
-      clearClientReadCache();
+      focusRefreshInFlight.current = true;
+      const sharedPendingRead = invalidateCompletedClientReads();
+      // These child views abort their own previous request on refreshKey changes,
+      // so their first refresh is already fresh. Do not restart it a second time.
       setInsightsRefreshKey((value) => value + 1);
       setFollowUpRefreshKey((value) => value + 1);
       const active = currentView.current;
-      void Promise.all([
+      const refresh = () => Promise.all([
         refreshBase(),
         active === "journal" ? loadWorkLogs(undefined, workLogs.length) : undefined,
         active === "calendar" ? loadCalendar() : undefined,
         active === "listings" ? loadListings() : undefined,
         active === "customers" ? loadCustomers() : undefined,
-      ]).catch(showLoadError);
+      ]);
+      void refresh().then(async () => {
+        // Preserve a slow first response so the screen/form can finish opening,
+        // then revalidate once: another device may have changed data in flight.
+        if (sharedPendingRead && document.visibilityState === "visible") {
+          invalidateCompletedClientReads();
+          if (currentView.current === active) await refresh();
+          else await refreshBase();
+        }
+      }).catch(showLoadError).finally(() => { focusRefreshInFlight.current = false; });
     };
     window.addEventListener("focus", refreshVisibleData);
     document.addEventListener("visibilitychange", refreshVisibleData);
@@ -738,6 +771,7 @@ export function WorkManager() {
       }
       if (next !== currentView.current) {
         workOpenVersion.current += 1;
+        setWorkOpening(null);
         workReadVersion.current += 1;
         setWorkReader(null);
         setReaderReference(null);
@@ -798,6 +832,7 @@ export function WorkManager() {
       return false;
     const hash = next === "today" ? "" : `#${next}`;
     workOpenVersion.current += 1;
+    setWorkOpening(null);
     workReadVersion.current += 1;
     setWorkReader(null);
     setReaderReference(null);
@@ -819,16 +854,21 @@ export function WorkManager() {
     initialListing?: Listing,
   ) {
     const version = ++workOpenVersion.current;
+    const request = { id, initialCustomerId, initialWorkType, initialListing };
+    // A slow directory/detail request must not make the button look unresponsive.
+    // Keep the existing reader and any draft mounted until the new form is ready.
+    setWorkOpening(request);
     for (let attempt = 0; attempt < 2; attempt++) {
     try {
       // Home can render before reference data; never open a form with an empty name picker.
       const [, data] = await Promise.all([
         loadReferenceData(),
         id
-          ? jsonFetch<{ workLog: WorkDetail }>(`/api/work-logs/${id}`)
+          ? jsonFetch<{ workLog: WorkDetail }>(`/api/work-logs/${encodeURIComponent(id)}`)
           : undefined,
       ]);
       if (version !== workOpenVersion.current) return;
+      setWorkOpening(null);
       setWorkModal(
         data
           ? { mode: "edit", item: data.workLog }
@@ -838,14 +878,19 @@ export function WorkManager() {
     } catch (error) {
       if (version !== workOpenVersion.current) return;
       if (isAborted(error) && attempt === 0) continue;
-      showLoadError(isAborted(error) ? new Error("업무 열기가 중단되었습니다. 다시 눌러 주세요.") : error);
+      setWorkOpening({ ...request, error: isAborted(error) ? "업무 열기가 중단되었습니다. 다시 불러와 주세요." : error instanceof Error ? error.message : "업무 입력에 필요한 정보를 불러오지 못했습니다." });
       return;
     }
     }
   }
+  function closeWorkOpening() {
+    workOpenVersion.current += 1;
+    setWorkOpening(null);
+  }
   async function readWork(id?: string) {
     if (!id) { await openWork(); return; }
     workOpenVersion.current += 1;
+    setWorkOpening(null);
     const version = ++workReadVersion.current;
     setGlobalSearchOpen(false);
     setReaderReference(null);
@@ -860,6 +905,7 @@ export function WorkManager() {
   function closeWorkReader() {
     workReadVersion.current += 1;
     workOpenVersion.current += 1;
+    setWorkOpening(null);
     setWorkReader(null);
     setReaderReference(null);
   }
@@ -1584,6 +1630,21 @@ export function WorkManager() {
             await afterMutation(message);
           }}
         />
+      )}
+      {workOpening && (
+        <Modal title={workOpening.id ? "업무 수정" : "새 업무 등록"} onClose={closeWorkOpening}>
+          {workOpening.error ? (
+            <div className="form-error" role="alert">
+              <p>{workOpening.error}</p>
+              <button type="button" className="secondary-button" onClick={() => void openWork(workOpening.id, workOpening.initialCustomerId, workOpening.initialWorkType, workOpening.initialListing)}>
+                <Icon name="refresh" size={16} /> 다시 불러오기
+              </button>
+            </div>
+          ) : (
+            <p className="form-help" role="status">고객 명부와 업무 입력 정보를 불러오고 있습니다…</p>
+          )}
+          <button type="button" className="secondary-button" onClick={closeWorkOpening}>취소하고 돌아가기</button>
+        </Modal>
       )}
       {deletionTarget && <DeletionDialog key={`${deletionTarget.type}-${deletionTarget.id}`} {...deletionTarget} onBusyChange={setWorkBusy} onClose={() => setDeletionTarget(null)} onDeleted={() => { void afterDeletion(); }} />}
     </main>

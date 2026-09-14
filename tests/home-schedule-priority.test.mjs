@@ -111,6 +111,7 @@ test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 �
     const sync = evaluate(`const result = ${syncNode.initializer.getText(ast)};`, {
       navItems, currentView, followUpBusy: { current: false }, workBusy: { current: false }, customerBusy: { current: false }, followUpDirty: { current: false },
       workOpenVersion: { current: 0 }, workReadVersion: { current: 0 }, setWorkReader: noop, setReaderReference: noop,
+      setWorkOpening: noop,
       setNotice: noop, setView: (view) => views.push(view),
       window: { location: { hash, pathname: "/" }, history: { pushState: noop }, confirm: () => true },
     });

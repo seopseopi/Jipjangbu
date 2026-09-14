@@ -45,6 +45,42 @@ test("identical concurrent reads share one request and return independent object
   assert.equal(calls.length, 1);
 });
 
+test("focus invalidation expires completed data without aborting or duplicating slow in-flight reads", async () => {
+  const { fetcher, calls } = deferredFetch();
+  const client = createJsonClient({ fetcher });
+  const cached = client.fetchJson("/api/lookups");
+  calls[0].resolve({ version: "old" });
+  await cached;
+  const first = client.fetchJson("/api/customers?directory=1");
+  client.invalidateCompletedReads();
+  const second = client.fetchJson("/api/customers?directory=1");
+  client.invalidateCompletedReads();
+  const third = client.fetchJson("/api/customers?directory=1");
+  assert.equal(calls.length, 2, "focus must join the pending request instead of cancelling and restarting");
+  assert.equal(calls[1].options.signal.aborted, false);
+  calls[1].resolve({ customers: [{ id: "synthetic" }] });
+  const results = await Promise.all([first, second, third]);
+  assert.deepEqual(results, Array.from({ length: 3 }, () => ({ customers: [{ id: "synthetic" }] })));
+  const fresh = client.fetchJson("/api/lookups");
+  assert.equal(calls.length, 3, "completed cached rows still refresh after focus");
+  calls[2].resolve({ version: "new" });
+  assert.deepEqual(await fresh, { version: "new" });
+});
+
+test("a write still invalidates reads shared by a focus refresh", async () => {
+  const { fetcher, calls } = deferredFetch();
+  const client = createJsonClient({ fetcher });
+  const read = client.fetchJson("/api/customers?directory=1");
+  const rejectedRead = assert.rejects(read, { name: "AbortError" });
+  client.invalidateCompletedReads();
+  const focusRead = client.fetchJson("/api/customers?directory=1");
+  const rejectedFocus = assert.rejects(focusRead, { name: "AbortError" });
+  const write = client.fetchJson("/api/work-logs", { method: "POST", body: "{}" });
+  assert.equal(calls[0].options.signal.aborted, true);
+  calls[1].resolve({ ok: true });
+  await Promise.all([write, rejectedRead, rejectedFocus]);
+});
+
 test("cached reads expire after 15 seconds and respect query keys", async () => {
   let timestamp = 0;
   let calls = 0;

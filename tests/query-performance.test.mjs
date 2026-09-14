@@ -40,10 +40,14 @@ const hook = registerHooks({
     return nextResolve(specifier, context);
   },
 });
-const [workRoute, bootstrapRoute, insightsRoute] = await Promise.all([
+const [workRoute, bootstrapRoute, insightsRoute, customerRoute, listingRoute, lookupRoute, searchRoute] = await Promise.all([
   import("../app/api/work-logs/route.ts"),
   import("../app/api/bootstrap/route.ts"),
   import("../app/api/insights/route.ts"),
+  import("../app/api/customers/route.ts"),
+  import("../app/api/listings/route.ts"),
+  import("../app/api/lookups/route.ts"),
+  import("../app/api/search/route.ts"),
 ]);
 hook.deregister();
 
@@ -296,6 +300,83 @@ test("홈은 한 DB 왕복으로 데이터를 읽고 실제 업무 유무만 검
   assert.equal(calls.batch, 2);
   assert.equal(calls.direct, 0);
   assert.equal(statements.length, 8);
+});
+
+test("분류와 통합검색은 각각 한 DB 왕복으로 읽고 검색·전체 물건 값을 보존한다", async (t) => {
+  const { sqlite, customer, work, property, calls } = database(t);
+  sqlite.exec("INSERT INTO work_types(name,sort_order) VALUES ('전화',2),('매물등록',1)");
+  sqlite.exec("INSERT INTO property_buildings(id,property_type,building_name,sort_order) VALUES ('synthetic-building','아파트','검증단지',1)");
+  customer("customer", "검증 고객");
+  work("many", "2026-09-01");
+  property("first", "many", 1, "다른단지");
+  property("matching", "many", 2, "검증단지");
+  const lookups = await (await lookupRoute.GET()).json();
+  assert.deepEqual(lookups.workTypes, ["매물등록", "전화"]);
+  assert.deepEqual(lookups.propertyTypes, ["아파트"]);
+  assert.deepEqual(lookups.buildings, [{ id: "synthetic-building", property_type: "아파트", building_name: "검증단지" }]);
+  const search = await (await searchRoute.GET(new Request("https://test.invalid/api/search?q=검증단지"))).json();
+  assert.deepEqual(ids(search.workLogs), ["many"]);
+  assert.equal(search.workLogs[0].building_name, "검증단지");
+  assert.equal(search.workLogs[0].property_count, 2);
+  assert.deepEqual(JSON.parse(search.workLogs[0].properties_json).map((row) => row.id), ["first", "matching"]);
+  assert.equal(calls.batch, 2);
+  assert.equal(calls.direct, 0);
+});
+
+test("매물 종류를 지정하면 기존 종류 인덱스로 탐색하며 전체·빈 조건도 그대로 처리한다", async (t) => {
+  const { sqlite, statements, plan } = database(t);
+  sqlite.exec(`INSERT INTO listings(id,identity_key,status,property_type,building_name,closed_at)
+    VALUES ('apartment','아파트|가단지||','매물등록','아파트','가단지',NULL),
+      ('villa','빌라|나단지||','매물등록','빌라','나단지',NULL),
+      ('closed','빌라|다단지||','타계약확인','빌라','다단지','2026-09-01')`);
+  const read = async (query) => (await listingRoute.GET(new Request(`https://test.invalid/api/listings?${query}`))).json();
+  assert.deepEqual(ids((await read("state=all&type=빌라")).listings), ["villa", "closed"]);
+  const query = statements.at(-1);
+  assert.deepEqual(query.values, ["빌라"]);
+  assert.ok(plan(query.sql, query.values).some((detail) => /SEARCH listings USING INDEX idx_listings_building \(property_type=\?\)/.test(detail)));
+  assert.deepEqual(ids((await read("state=all")).listings), ["apartment", "villa", "closed"]);
+  assert.deepEqual(ids((await read("type=빌라")).listings), ["villa"]);
+  assert.deepEqual(ids((await read("state=closed&type=빌라")).listings), ["closed"]);
+  assert.deepEqual((await read("state=all&type=없음")).listings, []);
+});
+
+test("고객 명부 4,000명·업무 160,000건은 반환할 1,000명만 집계하고 기존 결과·ID 커서를 보존한다", async (t) => {
+  const { sqlite, statements, plan } = database(t);
+  const customer = sqlite.prepare("INSERT INTO customers(id,name,notes,created_at) VALUES (?,?,?,'2020-01-01 00:00:00')");
+  const work = sqlite.prepare("INSERT INTO work_logs(id,customer_id,work_date,work_type) VALUES (?,?,?,'전화')");
+  sqlite.exec("BEGIN");
+  for (let index = 0; index < 4000; index++) {
+    const id = `synthetic-${String(index).padStart(4, "0")}`;
+    customer.run(id, `합성 고객 ${index}`, `메모 ${index}`);
+    for (let entry = 0; entry < 40; entry++) work.run(`${id}-${entry}`, id, `2026-09-${String(entry % 30 + 1).padStart(2, "0")}`);
+  }
+  sqlite.exec("COMMIT; PRAGMA optimize");
+  const result = await (await customerRoute.GET(new Request("https://test.invalid/api/customers?directory=1&after=synthetic-0009"))).json();
+  const query = statements.at(-1);
+  const oldLast = "MAX(CASE WHEN w.work_date <= date('now','+9 hours') THEN w.work_date END)";
+  const legacy = sqlite.prepare(`SELECT c.id,c.name,c.notes,c.created_at,c.updated_at,c.is_demo,
+    COUNT(w.id) AS history_count,${oldLast} AS last_work_date,
+    COALESCE(${oldLast}, date(c.created_at,'+9 hours'), '1900-01-01') AS directory_sort_date
+    FROM customers c LEFT JOIN work_logs w ON w.customer_id=c.id
+    WHERE (1) AND c.id > ? COLLATE BINARY GROUP BY c.id ORDER BY c.id COLLATE BINARY LIMIT 1000`);
+  assert.deepEqual(result.customers, legacy.all(...query.values).map((row) => ({ ...row })));
+  const details = plan(query.sql, query.values);
+  assert.equal(details.some((detail) => /TEMP B-TREE/.test(detail)), false, details.join("\n"));
+  assert.ok(details.some((detail) => /SEARCH c USING INDEX sqlite_autoindex_customers_1 \(id>\?\)/.test(detail)), details.join("\n"));
+  assert.ok(details.some((detail) => /SEARCH w USING COVERING INDEX idx_work_logs_customer_date_updated_id \(customer_id=\? AND work_date<\?\)/.test(detail)), details.join("\n"));
+  const optimized = sqlite.prepare(query.sql);
+  const median = (statement) => {
+    const samples = [];
+    for (let i = 0; i < 9; i++) {
+      const start = performance.now();
+      statement.all(...query.values);
+      samples.push(performance.now() - start);
+    }
+    return samples.sort((a, b) => a - b)[4];
+  };
+  const before = median(legacy);
+  const after = median(optimized);
+  t.diagnostic(`Synthetic directory 4,000 customers / 160,000 works: median before ${before.toFixed(2)} ms, after ${after.toFixed(2)} ms (${(before / after).toFixed(2)}x).`);
 });
 
 test("월간 분석은 달별 날짜범위 탐색을 사용하며 경계 날짜·고객 수·빈 달을 정확히 집계한다", async (t) => {

@@ -161,6 +161,7 @@ test("일반 메뉴 이동은 목록 조건을 초기화하지 않고 기존 탐
     workBusy: { current: false }, customerBusy: { current: false },
     workOpenVersion: { current: 0 }, currentView: active, setView: (value) => views.push(value),
     workReadVersion: readVersion, setWorkReader: reader.set, setReaderReference: reference.set,
+    setWorkOpening: noop,
     window: { scrollTo: noop, history: { pushState: (...args) => paths.push(args) }, location: { pathname: "/", search: "" }, confirm: () => true },
     refreshBase: async () => {}, showLoadError: assert.fail,
   });
