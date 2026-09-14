@@ -36,6 +36,13 @@
       "when": 1789109790148,
       "tag": "0004_workable_havok",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789382135314,
+      "tag": "0005_slim_jack_murdock",
+      "breakpoints": true
     }
   ]
 }

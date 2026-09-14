@@ -95,7 +95,7 @@ test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 
 test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 숨겨진 관리 화면 주소는 유지한다", () => {
   const nav = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "navItems")[0];
   const navItems = evaluate(`const result = ${nav.initializer.getText(ast)};`);
-  assert.deepEqual(navItems.map(([view]) => view), ["today", "insights", "journal", "listings", "customers", "calendar", "settings"]);
+  assert.deepEqual(navItems.map(([view]) => view), ["today", "insights", "journal", "listings", "customers", "calendar", "trash", "settings"]);
   assert.doesNotMatch(JSON.stringify(navItems), /다시 연락할 일/);
   const title = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "titles")[0];
   const titles = evaluate(`const result = ${title.initializer.getText(ast)};`, { dateLabel: "합성 날짜" });

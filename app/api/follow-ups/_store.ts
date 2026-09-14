@@ -198,9 +198,9 @@ export async function updateFollowUp(db: D1Database, id: string, body: unknown):
   return getFollowUp(db, id);
 }
 
-export async function deleteFollowUp(db: D1Database, id: string): Promise<void> {
-  const result = await db.prepare("DELETE FROM follow_ups WHERE id = ?").bind(id).run();
-  if (!result.meta.changes) throw new FollowUpError("할 일을 찾을 수 없습니다.", 404);
+export async function deleteFollowUp(db: D1Database, id: string, revision: unknown) {
+  const { moveToTrash } = await import("../../../db/deletion-store");
+  return moveToTrash(db, "followup", id, revision);
 }
 
 export async function readFollowUpBody(request: Request): Promise<unknown> {

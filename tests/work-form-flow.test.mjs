@@ -170,9 +170,9 @@ function busyHarness(modalNode, name, options = {}) {
   return { busy, errors, finish, mounted, run };
 }
 
-test("work and customer save/delete report busy synchronously and release it only after completion", async () => {
+test("work and customer saves report busy synchronously and release it only after completion", async () => {
   for (const modalNode of [workModal, customerModal]) {
-    for (const name of ["submit", "remove"]) {
+    for (const name of ["submit"]) {
       const harness = busyHarness(modalNode, name);
       const task = harness.run({ preventDefault() {} });
       assert.deepEqual(harness.busy, [true], `${modalNode.name.text}.${name} blocks navigation before awaiting the request`);
@@ -181,6 +181,22 @@ test("work and customer save/delete report busy synchronously and release it onl
       assert.deepEqual(harness.busy, [true, false]);
       assert.deepEqual(harness.errors, []);
     }
+  }
+});
+
+test("work and customer deletion opens the shared preview without discarding an unsaved draft or sending a write", () => {
+  for (const modalNode of [workModal, customerModal]) {
+    const calls = [];
+    const harness = busyHarness(modalNode, "remove", {
+      dirty: true,
+      onDelete: (...args) => calls.push(args),
+      jsonFetch: () => assert.fail("Opening a deletion preview must not delete or save data"),
+    });
+    harness.run();
+    assert.deepEqual(calls, [[modalNode === workModal ? "synthetic-work" : "synthetic-customer", true]]);
+    assert.deepEqual(harness.busy, []);
+    const locked = busyHarness(modalNode, "remove", { saving: true, dirty: true, onDelete: () => assert.fail("Cannot delete while saving") });
+    locked.run();
   }
 });
 

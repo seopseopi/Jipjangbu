@@ -1,6 +1,7 @@
 import { getD1 } from "../../../db";
 import { clean, isPropertyComplete, listingKey, LISTING_WORK_TYPES, listingRebuildStatements, type PropertyInput } from "../../../db/listing-sync";
 import { normalizeDate } from "../_shared";
+import { moveToTrash } from "../../../db/deletion-store";
 
 export type WorkLogPayload = {
   workDate?: string;
@@ -128,20 +129,8 @@ export async function saveWorkLog(payload: WorkLogPayload, existingId?: string) 
   return getWorkLog(id);
 }
 
-export async function removeWorkLog(id: string) {
-  const db = getD1();
-  const [workLog, existing] = await Promise.all([
-    db.prepare("SELECT id FROM work_logs WHERE id = ?").bind(id).first(),
-    db.prepare("SELECT listing_key FROM listing_events WHERE work_log_id = ?").bind(id).all<{ listing_key: string }>(),
-  ]);
-  if (!workLog) throw new InputError("삭제할 업무를 찾을 수 없습니다.", 404);
-  const affectedKeys = new Set(existing.results.map((row) => row.listing_key));
-  await db.batch([
-    db.prepare("DELETE FROM listing_events WHERE work_log_id = ?").bind(id),
-    db.prepare("DELETE FROM work_log_properties WHERE work_log_id = ?").bind(id),
-    db.prepare("DELETE FROM work_logs WHERE id = ?").bind(id),
-    ...listingRebuildStatements(affectedKeys),
-  ]);
+export async function removeWorkLog(id: string, revision: unknown) {
+  return moveToTrash(getD1(), "work", id, revision);
 }
 
 export class InputError extends Error {

@@ -39,6 +39,21 @@ function deferred() {
   return { promise, resolve, reject };
 }
 const noop = () => {};
+
+test("마지막 업무를 삭제한 매물 이력은 주소 오류 대신 빈 상태와 휴지통 복구 안내를 보여준다", async () => {
+  const history = state({ title: "합성 매물 이력", items: [{ id: "removed" }], listing: { identity_key: "synthetic" } });
+  const show = evaluate(`${declaration("showListingByKey")}\nconst result = showListingByKey;`, {
+    historyOpenVersion: { current: 0 }, setGlobalSearchOpen: noop, setHistoryModal: history.set,
+    jsonFetch: async () => { throw new Error("매물을 찾을 수 없습니다."); }, targetText: () => "합성 매물",
+  });
+  await show("synthetic", true);
+  assert.equal(history.current.error, undefined);
+  assert.equal(history.current.listing, undefined);
+  assert.deepEqual(history.current.items, []);
+  assert.match(history.current.emptyMessage, /휴지통에서 복구/);
+  await show("never-existed", false);
+  assert.match(history.current.error, /물건구분·건물명·동·호수/);
+});
 function harness(fetch, extra = {}) {
   const reader = state(), editor = state(), reference = state({ kind: "customer", id: "previous" }), search = state(true);
   const workReadVersion = { current: 0 }, workOpenVersion = { current: 0 };
@@ -192,11 +207,15 @@ test("수정 저장은 폼을 닫고 읽던 업무와 원래 이력을 새로 �
 
 test("업무 삭제 후에는 없는 업무를 다시 읽지 않고 원래 목록·이력만 갱신한다", async () => {
   const editor = state({ mode: "edit" }), calls = [];
-  await callbacks("WorkModal", "onSaved", {
+  const target = state({ type: "work", id: "deleted" });
+  const deleted = evaluate(`${declaration("afterDeletion")}\nconst result = afterDeletion;`, {
+    deletionTarget: target.current, setDeletionTarget: target.set,
     workOpenVersion: { current: 0 }, setWorkModal: editor.set, workReader: { id: "deleted" }, historyModal: { title: "합성 이력" },
     afterMutation: async () => calls.push("list"), refreshHistory: async () => calls.push("history"),
     readWork: async () => assert.fail("deleted work must not be reloaded"), closeWorkReader: () => calls.push("close-reader"),
-  })[0]("업무를 삭제했습니다.");
+  });
+  await deleted();
+  assert.equal(target.current, null);
   assert.equal(editor.current, null);
   assert.deepEqual(calls, ["close-reader", "list", "history"]);
 });

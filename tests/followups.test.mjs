@@ -1,10 +1,39 @@
 import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { registerHooks } from "node:module";
 import { DatabaseSync } from "node:sqlite";
-import test from "node:test";
+import test, { after } from "node:test";
+import ts from "typescript";
+import { handleSecurityRequest, schedulePostMutationBackup } from "../worker/security.ts";
 
-import {
+// The shared deletion store uses the application's extensionless TS imports.
+// Preserve real store behavior while replacing only the unavailable D1 binding.
+const root = new URL("../", import.meta.url);
+const roots = [new URL("app/", root).href, new URL("db/", root).href];
+const hook = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (roots.some((prefix) => context.parentURL?.startsWith(prefix)) && specifier.startsWith(".")) {
+      const resolved = new URL(specifier, context.parentURL).href;
+      if (["db", "db/", "db/index.ts"].some((path) => resolved === new URL(path, root).href)) {
+        return { url: "data:text/javascript,export function getD1() { throw new Error('Pass the synthetic D1 binding explicitly'); }", shortCircuit: true };
+      }
+      const candidate = new URL(`${specifier}.ts`, context.parentURL);
+      if (existsSync(candidate)) return { url: candidate.href, shortCircuit: true };
+    }
+    return nextResolve(specifier, context);
+  },
+  load(url, context, nextLoad) {
+    if (roots.some((prefix) => url.startsWith(prefix)) && url.endsWith(".ts")) return {
+      format: "module", shortCircuit: true, source: ts.transpileModule(readFileSync(new URL(url), "utf8"), {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
+      }).outputText,
+    };
+    return nextLoad(url, context);
+  },
+});
+
+const {
   createFollowUp,
   deleteFollowUp,
   FollowUpError,
@@ -15,8 +44,10 @@ import {
   readFollowUpBody,
   seoulToday,
   updateFollowUp,
-} from "../app/api/follow-ups/_store.ts";
-import { handleSecurityRequest, schedulePostMutationBackup } from "../worker/security.ts";
+} = await import("../app/api/follow-ups/_store.ts");
+const { getDeletionPreview } = await import("../db/deletion-store.ts");
+// Deletion is intentionally imported lazily by the store at mutation time.
+after(() => hook.deregister());
 
 function database(t) {
   const sqlite = new DatabaseSync(":memory:");
@@ -84,9 +115,10 @@ test("할 일은 빈 목록으로 시작하고 연결·완료·재개·삭제를
   assert.equal(cleared.listing_key, null);
   assert.equal(cleared.due_date, null);
   assert.equal(cleared.notes, "");
-  await deleteFollowUp(db, created.id);
+  const preview = await getDeletionPreview(db, "followup", created.id);
+  await deleteFollowUp(db, created.id, preview.revision);
   await assert.rejects(getFollowUp(db, created.id), (error) => error.status === 404);
-  await assert.rejects(deleteFollowUp(db, created.id), (error) => error.status === 404);
+  await assert.rejects(deleteFollowUp(db, created.id, preview.revision), (error) => error.status === 404);
   await assert.rejects(updateFollowUp(db, created.id, { completed: true }), (error) => error.status === 404);
 });
 

@@ -19,6 +19,7 @@ const BACKUP_TABLES = [
   "work_types",
   "property_buildings",
   "follow_ups",
+  "trash_records",
 ] as const;
 
 export interface SecurityEnv {
@@ -96,6 +97,10 @@ export async function handleSecurityRequest(
   }
 
   if (isBusinessMutation(pathname, request.method)) {
+    const origin = request.headers.get("Origin");
+    if ((origin && origin !== url.origin) || request.headers.get("Sec-Fetch-Site") === "cross-site") {
+      return jsonResponse({ error: "같은 사이트에서 다시 시도해 주세요." }, 403);
+    }
     try {
       await createBackup(env, "changes", `pre-${request.method.toLowerCase()}-${mutationArea(pathname)}`);
     } catch (error) {
@@ -474,7 +479,7 @@ async function importAesKey(secret: string): Promise<CryptoKey> {
 
 function isBusinessMutation(pathname: string, method: string): boolean {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
-  return /^\/api\/(work-logs|customers|lookups|follow-ups)(\/|$)/.test(pathname);
+  return /^\/api\/(work-logs|customers|lookups|follow-ups|trash)(\/|$)/.test(pathname);
 }
 
 function mutationArea(pathname: string): string {

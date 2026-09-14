@@ -186,6 +186,21 @@ export const authAttempts = sqliteTable("auth_attempts", {
   updatedAt: integer("updated_at").notNull().default(0),
 });
 
+export const trashRecords = sqliteTable("trash_records", {
+  id: text("id").primaryKey(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id").notNull(),
+  title: text("title").notNull(),
+  subtitle: text("subtitle").notNull().default(""),
+  searchText: text("search_text").notNull().default(""),
+  snapshot: text("snapshot").notNull(),
+  deletedAt: text("deleted_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  check("trash_records_entity_type", sql`${table.entityType} IN ('work', 'customer', 'followup')`),
+  uniqueIndex("idx_trash_records_entity").on(table.entityType, table.entityId),
+  index("idx_trash_records_deleted").on(table.deletedAt, table.id),
+]);
+
 export const appRuntimeState = sqliteTable("app_runtime_state", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),

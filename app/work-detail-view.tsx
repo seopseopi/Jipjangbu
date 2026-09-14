@@ -25,11 +25,13 @@ function detailText(value: unknown): string {
 export function WorkDetailView({
   item,
   onEdit,
+  onDelete,
   onCustomerHistory,
   onListingHistory,
 }: {
   item: WorkDetailReadItem;
   onEdit: () => void;
+  onDelete: () => void;
   onCustomerHistory: () => void;
   onListingHistory: (key: string) => void;
 }) {
@@ -77,9 +79,14 @@ export function WorkDetailView({
             </button>
           </div>
         </div>
-        <button type="button" className="secondary-button" onClick={onEdit}>
-          <Icon name="edit" size={17} /> 업무 수정
-        </button>
+        <div className="work-read-actions">
+          <button type="button" className="secondary-button" onClick={onEdit}>
+            <Icon name="edit" size={17} /> 업무 수정
+          </button>
+          <button type="button" className="danger-button" onClick={onDelete}>
+            <Icon name="delete" size={17} /> 업무 삭제
+          </button>
+        </div>
       </header>
 
       <section className="work-read-content" aria-label="업무 내용">

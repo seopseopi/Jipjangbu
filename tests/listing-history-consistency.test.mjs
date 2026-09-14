@@ -35,9 +35,10 @@ const hook = registerHooks({
     return nextLoad(url, context);
   },
 });
-const [workRoute, detailRoute, listingRoute, historyRoute] = await Promise.all([
+const [workRoute, detailRoute, listingRoute, historyRoute, deletionStore] = await Promise.all([
   import("../app/api/work-logs/route.ts"), import("../app/api/work-logs/[id]/route.ts"),
   import("../app/api/listings/route.ts"), import("../app/api/listings/[key]/route.ts"),
+  import("../db/deletion-store.ts"),
 ]);
 hook.deregister();
 
@@ -99,7 +100,10 @@ const property = (overrides = {}) => ({ propertyType: "아파트", buildingName:
 const key = (detail = property()) => [detail.propertyType, detail.buildingName, detail.buildingDong, detail.unitNumber].join("|");
 const payload = (overrides = {}) => ({ workDate: "2026-09-13", customerId: "synthetic-customer", workType: "매물등록", content: "합성 최초 등록", details: [property()], ...overrides });
 async function mutate(method, value, id, expectedStatus = method === "POST" ? 201 : 200) {
-  const request = new Request(`https://synthetic.invalid/api/work-logs${id ? `/${id}` : ""}`, { method, ...(method === "DELETE" ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) }) });
+  const bodyValue = method === "DELETE"
+    ? { revision: (await deletionStore.getDeletionPreview(globalThis[Symbol.for(bindingKey)], "work", id)).revision }
+    : value;
+  const request = new Request(`https://synthetic.invalid/api/work-logs${id ? `/${id}` : ""}`, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(bodyValue) });
   const result = method === "POST" ? await workRoute.POST(request) : await detailRoute[method](request, { params: Promise.resolve({ id }) });
   const body = await result.json();
   assert.equal(result.status, expectedStatus, JSON.stringify(body));

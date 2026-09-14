@@ -34,6 +34,7 @@ import {
   ArrowDownWideNarrow,
   CalendarClock,
   CircleCheck,
+  ArchiveRestore,
 } from "lucide-react";
 
 const icons = {
@@ -59,6 +60,8 @@ const icons = {
   logout: LogOut,
   edit: Pencil,
   delete: Trash2,
+  trash: Trash2,
+  restore: ArchiveRestore,
   copy: Copy,
   save: Save,
   check: Check,

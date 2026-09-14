@@ -89,6 +89,14 @@ const schemaStatements = [
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
   )`,
   `CREATE TABLE IF NOT EXISTS app_runtime_state (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+  `CREATE TABLE IF NOT EXISTS trash_records (
+    id TEXT PRIMARY KEY, entity_type TEXT NOT NULL CHECK(entity_type IN ('work', 'customer', 'followup')),
+    entity_id TEXT NOT NULL, title TEXT NOT NULL, subtitle TEXT NOT NULL DEFAULT '',
+    search_text TEXT NOT NULL DEFAULT '', snapshot TEXT NOT NULL,
+    deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_trash_records_entity ON trash_records(entity_type, entity_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_trash_records_deleted ON trash_records(deleted_at, id)`,
   `CREATE INDEX IF NOT EXISTS idx_follow_ups_completed_due ON follow_ups(completed_at, due_date)`,
   `CREATE INDEX IF NOT EXISTS idx_follow_ups_customer ON follow_ups(customer_id)`,
   `CREATE INDEX IF NOT EXISTS idx_work_logs_date_updated_id ON work_logs(work_date, updated_at, id)`,
@@ -104,9 +112,9 @@ const schemaStatements = [
 
 // Bump when bootstrap schema or default lookup definitions change. Runtime
 // metadata is deliberately not business data and is not included in backups.
-const BOOTSTRAP_VERSION = "1";
+const BOOTSTRAP_VERSION = "2";
 const schemaNames = schemaStatements.map((statement) => {
-  const name = statement.match(/^CREATE (?:TABLE|INDEX) IF NOT EXISTS (\w+)/)?.[1];
+  const name = statement.match(/^CREATE (?:TABLE|(?:UNIQUE )?INDEX) IF NOT EXISTS (\w+)/)?.[1];
   if (!name) throw new Error("Invalid bootstrap schema statement");
   return name;
 });

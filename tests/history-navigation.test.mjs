@@ -124,7 +124,8 @@ test("deleting a listing's last event clears obsolete history but leaves its tar
   assert.deepEqual(state.current.items, []);
   assert.equal(state.current.listing, undefined);
   assert.equal(state.current.listingKey, key);
-  assert.match(state.current.error, /저장된 매물 이력이 없습니다/);
+  assert.equal(state.current.error, undefined);
+  assert.match(state.current.emptyMessage, /남아 있는 매물 이력이 없습니다.*휴지통/);
 });
 
 test("work table and editor expose separate history controls without nested buttons or submit side effects", () => {

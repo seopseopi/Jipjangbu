@@ -16,6 +16,8 @@ import type {
   GlobalSearchListing as SearchListing,
 } from "./global-search";
 import { FollowUpsView } from "./follow-ups";
+import { DeletionDialog } from "./deletion-dialog";
+import type { DeletionEntityType } from "./deletion-types";
 import "./calendar.css";
 import "./journal-search-feedback.css";
 import "./workflow-feedback.css";
@@ -63,6 +65,9 @@ const ListingPicker = lazy(() =>
 const WorkDetailView = lazy(() =>
   import("./work-detail-view").then((module) => ({ default: module.WorkDetailView })),
 );
+const TrashView = lazy(() =>
+  import("./trash-view").then((module) => ({ default: module.TrashView })),
+);
 
 function isAborted(error: unknown) {
   return error instanceof Error && error.name === "AbortError";
@@ -85,6 +90,7 @@ type View =
   | "listings"
   | "customers"
   | "calendar"
+  | "trash"
   | "settings";
 type WorkSummary = {
   id: string;
@@ -223,6 +229,7 @@ type HistoryData = {
   to?: string;
   loading?: boolean;
   error?: string;
+  emptyMessage?: string;
 };
 type WorkHistoryActions = {
   onCustomerHistory: (customer: Pick<Customer, "id" | "name">) => void;
@@ -236,6 +243,7 @@ const navItems: Array<[View, string]> = [
   ["listings", "매물 관리"],
   ["customers", "고객 관리"],
   ["calendar", "업무 달력"],
+  ["trash", "휴지통"],
   ["settings", "설정"],
 ];
 let nextModalId = 0;
@@ -400,6 +408,7 @@ export function WorkManager() {
   const workFirstRequest = useRef<number | null>(null);
   const workMorePending = useRef(false);
   const [notice, setNotice] = useState("");
+  const [deletionTarget, setDeletionTarget] = useState<{ type: DeletionEntityType; id: string; unsavedDraft?: boolean } | null>(null);
   const [queries, setQueries] = useState<Record<SearchView, string>>({
     journal: "",
     listings: "",
@@ -882,6 +891,26 @@ export function WorkManager() {
       );
     }
   }
+  async function afterDeletion() {
+    const target = deletionTarget;
+    if (!target) return;
+    setDeletionTarget(null);
+    if (target.type === "work") {
+      workOpenVersion.current += 1;
+      setWorkModal(null);
+      closeWorkReader();
+    } else if (target.type === "customer") {
+      setCustomerModal(null);
+      if (historyModal?.customer?.id === target.id) {
+        historyOpenVersion.current += 1;
+        setHistoryModal(null);
+      }
+    }
+    await Promise.all([
+      afterMutation(`${target.type === "work" ? "업무" : "고객"} 기록을 휴지통으로 옮겼습니다. 휴지통에서 복구할 수 있습니다.`),
+      target.type === "work" ? refreshHistory(historyModal) : undefined,
+    ]);
+  }
   async function loadMoreWorkLogs() {
     if (
       !canAppendPage(
@@ -1047,7 +1076,8 @@ export function WorkManager() {
         ...current,
         ...(missing ? { items: [], listing: undefined } : {}),
         loading: false,
-        error: missing
+        emptyMessage: missing && preserve ? "이 주소에 남아 있는 매물 이력이 없습니다. 삭제한 업무는 휴지통에서 복구할 수 있습니다." : undefined,
+        error: missing && preserve ? undefined : missing
           ? "이 주소로 저장된 매물 이력이 없습니다. 업무에 적힌 물건구분·건물명·동·호수를 확인해 주세요."
           : (error as Error).message,
       } : null);
@@ -1140,6 +1170,7 @@ export function WorkManager() {
     listings: ["매물 관리", "업무 기록에서 자동으로 갱신된 현재 상태입니다"],
     customers: ["고객 관리", "고객 정보와 상담 이력을 함께 관리합니다"],
     calendar: ["업무 달력", "월별 일정과 업무를 한눈에 확인합니다"],
+    trash: ["휴지통", "삭제한 기록을 확인하고 필요할 때 다시 복구합니다"],
     settings: ["설정", "업무 분류, 백업, 로그인 정보를 확인합니다"],
   };
   const searchView = (["journal", "listings", "customers"] as View[]).includes(
@@ -1245,6 +1276,7 @@ export function WorkManager() {
         {notice && (
           <div className="notice" role="status">
             <span>{notice}</span>
+            {notice.includes("휴지통") && view !== "trash" && <button type="button" className="notice-action" onClick={() => navigate("trash")}>휴지통 보기</button>}
             <button onClick={() => setNotice("")} aria-label="알림 닫기">
               <Icon name="close" size={18} />
             </button>
@@ -1291,12 +1323,14 @@ export function WorkManager() {
                       }
                       onOpenListing={(key) => void showListingByKey(key)}
                       onShowAll={() => navigate("tasks")}
+                      onOpenTrash={() => navigate("trash")}
                     />
                   }
                 />
               )}
               {view === "tasks" && (
                 <FollowUpsView
+                  onOpenTrash={() => navigate("trash")}
                   onBusyChange={setFollowUpBusy}
                   onDirtyChange={(dirty) => {
                     followUpDirty.current = dirty;
@@ -1451,6 +1485,7 @@ export function WorkManager() {
                   }}
                 />
               )}
+              {view === "trash" && <Suspense fallback={<p role="status">휴지통을 준비하고 있습니다…</p>}><TrashView refreshKey={insightsRefreshKey} onBusyChange={setWorkBusy} onRestored={() => { void afterMutation("기록을 복구했습니다. 원래 목록과 이력에 다시 반영했습니다."); }} /></Suspense>}
             </>
           )}
         </div>
@@ -1506,6 +1541,7 @@ export function WorkManager() {
           {workReader.error && <div className="form-error" role="alert"><p>{workReader.error}</p><button type="button" className="secondary-button" onClick={() => void readWork(workReader.id)}><Icon name="refresh" size={16} /> 다시 불러오기</button></div>}
           {workReader.item && <Suspense fallback={<p role="status">읽기 화면을 준비하고 있습니다…</p>}>
             <WorkDetailView item={workReader.item} onEdit={() => void openWork(workReader.id)}
+              onDelete={() => setDeletionTarget({ type: "work", id: workReader.id })}
               onCustomerHistory={() => openReaderReference({ kind: "customer", id: workReader.item!.customer_id, name: workReader.item!.customer_name })}
               onListingHistory={(key) => { const [, building_name, building_dong, unit_number] = key.split("|"); openReaderReference({ kind: "listing", key, name: workPropertyLabel({ building_name, building_dong, unit_number }) }); }} />
           </Suspense>}
@@ -1522,11 +1558,11 @@ export function WorkManager() {
           onNewCustomer={() => setCustomerModal({ mode: "new" })}
           onClose={() => { workOpenVersion.current += 1; setWorkModal(null); }}
           onCopy={(item) => { workOpenVersion.current += 1; setWorkModal({ mode: "copy", item }); }}
+          onDelete={(id, unsavedDraft) => setDeletionTarget({ type: "work", id, unsavedDraft })}
           onSaved={async (message) => {
             workOpenVersion.current += 1;
             setWorkModal(null);
-            if (message === "업무를 삭제했습니다.") closeWorkReader();
-            await Promise.all([afterMutation(message), refreshHistory(historyModal), workReader && message !== "업무를 삭제했습니다." ? readWork(workReader.id) : undefined]);
+            await Promise.all([afterMutation(message), refreshHistory(historyModal), workReader ? readWork(workReader.id) : undefined]);
           }}
         />
       )}
@@ -1535,6 +1571,7 @@ export function WorkManager() {
           onBusyChange={setCustomerBusy}
           modal={customerModal}
           onClose={() => setCustomerModal(null)}
+          onDelete={(id, unsavedDraft) => setDeletionTarget({ type: "customer", id, unsavedDraft })}
           onSaved={async (message, customerId, savedCustomer) => {
             setCustomerModal(null);
             if (savedCustomer) setCustomers((current) => [savedCustomer, ...current.filter((item) => item.id !== savedCustomer.id)]);
@@ -1548,6 +1585,7 @@ export function WorkManager() {
           }}
         />
       )}
+      {deletionTarget && <DeletionDialog key={`${deletionTarget.type}-${deletionTarget.id}`} {...deletionTarget} onBusyChange={setWorkBusy} onClose={() => setDeletionTarget(null)} onDeleted={() => { void afterDeletion(); }} />}
     </main>
   );
 }
@@ -2990,6 +3028,7 @@ function WorkModal({
   onClose,
   onSaved,
   onCopy,
+  onDelete,
   onBusyChange,
 }: {
   modal: WorkModalState;
@@ -2999,6 +3038,7 @@ function WorkModal({
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
   onCopy: (item: WorkDetail) => void;
+  onDelete: (id: string, unsavedDraft: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
   const source = modal.item;
@@ -3164,27 +3204,8 @@ function WorkModal({
       if (savingMountedRef.current) onBusyChange?.(false);
     }
   }
-  async function remove() {
-    if (
-      saving ||
-      !item ||
-      !window.confirm(
-        "이 업무를 삭제하시겠습니까? 연결된 매물 상태도 다시 계산됩니다.",
-      )
-    )
-      return;
-    setSaving(true);
-    setError("");
-    try {
-      onBusyChange?.(true);
-      await jsonFetch(`/api/work-logs/${item.id}`, { method: "DELETE" });
-      await onSaved("업무를 삭제했습니다.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSaving(false);
-      if (savingMountedRef.current) onBusyChange?.(false);
-    }
+  function remove() {
+    if (!saving && item) onDelete(item.id, dirty);
   }
   return (
     <Modal
@@ -3555,11 +3576,13 @@ function CustomerModal({
   modal,
   onClose,
   onSaved,
+  onDelete,
   onBusyChange,
 }: {
   modal: { mode: "new" | "edit"; item?: Customer };
   onClose: () => void;
   onSaved: (message: string, customerId?: string, savedCustomer?: Customer) => Promise<void>;
+  onDelete: (id: string, unsavedDraft: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
 }) {
   const [id, setId] = useState(modal.item?.id || "");
@@ -3630,29 +3653,8 @@ function CustomerModal({
       if (savingMountedRef.current) onBusyChange?.(false);
     }
   }
-  async function remove() {
-    if (
-      saving ||
-      !modal.item ||
-      !window.confirm(
-        "이 고객을 삭제하시겠습니까? 업무 이력이 있는 고객은 삭제되지 않습니다.",
-      )
-    )
-      return;
-    setSaving(true);
-    setError("");
-    try {
-      onBusyChange?.(true);
-      await jsonFetch(`/api/customers/${encodeURIComponent(modal.item.id)}`, {
-        method: "DELETE",
-      });
-      await onSaved("고객을 삭제했습니다.");
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setSaving(false);
-      if (savingMountedRef.current) onBusyChange?.(false);
-    }
+  function remove() {
+    if (!saving && modal.item) onDelete(modal.item.id, dirty);
   }
   return (
     <Modal
@@ -3821,7 +3823,7 @@ function HistoryModal({
       {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" aria-busy={Boolean(data.loading)}>
         {!data.items.length ? (
-          !data.loading && !data.error ? <EmptyState title="기록이 없습니다." /> : null
+          !data.loading && !data.error ? <EmptyState title={data.emptyMessage || "기록이 없습니다."} /> : null
         ) : (
           data.items.map((raw) => {
             const isEvent = "event_date" in raw;

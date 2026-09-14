@@ -32,8 +32,7 @@ export function isPropertyComplete(detail: PropertyInput): boolean {
 // SQL instead of reading events here so callers can append these projections to
 // the same D1 batch, after the event mutations. All reads below therefore see
 // the newly saved events and a failure rolls the entire user action back.
-export function listingRebuildStatements(keys: Iterable<string>) {
-  const db = getD1();
+export function listingRebuildStatements(keys: Iterable<string>, db: D1Database = getD1()) {
   const statements: D1PreparedStatement[] = [];
   for (const key of new Set([...keys].filter(Boolean))) {
     statements.push(db.prepare(`

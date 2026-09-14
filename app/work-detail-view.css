@@ -3,6 +3,8 @@
 .work-read-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .work-read-heading { min-width: 0; }
 .work-read-header > button { flex: 0 0 auto; }
+.work-read-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.work-read-actions > button { min-height: 44px; }
 .work-read-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--text-base); }
 .work-read-meta time { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
 .work-read-type { display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 5px; background: var(--green-soft); color: var(--green-dark); font-size: var(--text-small); font-weight: 650; }

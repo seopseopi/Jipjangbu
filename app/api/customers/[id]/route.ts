@@ -1,5 +1,6 @@
 import { getD1 } from "../../../../db";
 import { apiError, badRequest, ready } from "../../_shared";
+import { DeletionError, moveToTrash, readDeletionRevision } from "../../../../db/deletion-store";
 
 export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -17,17 +18,14 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function DELETE(_: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await ready();
     const { id } = await params;
     const customerId = decodeURIComponent(id);
-    const db = getD1();
-    const history = await db.prepare("SELECT COUNT(*) AS count FROM work_logs WHERE customer_id = ?").bind(customerId).first<{ count: number }>();
-    if ((history?.count ?? 0) > 0) return Response.json({ error: "업무 이력이 있는 고객은 삭제할 수 없습니다." }, { status: 409 });
-    await db.prepare("DELETE FROM customers WHERE id = ?").bind(customerId).run();
-    return Response.json({ ok: true });
+    return Response.json(await moveToTrash(getD1(), "customer", customerId, await readDeletionRevision(request)));
   } catch (error) {
+    if (error instanceof DeletionError) return Response.json({ error: error.message }, { status: error.status });
     return apiError(error, "고객을 삭제하지 못했습니다.");
   }
 }

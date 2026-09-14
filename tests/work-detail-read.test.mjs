@@ -25,7 +25,7 @@ const item = {
   id: "synthetic-work", work_date: "2026-09-13", work_type: "집방문", customer_id: "synthetic-customer",
   customer_name: "검증 고객", content: "첫 번째 방문 기록\n두 번째 줄도 모두 표시", details: [property()],
 };
-const render = (overrides = {}, callbacks = {}) => WorkDetailView({ item: { ...item, ...overrides }, onEdit() {}, onCustomerHistory() {}, onListingHistory() {}, ...callbacks });
+const render = (overrides = {}, callbacks = {}) => WorkDetailView({ item: { ...item, ...overrides }, onEdit() {}, onDelete() {}, onCustomerHistory() {}, onListingHistory() {}, ...callbacks });
 const markup = (element) => renderToStaticMarkup(element);
 function descendants(element) {
   return [element, ...React.Children.toArray(element.props.children).flatMap((child) => React.isValidElement(child) ? descendants(child) : [])];
@@ -42,7 +42,8 @@ test("읽기 화면은 입력란 없이 날짜·업무·고객과 원문 전체�
   assert.match(html, /고객 ID · synthetic-customer/);
   assert.match(html, /첫 번째 방문 기록\n두 번째 줄도 모두 표시/);
   assert.doesNotMatch(html, /<(?:input|select|textarea|form|h2)\b/);
-  assert.doesNotMatch(html, /업무 저장|삭제|접기|더 보기/);
+  assert.doesNotMatch(html, /업무 저장|접기|더 보기/);
+  assert.equal(buttons(render(), "업무 삭제").length, 1);
 });
 
 test("열 개의 물건을 등록 순서대로 기본 펼침 상태로 전부 표시한다", () => {
@@ -158,6 +159,7 @@ test("읽기 헤더는 일자·업무·고객·수정을 한 영역에 모으고
   assert.match(html, /집방문/);
   assert.match(html, /검증 고객/);
   assert.equal(buttons(header, "업무 수정").length, 1);
+  assert.equal(buttons(header, "업무 삭제").length, 1);
   assert.equal(buttons(header, "고객 이력").length, 1);
   assert.doesNotMatch(markup(tree), /내용을 확인한 뒤|모든 물건을 펼쳐|work-read-overview|work-read-toolbar|work-read-property-tags/);
   const css = readFileSync(new URL("../app/work-detail-view.css", import.meta.url), "utf8");

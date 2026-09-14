@@ -84,7 +84,7 @@ export function createJsonClient({
         typeof data.error === "string"
           ? data.error
           : "요청을 처리하지 못했습니다.";
-      throw new Error(message);
+      throw Object.assign(new Error(message), { status: response.status });
     }
     return JSON.stringify(data);
   }

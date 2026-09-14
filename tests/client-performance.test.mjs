@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createJsonClient } from "../app/client-api.ts";
 
+test("HTTP status survives errors so changed-record conflicts require a fresh deletion preview", async () => {
+  for (const status of [400, 404, 409, 503]) {
+    const client = createJsonClient({ fetcher: async () => Response.json({ error: "합성 오류" }, { status }) });
+    await assert.rejects(client.fetchJson("/api/work-logs/synthetic", { method: "DELETE" }), (error) => error instanceof Error && error.status === status && error.message === "합성 오류");
+  }
+});
+
 function deferredFetch({ honorAbort = true } = {}) {
   const calls = [];
   const fetcher = (url, options) =>

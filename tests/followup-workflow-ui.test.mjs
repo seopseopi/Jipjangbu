@@ -50,7 +50,7 @@ function harness(overrides = {}, props = {}, io = async () => response) {
   const refs = [], effects = [], calls = [], focus = [];
   let cursor = 0, refCursor = 0;
   const env = {
-    React, Icon: () => null,
+    React, Icon: () => null, DeletionDialog: () => null,
     useState(initial) {
       const key = names[cursor++];
       assert.ok(key);
@@ -71,6 +71,34 @@ function harness(overrides = {}, props = {}, io = async () => response) {
   };
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+test("할 일 삭제는 공통 확인창을 먼저 열고 취소하면 목록·초안을 보존한다", () => {
+  const h = harness({ draft: { title: "작성 중인 합성 초안" } });
+  button(h.render(), "삭제").props.onClick();
+  assert.equal(h.state.deletionId, synthetic.id);
+  assert.equal(h.calls.length, 0);
+  const dialog = find(h.render(), (element) => element.props.type === "followup" && element.props.id === synthetic.id);
+  dialog.props.onClose();
+  assert.equal(h.state.deletionId, null);
+  assert.equal(h.state.draft.title, "작성 중인 합성 초안");
+  assert.equal(h.state.data, response);
+});
+
+test("할 일 휴지통 이동 성공은 원래 필터 목록을 갱신하고 복구 위치를 안내한다", async () => {
+  const changes = [], busy = [];
+  const h = harness({ deletionId: synthetic.id, filter: "today", loadedKey: JSON.stringify(["today", ""]) }, { onChange: () => changes.push(true), onBusyChange: (value) => busy.push(value), onOpenTrash() {} });
+  const dialog = find(h.render(), (element) => element.props.type === "followup" && element.props.id === synthetic.id);
+  dialog.props.onBusyChange(true);
+  assert.equal(h.state.busyId, synthetic.id);
+  dialog.props.onBusyChange(false);
+  dialog.props.onDeleted({ ok: true, trashId: "synthetic-trash" });
+  await flush();
+  assert.equal(h.state.deletionId, null);
+  assert.equal(changes.length, 1);
+  assert.deepEqual(busy, [true, false]);
+  assert.match(h.calls[0][0], /due=today/);
+  assert.ok(button(h.render(), "휴지통 보기"));
+});
 
 test("할 일 검색은 입력 즉시 조건을 구분하고 지연된 과거 오류를 무시한다", () => {
   const { followUpQueryKey: key, followUpReadState: status } = harness();

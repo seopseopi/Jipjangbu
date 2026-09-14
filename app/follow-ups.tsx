@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { clientJsonFetch } from "./client-api";
 import { Icon } from "./icons";
+import { DeletionDialog } from "./deletion-dialog";
 import "./follow-ups.css";
 
 export type FollowUpItem = {
@@ -31,6 +32,7 @@ export type FollowUpsViewProps = {
   onDraftConsumed?: () => void;
   // The parent owns the navigation confirmation, using onDirtyChange above.
   onShowAll?: () => void;
+  onOpenTrash?: () => void;
 };
 
 type FollowUpsResponse = {
@@ -86,7 +88,7 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : "처리하지 못했습니다. 다시 시도해 주세요.";
 }
 
-export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDirtyChange, onBusyChange, onOpenCustomer, onOpenListing, initialDraft, onDraftConsumed, onShowAll }: FollowUpsViewProps) {
+export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDirtyChange, onBusyChange, onOpenCustomer, onOpenListing, initialDraft, onDraftConsumed, onShowAll, onOpenTrash }: FollowUpsViewProps) {
   const formId = useId();
   const [data, setData] = useState<FollowUpsResponse | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
@@ -97,6 +99,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
   const [loadError, setLoadError] = useState<LoadError>(null);
   const [mutationError, setMutationError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deletionId, setDeletionId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(compact);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [draftBaseline, setDraftBaseline] = useState<Draft>(emptyDraft);
@@ -204,7 +207,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     };
   }, [reload, refreshKey]);
 
-  async function mutate(id: string, method: "POST" | "PATCH" | "DELETE", body: unknown, message: string, afterSave?: () => void) {
+  async function mutate(id: string, method: "POST" | "PATCH", body: unknown, message: string, afterSave?: () => void) {
     if (mutationLock.current) return;
     mutationLock.current = true;
     busyCallback.current?.(true);
@@ -380,7 +383,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     {editingId && <div className="followup-edit-panel"><p className="followup-edit-heading"><Icon name="edit" size={18} /><strong>할 일 수정 중</strong><span>저장하거나 취소해 주세요.</span></p>{renderForm(editDraft, setEditDraft, editingId)}</div>}
     {mutationError && <div className="followup-message followup-error" role="alert"><span><Icon name="warning" size={18} /><span>변경을 저장하지 못했습니다. {mutationError}<br />입력한 내용은 유지됩니다. 해당 버튼으로 다시 시도해 주세요.</span></span></div>}
     {readState === "error" && <div className="followup-message followup-error" role="alert"><span><Icon name="warning" size={18} /><span>할 일 목록을 확인하지 못했습니다.<br />{loadError?.message}</span></span><button className="followup-button" disabled={loading || !!busyId} onClick={() => { void reload({ filter, search: query.trim() }); }}><Icon name="refresh" size={18} />다시 불러오기</button></div>}
-    {notice && <div className="followup-message followup-notice" role="status"><span><Icon name="check" size={18} />{notice}</span><button className="followup-dismiss" aria-label="안내 닫기" onClick={() => setNotice("")}><Icon name="close" size={20} /></button></div>}
+    {notice && <div className="followup-message followup-notice" role="status"><span><Icon name="check" size={18} />{notice}</span>{notice.includes("휴지통") && onOpenTrash && <button type="button" className="followup-button" onClick={onOpenTrash}>휴지통 보기</button>}<button className="followup-dismiss" aria-label="안내 닫기" onClick={() => setNotice("")}><Icon name="close" size={20} /></button></div>}
 
     {data && items.length > 0 && <p className="followup-sort-note">{!compact && filter === "completed" ? "최근 완료한 순" : compact ? "기한 지난 일 먼저 · 예정일순" : "기한 지난 일 → 예정일순 → 날짜 미정"}</p>}
     {readState === "loading" ? <div className="followup-empty" role="status" aria-busy="true"><span className="followup-loading-dot" aria-hidden="true" /><p>{query.trim() && !compact ? "입력한 조건으로 할 일을 찾고 있습니다." : "할 일을 불러오고 있습니다."}</p></div> : readState === "error" ? null : <div className="followup-list" aria-busy={readState === "refreshing"}>
@@ -399,7 +402,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
             <div className="followup-item-actions">
               <button disabled={!!busyId || !listReady} onClick={() => startEdit(item)}><Icon name="edit" size={16} />수정</button>
               {!item.completed_at && <button disabled={!!busyId || !listReady || !!editingId || item.due_date === "9999-12-31"} onClick={() => { const base = item.due_date && item.due_date > today ? item.due_date : today; void mutate(item.id, "PATCH", { dueDate: nextDay(base) }, `“${item.title}” 예정일을 ${nextDay(base)}로 미뤘습니다.`); }}><Icon name="calendarPlus" size={16} />{!item.due_date || item.due_date <= today ? "내일로 미루기" : "하루 미루기"}</button>}
-              <button className="followup-delete" disabled={!!busyId || !listReady || !!editingId} onClick={() => { if (window.confirm(`“${item.title}” 할 일을 삭제할까요?`)) void mutate(item.id, "DELETE", undefined, `“${item.title}” 할 일을 삭제했습니다.`); }}><Icon name="delete" size={16} />삭제</button>
+              <button className="followup-delete" disabled={!!busyId || !listReady || !!editingId} onClick={() => setDeletionId(item.id)}><Icon name="delete" size={16} />삭제</button>
             </div>
           </div>
         </>}
@@ -407,5 +410,12 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     </div>}
     {compact && renderForm(draft, setDraft)}
     {compact && items.length > visibleItems.length && onShowAll && <button className="followup-show-more" disabled={!!busyId} onClick={showAll}>나머지 {items.length - visibleItems.length}건 더 보기 <Icon name="next" size={18} /></button>}
+    {deletionId && <DeletionDialog type="followup" id={deletionId} onClose={() => setDeletionId(null)} onBusyChange={(busy) => { mutationLock.current = busy; setBusyId(busy ? deletionId : null); busyCallback.current?.(busy); }} onDeleted={() => {
+      setDeletionId(null);
+      setNotice("할 일을 휴지통으로 옮겼습니다. 휴지통에서 복구할 수 있습니다.");
+      setMutationError("");
+      void reload();
+      onChange?.();
+    }} />}
   </section>;
 }
