@@ -332,10 +332,10 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
           </div>
         </div>
       </div>
-      {(!compact || editing || value.notes || value.customerId || value.listingKey) && <label className="followup-field" htmlFor={`${id}-notes`}>
+      <label className="followup-field" htmlFor={`${id}-notes`}>
         <span>메모 <small>선택</small></span>
         <textarea id={`${id}-notes`} rows={2} value={value.notes} onChange={(event) => update({ ...value, notes: event.target.value })} maxLength={5000} placeholder="다음 연락 때 확인할 내용을 남겨두세요." disabled={!!busyId} />
-      </label>}
+      </label>
       {(value.customerId || value.listingKey) && <div className="followup-linked-records" aria-label="연결된 기록">
         {value.customerId && <div className="followup-linked-record"><span>고객 · {customerName}</span><div className="followup-linked-actions">{onOpenCustomer && (!saved || saved.customer_name) && <button className="followup-linked-history" type="button" disabled={!!busyId} onClick={() => onOpenCustomer(value.customerId, customerName)}><Icon name="clock" size={16} />고객 이력</button>}<button type="button" disabled={!!busyId} onClick={() => update({ ...value, customerId: "" })}><Icon name="unlink" size={16} />연결 해제</button></div></div>}
         {value.listingKey && <div className="followup-linked-record"><span>매물 · {listingLabel}</span><div className="followup-linked-actions">{onOpenListing && (!saved || saved.listing_label) && <button className="followup-linked-history" type="button" disabled={!!busyId} onClick={() => onOpenListing(value.listingKey)}><Icon name="clock" size={16} />매물 이력</button>}<button type="button" disabled={!!busyId} onClick={() => update({ ...value, listingKey: "" })}><Icon name="unlink" size={16} />연결 해제</button></div></div>}
@@ -367,8 +367,8 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
     </div>
 
     {compact && summary && <div className="followup-urgency" aria-label="챙겨야 할 일 요약">
-      <div className={`followup-urgency-count${summary.overdue ? " is-overdue" : ""}`}><Icon name="warning" size={18} /><span>기한 지남</span><strong>{summary.overdue.toLocaleString()}<small>건</small></strong></div>
       <div className={`followup-urgency-count${summary.today ? " is-today" : ""}`}><Icon name="calendar" size={18} /><span>오늘</span><strong>{summary.today.toLocaleString()}<small>건</small></strong></div>
+      <div className={`followup-urgency-count${summary.overdue ? " is-overdue" : ""}`}><Icon name="warning" size={18} /><span>기한 지남</span><strong>{summary.overdue.toLocaleString()}<small>건</small></strong></div>
     </div>}
 
     {!compact && <>

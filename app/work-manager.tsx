@@ -246,11 +246,11 @@ type WorkHistoryActions = {
 
 const navItems: Array<[View, string]> = [
   ["today", "홈"],
-  ["insights", "업무 현황"],
+  ["calendar", "업무 달력"],
   ["journal", "업무일지"],
   ["listings", "매물 관리"],
   ["customers", "고객 관리"],
-  ["calendar", "업무 달력"],
+  ["insights", "업무 현황"],
   ["trash", "휴지통"],
   ["settings", "설정"],
 ];
@@ -1849,6 +1849,7 @@ function WorkRows({
             <strong>
               {item.customer_name}
             </strong>
+            {item.customer_id && <span className="schedule-customer-id" aria-label={`고객 ID: ${item.customer_id}`}>{item.customer_id}</span>}
             <WorkSummaryProperties work={item} showSingle />
             <small>
               {showDate && `${displayDate(item.work_date)} · `}

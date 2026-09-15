@@ -72,6 +72,76 @@ function harness(overrides = {}, props = {}, io = async () => response) {
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+test("홈 할 일 요약은 오늘 다음 기한 지남 순서이며 숫자와 강조를 함께 유지한다", () => {
+  for (const summary of [response.summary, { ...response.summary, today: 0, overdue: 0 }]) {
+    const h = harness({ data: { ...response, summary } }, { compact: true });
+    const urgency = find(h.render(), (element) => element.props.className === "followup-urgency");
+    const cards = React.Children.toArray(urgency.props.children);
+    assert.equal(cards.length, 2);
+    assert.match(renderToStaticMarkup(cards[0]), new RegExp(`오늘</span><strong>${summary.today}<small>건`));
+    assert.match(renderToStaticMarkup(cards[1]), new RegExp(`기한 지남</span><strong>${summary.overdue}<small>건`));
+    assert.equal(cards[0].props.className.includes("is-today"), summary.today > 0);
+    assert.equal(cards[1].props.className.includes("is-overdue"), summary.overdue > 0);
+  }
+});
+
+test("홈 빈 할 일 입력란에서 메모를 함께 입력·저장하고 갱신된 목록에서도 읽는다", async () => {
+  const pending = deferred();
+  let saved;
+  const h = harness({}, { compact: true }, async (_url, options) => {
+    if (options?.method === "POST") {
+      const body = JSON.parse(options.body);
+      saved = { ...synthetic, title: body.title, notes: body.notes, customer_id: null, listing_key: null };
+      return pending.promise;
+    }
+    return { ...response, items: [saved] };
+  });
+  const notesField = () => find(h.render(), (element) => element.type === "textarea" && element.props.id.endsWith("new-notes"));
+  assert.equal(notesField().props.value, "");
+  assert.equal(notesField().props.required, undefined, "notes remain optional");
+  const label = find(h.render(), (element) => element.type === "label" && element.props.htmlFor === notesField().props.id);
+  assert.match(renderToStaticMarkup(label), /메모.*선택/);
+  find(h.render(), (element) => element.type === "input" && element.props.id.endsWith("new-title"))
+    .props.onChange({ target: { value: "합성 방문 일정 확인" } });
+  const notes = "확인할 사항 첫 줄\n두 번째 메모";
+  notesField().props.onChange({ target: { value: notes } });
+  const form = find(h.render(), (element) => element.type === "form");
+  form.props.onSubmit({ preventDefault() {} });
+  form.props.onSubmit({ preventDefault() {} });
+  assert.equal(h.calls.length, 1, "duplicate submission stays blocked");
+  assert.equal(notesField().props.disabled, true);
+  const [url, options] = h.calls[0];
+  assert.equal(url, "/api/follow-ups");
+  assert.equal(options.method, "POST");
+  assert.deepEqual(JSON.parse(options.body), {
+    title: "합성 방문 일정 확인", notes, dueDate: h.todayDate(), customerId: null, listingKey: null,
+  });
+  pending.resolve({ item: saved });
+  await flush();
+  assert.equal(h.calls.length, 2, "saved data is reloaded");
+  assert.equal(notesField().props.value, "", "the next blank form still exposes notes");
+  const stored = find(h.render(), (element) => element.props.className === "followup-notes");
+  assert.equal(stored.props.children, notes);
+  assert.equal(h.state.draft.title, "");
+  assert.match(h.state.notice, /할 일을 추가했습니다/);
+});
+
+test("홈 메모 저장 실패 시 입력한 제목·메모를 보존해 재시도할 수 있다", async () => {
+  const h = harness({}, { compact: true }, async () => { throw new Error("합성 저장 실패"); });
+  find(h.render(), (element) => element.type === "input" && element.props.id.endsWith("new-title"))
+    .props.onChange({ target: { value: "보존할 합성 제목" } });
+  find(h.render(), (element) => element.type === "textarea")
+    .props.onChange({ target: { value: "보존할 합성 메모\n다음 줄" } });
+  find(h.render(), (element) => element.type === "form").props.onSubmit({ preventDefault() {} });
+  await flush();
+  assert.equal(h.state.draft.title, "보존할 합성 제목");
+  const notes = find(h.render(), (element) => element.type === "textarea");
+  assert.equal(notes.props.value, "보존할 합성 메모\n다음 줄");
+  assert.equal(notes.props.disabled, false);
+  assert.match(renderToStaticMarkup(h.render()), /입력한 내용은 유지됩니다/);
+  assert.equal(h.calls.length, 1);
+});
+
 test("할 일 삭제는 공통 확인창을 먼저 열고 취소하면 목록·초안을 보존한다", () => {
   const h = harness({ draft: { title: "작성 중인 합성 초안" } });
   button(h.render(), "삭제").props.onClick();

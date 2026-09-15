@@ -37,7 +37,7 @@ const production = evaluate(`${declaration("DashboardView")}\n${declaration("Wor
   statusTone: () => "normal", workTypeIcon: () => "journal", EmptyState,
   WorkSummaryProperties: () => null, WorkTable,
 });
-const work = (id, date) => ({ id, work_date: date, customer_name: "합성 고객", content: "합성 업무 내용", work_type: "전화", property_count: 0 });
+const work = (id, date) => ({ id, work_date: date, customer_name: "합성 고객", customer_id: `synthetic-customer-${id}`, content: "합성 업무 내용", work_type: "전화", property_count: 0 });
 const dashboard = {
   metrics: { today_count: 1, active_listing_count: 3, customer_count: 4, upcoming_count: 2 },
   today: [work("today-work", "2026-09-13")], upcoming: [work("next-work", "2026-09-14")], recent: [work("recent-work", "2026-09-12")],
@@ -92,6 +92,32 @@ test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 
   assert.match(html(tree), /가까운 일정 1건 미리보기/);
 });
 
+test("오늘 업무와 앞으로 7일 모두 이름 아래 고객 ID를 표시하고 원래 업무를 연다", () => {
+  const opened = [];
+  const tree = render({ onOpen: (id) => opened.push(id) });
+  const schedules = descendants(tree).filter((item) => item.type === production.WorkRows);
+  assert.equal(schedules.length, 2);
+  for (const schedule of schedules) {
+    const rows = production.WorkRows(schedule.props);
+    const item = schedule.props.items[0];
+    const identifier = descendants(rows).find((node) => node.props.className === "schedule-customer-id");
+    assert.equal(identifier.props.children, item.customer_id);
+    assert.equal(identifier.props["aria-label"], `고객 ID: ${item.customer_id}`);
+    assert.ok(html(rows).indexOf(item.customer_name) < html(rows).indexOf(item.customer_id));
+    button(rows, item.customer_id).props.onClick();
+  }
+  assert.deepEqual(opened, ["today-work", "next-work"]);
+});
+
+test("고객 ID가 없는 일정에는 빈 줄을 추가하지 않고 긴 ID는 줄바꿈한다", () => {
+  const item = { ...dashboard.today[0], customer_id: "" };
+  const tree = production.WorkRows({ items: [item], onOpen: noop, empty: "빈 목록" });
+  assert.doesNotMatch(html(tree), /schedule-customer-id|고객 ID:/);
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.schedule-customer-id\s*\{[^}]*display:\s*block;[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.app-shell\[data-readable="true"\] \.schedule-customer-id[^}]*font-size:\s*14px/);
+});
+
 test("홈 요약은 오늘 업무 바로 다음에 다가오는 일정을 두고 매물·고객은 그 뒤에 배치한다", () => {
   const tree = render();
   const grid = descendants(tree).find((item) => item.props.className === "metric-grid");
@@ -110,7 +136,9 @@ test("홈 요약은 오늘 업무 바로 다음에 다가오는 일정을 두고
 test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 숨겨진 관리 화면 주소는 유지한다", () => {
   const nav = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "navItems")[0];
   const navItems = evaluate(`const result = ${nav.initializer.getText(ast)};`);
-  assert.deepEqual(navItems.map(([view]) => view), ["today", "insights", "journal", "listings", "customers", "calendar", "trash", "settings"]);
+  assert.deepEqual(navItems.map(([view]) => view), ["today", "calendar", "journal", "listings", "customers", "insights", "trash", "settings"]);
+  assert.deepEqual(navItems[1], ["calendar", "업무 달력"]);
+  assert.deepEqual(navItems[5], ["insights", "업무 현황"]);
   assert.doesNotMatch(JSON.stringify(navItems), /다시 연락할 일/);
   const title = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "titles")[0];
   const titles = evaluate(`const result = ${title.initializer.getText(ast)};`, { dateLabel: "합성 날짜" });
@@ -121,7 +149,7 @@ test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 �
   evaluate(`const result = ${all[0].initializer.expression.getText(ast)};`, { navigate: (view) => selected.push(view) })();
   assert.deepEqual(selected, ["tasks"]);
   const syncNode = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "syncView")[0];
-  for (const [hash, expected] of [["#tasks", "tasks"], ["#calendar", "calendar"], ["#not-a-view", "today"]]) {
+  for (const [hash, expected] of [["#tasks", "tasks"], ["#calendar", "calendar"], ["#insights", "insights"], ["#not-a-view", "today"]]) {
     const views = [], currentView = { current: "today" };
     const sync = evaluate(`const result = ${syncNode.initializer.getText(ast)};`, {
       navItems, currentView, followUpBusy: { current: false }, workBusy: { current: false }, customerBusy: { current: false }, followUpDirty: { current: false },

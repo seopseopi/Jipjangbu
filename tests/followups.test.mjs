@@ -122,6 +122,21 @@ test("할 일은 빈 목록으로 시작하고 연결·완료·재개·삭제를
   await assert.rejects(updateFollowUp(db, created.id, { completed: true }), (error) => error.status === 404);
 });
 
+test("홈에서 추가하는 연결 없는 할 일도 여러 줄 메모를 저장하고 다시 조회한다", async (t) => {
+  const { db } = database(t);
+  const notes = "약속 시간 확인\n준비 서류 확인";
+  const created = await createFollowUp(db, {
+    title: "합성 방문 준비", notes, dueDate: null, customerId: null, listingKey: null,
+  });
+  assert.equal(created.notes, notes);
+  const detail = await getFollowUp(db, created.id);
+  assert.equal(detail.notes, notes);
+  assert.equal(detail.customer_id, null);
+  assert.equal(detail.listing_key, null);
+  const list = await getFollowUps(db, new URLSearchParams());
+  assert.equal(list.items.find((item) => item.id === created.id).notes, notes);
+});
+
 test("할 일의 서울 날짜·기한 필터·검색·전체 요약이 일관된다", async (t) => {
   const { db } = database(t);
   const now = new Date("2026-09-11T15:30:00Z");
