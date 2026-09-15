@@ -72,6 +72,52 @@ function harness(overrides = {}, props = {}, io = async () => response) {
 }
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+test("홈과 전체 할 일은 날짜·제목·완료 체크 순서이며 오늘·내일·기한 지남·날짜 미정을 보존한다", () => {
+  const today = harness().todayDate();
+  const day = (offset) => new Date(Date.parse(`${today}T12:00:00Z`) + offset * 86400000).toISOString().slice(0, 10);
+  const cases = [
+    { due_date: today, expected: /^오늘$/, highlighted: true },
+    { due_date: day(1), expected: /^내일$/ },
+    { due_date: day(-1), expected: /기한 지남$/ },
+    { due_date: null, expected: /^날짜 미정$/ },
+    { due_date: day(-1), completed_at: `${today} 03:00:00`, expected: /^완료$/ },
+  ];
+  for (const compact of [true, false]) {
+    for (const { expected, highlighted, ...values } of cases) {
+      const item = { ...synthetic, ...values };
+      const h = harness({ data: { ...response, items: [item] } }, { compact });
+      const tree = h.render();
+      const header = find(tree, (element) => element.props.className === "followup-item-top");
+      const [date, title, complete] = React.Children.toArray(header.props.children);
+      assert.ok(date.props.className.startsWith("followup-due"), "the date is the first header column, before the title and checkbox");
+      const time = find(date, (element) => element.type === "time");
+      assert.match(time.props.children, expected);
+      assert.equal(time.props.dateTime, item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined);
+      assert.equal(date.props.className.includes("is-today"), !!highlighted);
+      assert.equal(title.type, "h3");
+      assert.equal(title.props.children, item.title);
+      assert.equal(complete.props.className, "followup-check");
+      assert.equal(complete.props["aria-pressed"], !!item.completed_at);
+      assert.equal(complete.props.disabled, false);
+      const body = find(tree, (element) => element.props.className === "followup-item-body");
+      assert.equal(find(body, (element) => element.props.className === "followup-notes").props.children, item.notes);
+      assert.ok(!descendants(header).some((element) => element.props.className === "followup-notes"), "notes retain the full row beneath the date/title header");
+    }
+  }
+});
+
+test("할 일 왼쪽 날짜는 좁은 화면에서도 줄바꿈하며 메모 전체 폭과 완료 버튼의 44px 영역을 유지한다", () => {
+  const css = readFileSync(new URL("../app/follow-ups.css", import.meta.url), "utf8");
+  assert.match(css, /\.followup-item\s*\{\s*display:\s*block/);
+  assert.match(css, /\.followup-item-top\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*fit-content\(120px\) minmax\(0,\s*1fr\) 44px/);
+  assert.match(css, /\.followup-compact \.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) 44px/);
+  const mobile = css.slice(css.indexOf("@media (max-width: 700px)"));
+  assert.match(mobile, /\.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) 44px/);
+  assert.match(css, /\.followup-due time\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.followup-check\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px/);
+  assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-caption\)/);
+});
+
 test("홈 할 일 요약은 오늘 다음 기한 지남 순서이며 숫자와 강조를 함께 유지한다", () => {
   for (const summary of [response.summary, { ...response.summary, today: 0, overdue: 0 }]) {
     const h = harness({ data: { ...response, summary } }, { compact: true });
