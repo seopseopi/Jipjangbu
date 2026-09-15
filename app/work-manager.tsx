@@ -1846,10 +1846,10 @@ function WorkRows({
             <Icon name={workTypeIcon(item.work_type)} size={18} />
           </span>
           <span className="schedule-copy">
-            <strong>
-              {item.customer_name}
-            </strong>
-            {item.customer_id && <span className="schedule-customer-id" aria-label={`고객 ID: ${item.customer_id}`}>{item.customer_id}</span>}
+            <span className="schedule-customer">
+              <strong>{item.customer_name}</strong>
+              {item.customer_id && <span className="schedule-customer-id" aria-label={`고객 ID: ${item.customer_id}`}>{item.customer_id}</span>}
+            </span>
             <WorkSummaryProperties work={item} showSingle />
             <small>
               {showDate && `${displayDate(item.work_date)} · `}

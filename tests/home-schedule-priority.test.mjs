@@ -92,7 +92,7 @@ test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 
   assert.match(html(tree), /가까운 일정 1건 미리보기/);
 });
 
-test("오늘 업무와 앞으로 7일 모두 이름 아래 고객 ID를 표시하고 원래 업무를 연다", () => {
+test("오늘 업무와 앞으로 7일 모두 고객명 옆에 ID를 같은 행으로 표시하고 원래 업무를 연다", () => {
   const opened = [];
   const tree = render({ onOpen: (id) => opened.push(id) });
   const schedules = descendants(tree).filter((item) => item.type === production.WorkRows);
@@ -100,7 +100,12 @@ test("오늘 업무와 앞으로 7일 모두 이름 아래 고객 ID를 표시�
   for (const schedule of schedules) {
     const rows = production.WorkRows(schedule.props);
     const item = schedule.props.items[0];
-    const identifier = descendants(rows).find((node) => node.props.className === "schedule-customer-id");
+    const customer = descendants(rows).find((node) => node.props.className === "schedule-customer");
+    assert.ok(customer);
+    const [name, identifier] = React.Children.toArray(customer.props.children);
+    assert.equal(name.type, "strong");
+    assert.equal(name.props.children, item.customer_name);
+    assert.equal(identifier.props.className, "schedule-customer-id");
     assert.equal(identifier.props.children, item.customer_id);
     assert.equal(identifier.props["aria-label"], `고객 ID: ${item.customer_id}`);
     assert.ok(html(rows).indexOf(item.customer_name) < html(rows).indexOf(item.customer_id));
@@ -109,12 +114,19 @@ test("오늘 업무와 앞으로 7일 모두 이름 아래 고객 ID를 표시�
   assert.deepEqual(opened, ["today-work", "next-work"]);
 });
 
-test("고객 ID가 없는 일정에는 빈 줄을 추가하지 않고 긴 ID는 줄바꿈한다", () => {
+test("고객 ID가 없어도 이름을 유지하고 긴 고객명·ID는 좁은 화면에서 자연스럽게 줄바꿈한다", () => {
   const item = { ...dashboard.today[0], customer_id: "" };
   const tree = production.WorkRows({ items: [item], onOpen: noop, empty: "빈 목록" });
   assert.doesNotMatch(html(tree), /schedule-customer-id|고객 ID:/);
+  assert.match(html(tree), /합성 고객/);
+  const longItem = { ...item, customer_name: "긴 합성 고객 이름 ".repeat(20), customer_id: "synthetic-id-".repeat(30) };
+  const longTree = production.WorkRows({ items: [longItem], onOpen: noop, empty: "빈 목록" });
+  assert.ok(html(longTree).includes(longItem.customer_name));
+  assert.ok(html(longTree).includes(longItem.customer_id));
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.schedule-customer-id\s*\{[^}]*display:\s*block;[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.schedule-customer\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;[^}]*align-items:\s*baseline;[^}]*gap:\s*4px 9px/);
+  assert.match(css, /\.schedule-customer > strong\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%/);
+  assert.match(css, /\.schedule-customer-id\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;[^}]*overflow-wrap:\s*anywhere/);
   assert.match(css, /\.app-shell\[data-readable="true"\] \.schedule-customer-id[^}]*font-size:\s*14px/);
 });
 
