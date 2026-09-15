@@ -38,6 +38,12 @@
 .work-record-body:not(.has-properties) { grid-template-columns: minmax(0, 1fr) auto; }
 .work-record-body:not(.has-properties) .work-record-properties { padding: 0; background: transparent; }
 .work-reading-list .work-record-row [data-label]::before { display: none; }
+/* Home shares the recent-work reading cards, with full-width notes. */
+.dashboard-schedule .work-record-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.dashboard-schedule .work-record-customer { flex: 1 1 180px; }
+.dashboard-schedule .work-record-open { margin-left: auto; }
+.dashboard-schedule .work-record-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.dashboard-schedule .work-record-customer-link .work-customer-id { flex-basis: auto; }
 @media (max-width: 1080px) {
   .work-reading-list .work-record-row { padding-inline: 20px; }
   .work-record-meta { grid-template-columns: auto 1fr auto; gap: 4px 12px; }

@@ -29,7 +29,6 @@ function compile(names) {
 }
 const helpers = ["displayDate", "targetText", "statusTone", "EmptyState"];
 const WorkTable = compile([...helpers, "WorkTable"]);
-const WorkRows = compile([...helpers, "WorkRows"]);
 const HistoryModal = compile([...helpers, "HistoryModal"]);
 const markup = (element) => renderToStaticMarkup(element);
 function descendants(element) {
@@ -58,7 +57,7 @@ function table(items = [work], handlers = {}) {
   return WorkTable({ items, onOpen() {}, onCustomerHistory() {}, onListingHistory() {}, ...handlers });
 }
 function rows(items = [work], handlers = {}) {
-  return WorkRows({ items, empty: "합성 업무 없음", showDate: true, onOpen() {}, ...handlers });
+  return table(items, { empty: "합성 업무 없음", ...handlers });
 }
 function history(data = {}, handlers = {}) {
   return HistoryModal({
@@ -203,7 +202,7 @@ test("홈·예정 업무 요약에도 모든 주소와 고객 이름을 함께 �
   assert.match(html, /2026\.09\.13/);
   assert.match(html, /오전 방문 완료/);
   assert.doesNotMatch(html, /업무 수정/);
-  byClass(tree, "schedule-row")[0].props.onClick();
+  byClass(tree, "work-record-open")[0].props.onClick();
   assert.deepEqual(opened, [work.id]);
 });
 

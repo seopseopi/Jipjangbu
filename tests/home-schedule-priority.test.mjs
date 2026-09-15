@@ -4,6 +4,8 @@ import test from "node:test";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
+import { getPropertyDisplayGroups } from "../app/property-display.ts";
 
 // Exercise the actual home layout and navigation with synthetic records only.
 const source = readFileSync(new URL("../app/work-manager.tsx", import.meta.url), "utf8");
@@ -29,13 +31,12 @@ function descendants(element) {
 }
 const html = (element) => renderToStaticMarkup(element);
 const noop = () => {};
-const WorkTable = () => null;
 function EmptyState({ title }) { return React.createElement("p", null, title); }
 EmptyState.propTypes = { title: () => null };
-const production = evaluate(`${declaration("DashboardView")}\n${declaration("WorkRows")}\nconst result = { DashboardView, WorkRows };`, {
+const production = evaluate(`${declaration("DashboardView")}\n${declaration("WorkTable")}\nconst result = { DashboardView, WorkTable };`, {
   React, Icon: () => null, seoulDate: () => "2026-09-13", displayDate: (value) => value,
   statusTone: () => "normal", workTypeIcon: () => "journal", EmptyState,
-  WorkSummaryProperties: () => null, WorkTable,
+  getWorkProperties, workPropertyLabel, getPropertyDisplayGroups,
 });
 const work = (id, date) => ({ id, work_date: date, customer_name: "합성 고객", customer_id: `synthetic-customer-${id}`, content: "합성 업무 내용", work_type: "전화", property_count: 0 });
 const dashboard = {
@@ -64,12 +65,16 @@ test("홈은 오늘 업무·7일 일정을 먼저 두고 챙겨야 할 일은 �
   assert.match(children[0].props.className, /dashboard-schedule/);
   assert.equal(children[1].props.className, "synthetic-followups");
   assert.ok(html(children[0]).indexOf("오늘 업무") < html(children[0]).indexOf("앞으로 7일"));
-  const schedules = descendants(children[0]).filter((item) => item.type === production.WorkRows);
+  const schedules = descendants(children[0]).filter((item) => item.type === production.WorkTable);
   assert.deepEqual(schedules.map((item) => item.props.items), [dashboard.today, dashboard.upcoming]);
-  assert.equal(schedules[1].props.showDate, true);
-  for (const schedule of schedules) button(production.WorkRows(schedule.props), "합성 고객").props.onClick();
+  for (const schedule of schedules) {
+    const rows = production.WorkTable(schedule.props);
+    descendants(rows).find((node) => node.props.className === "work-record-open").props.onClick();
+    assert.equal(schedule.props.onCustomerHistory, customerHistory);
+    assert.equal(schedule.props.onListingHistory, listingHistory);
+  }
   assert.deepEqual(opened, ["today-work", "next-work"]);
-  const recent = descendants(tree).find((item) => item.type === WorkTable);
+  const recent = descendants(tree).find((item) => item.type === production.WorkTable && item.props.items === dashboard.recent);
   assert.equal(recent.props.items, dashboard.recent);
   assert.equal(recent.props.onCustomerHistory, customerHistory);
   assert.equal(recent.props.onListingHistory, listingHistory);
@@ -97,39 +102,55 @@ test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 
 test("오늘 업무와 앞으로 7일 모두 고객명 옆에 ID를 같은 행으로 표시하고 원래 업무를 연다", () => {
   const opened = [];
   const tree = render({ onOpen: (id) => opened.push(id) });
-  const schedules = descendants(tree).filter((item) => item.type === production.WorkRows);
+  const schedules = descendants(tree).filter((item) => item.type === production.WorkTable && item.props.items !== dashboard.recent);
   assert.equal(schedules.length, 2);
   for (const schedule of schedules) {
-    const rows = production.WorkRows(schedule.props);
+    const rows = production.WorkTable(schedule.props);
     const item = schedule.props.items[0];
-    const customer = descendants(rows).find((node) => node.props.className === "schedule-customer");
+    const customer = descendants(rows).find((node) => node.props.className === "work-record-customer-link");
     assert.ok(customer);
     const [name, identifier] = React.Children.toArray(customer.props.children);
-    assert.equal(name.type, "strong");
+    assert.equal(name.type, "b");
     assert.equal(name.props.children, item.customer_name);
-    assert.equal(identifier.props.className, "schedule-customer-id");
+    assert.equal(identifier.props.className, "work-customer-id");
     assert.equal(identifier.props.children, item.customer_id);
-    assert.equal(identifier.props["aria-label"], `고객 ID: ${item.customer_id}`);
     assert.ok(html(rows).indexOf(item.customer_name) < html(rows).indexOf(item.customer_id));
-    button(rows, item.customer_id).props.onClick();
+    descendants(rows).find((node) => node.props.className === "work-record-open").props.onClick();
   }
   assert.deepEqual(opened, ["today-work", "next-work"]);
 });
 
 test("고객 ID가 없어도 이름을 유지하고 긴 고객명·ID는 좁은 화면에서 자연스럽게 줄바꿈한다", () => {
   const item = { ...dashboard.today[0], customer_id: "" };
-  const tree = production.WorkRows({ items: [item], onOpen: noop, empty: "빈 목록" });
+  const tree = production.WorkTable({ items: [item], onOpen: noop, empty: "빈 목록" });
   assert.doesNotMatch(html(tree), /schedule-customer-id|고객 ID:/);
   assert.match(html(tree), /합성 고객/);
   const longItem = { ...item, customer_name: "긴 합성 고객 이름 ".repeat(20), customer_id: "synthetic-id-".repeat(30) };
-  const longTree = production.WorkRows({ items: [longItem], onOpen: noop, empty: "빈 목록" });
+  const longTree = production.WorkTable({ items: [longItem], onOpen: noop, empty: "빈 목록" });
   assert.ok(html(longTree).includes(longItem.customer_name));
   assert.ok(html(longTree).includes(longItem.customer_id));
-  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.schedule-customer\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;[^}]*align-items:\s*baseline;[^}]*gap:\s*4px 9px/);
-  assert.match(css, /\.schedule-customer > strong\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%/);
-  assert.match(css, /\.schedule-customer-id\s*\{[^}]*min-width:\s*0;[^}]*max-width:\s*100%;[^}]*overflow-wrap:\s*anywhere/);
-  assert.match(css, /\.app-shell\[data-readable="true"\] \.schedule-customer-id[^}]*font-size:\s*14px/);
+  const css = readFileSync(new URL("../app/work-reading-list.css", import.meta.url), "utf8");
+  assert.match(css, /\.work-record-customer-link\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/);
+  assert.match(css, /\.work-record-customer-link b\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.work-record-customer-link \.work-customer-id\s*\{[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(css, /\.dashboard-schedule \.work-record-customer-link \.work-customer-id\s*\{[^}]*flex-basis:\s*auto/);
+});
+
+test("홈 업무는 날짜·업무구분·고객 순서의 머리말을 본문보다 먼저 표시하고 빈 목록 안내를 유지한다", () => {
+  const items = ["잔금예정", "집방문예정", "집방문예약", "전화"].map((work_type, index) => ({ ...dashboard.today[0], id: String(index), work_type }));
+  const tree = production.WorkTable({ items, onOpen: noop, onCustomerHistory: noop, onListingHistory: noop });
+  const records = descendants(tree).filter((node) => node.props.className === "table-row work-record-row");
+  assert.equal(records.length, 4);
+  for (const [index, record] of records.entries()) {
+    const [meta, body] = React.Children.toArray(record.props.children);
+    assert.equal(meta.props.className, "work-record-meta");
+    assert.deepEqual(React.Children.toArray(meta.props.children).slice(0, 3).map((node) => node.props["data-label"]), ["일자", "업무구분", "고객"]);
+    assert.ok(html(meta).includes(items[index].work_type));
+    assert.ok(html(body).includes(items[index].content));
+  }
+  for (const empty of ["오늘 등록된 업무가 없습니다.", "앞으로 7일간 등록된 일정이 없습니다."]) {
+    assert.ok(html(production.WorkTable({ items: [], empty })).includes(empty));
+  }
 });
 
 test("홈 요약은 오늘 업무 바로 다음에 다가오는 일정을 두고 매물·고객은 그 뒤에 배치한다", () => {

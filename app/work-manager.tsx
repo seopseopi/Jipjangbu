@@ -36,7 +36,7 @@ import { ListingHistorySummary } from "./listing-history-summary";
 import { formatHistoryTimestamp } from "./history-timestamps";
 import type { RelatedHistoryTarget } from "./history-query";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
-import { Icon, workTypeIcon } from "./icons";
+import { Icon } from "./icons";
 import { canAppendPage } from "./client-paging";
 import { createPropertyHistoryTarget } from "./history-query";
 import { fetchWorkWindow } from "./work-window";
@@ -1775,9 +1775,11 @@ function DashboardView({
             </button>
           </div>
           {dashboard.today.length > 0 && <p className="schedule-preview-note">잔금·집방문 예정 먼저 · 같은 우선순위는 최근 수정순</p>}
-          <WorkRows
+          <WorkTable
             items={dashboard.today}
             onOpen={onOpen}
+            onCustomerHistory={onCustomerHistory}
+            onListingHistory={onListingHistory}
             empty="오늘 등록된 업무가 없습니다."
           />
           <div className="panel-head">
@@ -1794,10 +1796,11 @@ function DashboardView({
           </div>
           {(dashboard.upcoming?.length ?? 0) > 0 && <p className="schedule-preview-note">잔금·집방문 예정 먼저 · 같은 우선순위는 날짜순</p>}
           {metrics.upcoming_count > (dashboard.upcoming?.length ?? 0) && <p className="schedule-preview-note">우선 일정 {dashboard.upcoming?.length ?? 0}건 미리보기 · 전체 보기에서 남은 일정도 확인할 수 있습니다.</p>}
-          <WorkRows
+          <WorkTable
             items={dashboard.upcoming ?? []}
             onOpen={onOpen}
-            showDate
+            onCustomerHistory={onCustomerHistory}
+            onListingHistory={onListingHistory}
             empty="앞으로 7일간 등록된 일정이 없습니다."
           />
         </section>
@@ -1822,49 +1825,6 @@ function DashboardView({
         <WorkTable items={dashboard.recent} onOpen={onOpen} onCustomerHistory={onCustomerHistory} onListingHistory={onListingHistory} />
       </section>
     </>
-  );
-}
-function WorkRows({
-  items,
-  onOpen,
-  empty,
-  showDate = false,
-}: {
-  items: WorkSummary[];
-  onOpen: (id?: string) => void;
-  empty: string;
-  showDate?: boolean;
-}) {
-  if (!items.length) return <EmptyState title={empty} />;
-  return (
-    <div className="schedule-list">
-      {items.map((item) => (
-        <button
-          className="schedule-row"
-          onClick={() => onOpen(item.id)}
-          key={item.id}
-        >
-          <span className={`schedule-icon ${statusTone(item.work_type)}`}>
-            <Icon name={workTypeIcon(item.work_type)} size={18} />
-          </span>
-          <span className="schedule-copy">
-            <span className="schedule-customer">
-              <strong>{item.customer_name}</strong>
-              {item.customer_id && <span className="schedule-customer-id" aria-label={`고객 ID: ${item.customer_id}`}>{item.customer_id}</span>}
-            </span>
-            <WorkSummaryProperties work={item} showSingle />
-            <small>
-              {showDate && `${displayDate(item.work_date)} · `}
-              {item.content || item.customer_name}
-            </small>
-          </span>
-          <span className={`tag ${statusTone(item.work_type)}`}>
-            {item.work_type}
-          </span>
-          <Icon name="next" className="row-arrow" size={18} />
-        </button>
-      ))}
-    </div>
   );
 }
 function Toolbar({
@@ -2076,11 +2036,13 @@ function WorkTable({
   onOpen,
   onCustomerHistory,
   onListingHistory,
+  empty = "조건에 맞는 업무가 없습니다.",
 }: {
   items: WorkSummary[];
   onOpen: (id?: string) => void;
+  empty?: string;
 } & WorkHistoryActions) {
-  if (!items.length) return <EmptyState title="조건에 맞는 업무가 없습니다." />;
+  if (!items.length) return <EmptyState title={empty} />;
   return (
     <div className="responsive-table work-table work-reading-list">
       {items.map((item) => {
