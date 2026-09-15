@@ -56,7 +56,7 @@ function database(t) {
   return {
     customer(id = "synthetic-customer", name = "예시 고객") { sqlite.prepare("INSERT INTO customers (id,name) VALUES (?,?)").run(id, name); },
     work(id, date, type = "계약예정", customer = "synthetic-customer", updated = "2026-09-13 01:00:00") {
-      sqlite.prepare("INSERT INTO work_logs (id,customer_id,work_date,work_type,content,updated_at) VALUES (?,?,?,?,?,?)").run(id, customer, date, type, "합성 업무 메모", updated);
+      sqlite.prepare("INSERT INTO work_logs (id,customer_id,work_date,work_type,content,updated_at,created_at) VALUES (?,?,?,?,?,?,?)").run(id, customer, date, type, "합성 업무 메모", updated, updated);
     },
     property(id, workId, dong, unit) {
       sqlite.prepare("INSERT INTO work_log_properties (id,work_log_id,sequence,property_type,building_name,building_dong,unit_number) VALUES (?,?,1,'아파트','합성단지',?,?)").run(id, workId, dong, unit);
@@ -70,7 +70,7 @@ async function get(route, path, params = {}) {
   return body;
 }
 
-test("전체 일정 API는 월경계 양끝을 포함하고 예약·예정만 가까운 날짜순으로 모든 페이지에서 반환한다", async (t) => {
+test("전체 일정 API는 월경계 양끝과 모든 페이지에서 집방문 예약 우선·그 안에서는 날짜순을 유지한다", async (t) => {
   const db = database(t);
   db.customer();
   const dates = ["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05"];
@@ -80,14 +80,14 @@ test("전체 일정 API는 월경계 양끝을 포함하고 예약·예정만 �
     for (const suffix of ["a", "b", "c"]) {
       const id = `schedule-${index}-${suffix}`;
       db.work(id, date, suffix === "b" ? "집방문예약" : "계약예정");
-      expected.push({ id, date });
+      expected.push({ id, date, priority: suffix === "b" ? 0 : 1 });
     }
   }
   db.work("before-window", "2026-09-28"); db.work("after-window", "2026-10-06");
   db.work("completed", "2026-10-01", "계약작성");
   db.work("cancelled", "2026-10-01", "계약예정취소");
   db.work("ordinary-call", "2026-10-01", "전화");
-  expected.sort((a, b) => a.date.localeCompare(b.date) || b.id.localeCompare(a.id));
+  expected.sort((a, b) => a.priority - b.priority || a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
   const pages = [];
   for (const offset of [0, 8, 16, 24]) {
     const page = await get(workRoute, "/api/work-logs", { schedule: "1", from: dates[0], to: dates.at(-1), limit: "8", offset: String(offset) });
@@ -97,6 +97,7 @@ test("전체 일정 API는 월경계 양끝을 포함하고 예약·예정만 �
   }
   assert.deepEqual(pages.map((row) => row.id), expected.map((row) => row.id));
   assert.equal(new Set(pages.map((row) => row.id)).size, 21);
+  assert.ok(pages.slice(0, 7).every((row) => row.work_type === "집방문예약"));
   assert.equal(pages[0].work_date, dates[0]);
   assert.equal(pages.at(-1).work_date, dates.at(-1));
   const journal = await get(workRoute, "/api/work-logs", { from: dates[0], to: dates.at(-1) });

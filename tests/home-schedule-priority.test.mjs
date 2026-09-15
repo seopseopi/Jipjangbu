@@ -89,7 +89,9 @@ test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 
   button(tree, "7일 일정 확인").props.onClick();
   button(tree, "전체 2건 보기").props.onClick();
   assert.deepEqual(scheduled, [7, 7]);
-  assert.match(html(tree), /가까운 일정 1건 미리보기/);
+  assert.match(html(tree), /우선 일정 1건 미리보기/);
+  assert.match(html(tree), /잔금·집방문 예정 먼저 · 같은 우선순위는 최근 수정순/);
+  assert.match(html(tree), /잔금·집방문 예정 먼저 · 같은 우선순위는 날짜순/);
 });
 
 test("오늘 업무와 앞으로 7일 모두 고객명 옆에 ID를 같은 행으로 표시하고 원래 업무를 연다", () => {

@@ -1152,7 +1152,7 @@ export function WorkManager() {
     setHistoryModal({ ...history, items: preserve ? history.items : [], loading: true, error: undefined });
     try {
       const items = await fetchAllWorkLogs(new URLSearchParams({ from: history.from!, to: history.to!, schedule: "1" }));
-      if (version === historyOpenVersion.current) setHistoryModal({ ...history, items, subtitle: `${displayDate(history.from)} ~ ${displayDate(history.to)} · ${items.length}건 · 가까운 일정순`, loading: false, error: undefined });
+      if (version === historyOpenVersion.current) setHistoryModal({ ...history, items, subtitle: `${displayDate(history.from)} ~ ${displayDate(history.to)} · ${items.length}건 · 잔금·집방문 예정 우선 · 같은 우선순위는 날짜순`, loading: false, error: undefined });
     } catch (error) {
       if (version === historyOpenVersion.current) setHistoryModal({ ...history, loading: false, error: (error as Error).message });
     }
@@ -1774,6 +1774,7 @@ function DashboardView({
               달력 보기
             </button>
           </div>
+          {dashboard.today.length > 0 && <p className="schedule-preview-note">잔금·집방문 예정 먼저 · 같은 우선순위는 최근 수정순</p>}
           <WorkRows
             items={dashboard.today}
             onOpen={onOpen}
@@ -1791,7 +1792,8 @@ function DashboardView({
               전체 {metrics.upcoming_count}건 보기
             </button>
           </div>
-          {metrics.upcoming_count > (dashboard.upcoming?.length ?? 0) && <p className="schedule-preview-note">가까운 일정 {dashboard.upcoming?.length ?? 0}건 미리보기 · 전체 보기에서 다음 달 일정도 확인할 수 있습니다.</p>}
+          {(dashboard.upcoming?.length ?? 0) > 0 && <p className="schedule-preview-note">잔금·집방문 예정 먼저 · 같은 우선순위는 날짜순</p>}
+          {metrics.upcoming_count > (dashboard.upcoming?.length ?? 0) && <p className="schedule-preview-note">우선 일정 {dashboard.upcoming?.length ?? 0}건 미리보기 · 전체 보기에서 남은 일정도 확인할 수 있습니다.</p>}
           <WorkRows
             items={dashboard.upcoming ?? []}
             onOpen={onOpen}

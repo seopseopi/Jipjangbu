@@ -280,7 +280,7 @@ test("7일·30일 전체 일정은 월경계를 넘는 범위와 예약·예정 
   await refresh(opened[0]);
   assert.deepEqual(requests, [{ from: "2026-09-29", to: "2026-10-05", schedule: "1" }]);
   assert.equal(history.current.scheduleDays, 7);
-  assert.match(history.current.subtitle, /가까운 일정순/);
+  assert.match(history.current.subtitle, /잔금·집방문 예정 우선 · 같은 우선순위는 날짜순/);
 });
 
 test("새 고객 저장은 목록 갱신 전에 명부에 즉시 반영하고 같은 업무 초안의 선택만 바꾼다", async () => {

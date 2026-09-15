@@ -24,14 +24,18 @@ const hook = registerHooks({
       if (["../_shared", "../_ordering", "../_queries"].includes(specifier)) return {
         url: new URL(`${specifier}.ts`, context.parentURL).href, shortCircuit: true,
       };
+      if (specifier === "./data") return {
+        url: moduleUrl("export class InputError extends Error {} export function saveWorkLog() { throw new Error('Ordering GET tests never write'); }"), shortCircuit: true,
+      };
     }
     return nextResolve(specifier, context);
   },
 });
-const [customersRoute, listingsRoute, bootstrapRoute, searchRoute, insightsRoute] = await Promise.all([
+const [customersRoute, listingsRoute, bootstrapRoute, searchRoute, insightsRoute, workRoute] = await Promise.all([
   import("../app/api/customers/route.ts"), import("../app/api/listings/route.ts"),
   import("../app/api/bootstrap/route.ts"), import("../app/api/search/route.ts"),
   import("../app/api/insights/route.ts"),
+  import("../app/api/work-logs/route.ts"),
 ]);
 hook.deregister();
 
@@ -193,7 +197,7 @@ test("매물 등록순·변경순·오래 미갱신순은 서로 구분되고 �
   assert.equal((await load("updated", "active")).length, 4);
 });
 
-test("홈은 오늘 최근 수정순·미래를 뺀 최근 업무·가까운 예정순을 각각 표시한다", async (t) => {
+test("우선 업무가 없으면 홈의 기존 오늘 최근 수정순·최근 업무·가까운 예정순을 유지한다", async (t) => {
   const { date, customer, work } = database(t);
   customer("customer", "고객");
   work("today-old", "customer", date(), `${date()} 01:00:00`);
@@ -211,6 +215,64 @@ test("홈은 오늘 최근 수정순·미래를 뺀 최근 업무·가까운 예
   assert.deepEqual(ids(result.upcoming), ["next-a", "next-z", "next-new", "later"]);
   assert.equal(result.metrics.today_count, 3);
   assert.equal(result.metrics.upcoming_count, 4);
+});
+
+test("오늘 업무는 오래 저장한 잔금·집방문 예정도 최상단에 모으며 최근 업무 정렬은 바꾸지 않는다", async (t) => {
+  const { date, customer, work } = database(t);
+  customer("customer", "합성 고객");
+  const today = date();
+  work("ordinary-new", "customer", today, `${today} 20:00:00`, today, "전화");
+  work("other-appointment", "customer", today, `${today} 19:00:00`, today, "계약예정");
+  work("completed-balance", "customer", today, `${today} 18:00:00`, today, "잔금");
+  work("completed-visit", "customer", today, `${today} 17:00:00`, today, "집방문");
+  work("balance-old", "customer", today, `${today} 01:00:00`, date(-10), "잔금예정");
+  work("visit-booked", "customer", today, `${today} 02:00:00`, date(-10), "집방문예약");
+  work("visit-planned", "customer", today, `${today} 03:00:00`, date(-10), "집방문예정");
+  work("balance-tie", "customer", today, `${today} 03:00:00`, date(-10), "잔금예정");
+  const result = await (await bootstrapRoute.GET()).json();
+  assert.deepEqual(ids(result.today), ["visit-planned", "balance-tie", "visit-booked", "balance-old", "ordinary-new", "other-appointment", "completed-balance", "completed-visit"]);
+  assert.deepEqual(ids(result.recent), ["ordinary-new", "other-appointment", "completed-balance", "completed-visit", "visit-planned", "balance-tie", "visit-booked", "balance-old"]);
+  assert.equal(result.metrics.today_count, 8);
+  assert.deepEqual(ids((await (await bootstrapRoute.GET()).json()).today), ids(result.today));
+});
+
+test("앞으로 7일은 우선 정렬 후 6건을 고르고 전체 보기·페이지·업무 현황도 같은 순서를 유지한다", async (t) => {
+  const { date, customer, work } = database(t);
+  customer("customer", "합성 고객");
+  // Eight earlier ordinary appointments would hide all priorities if the
+  // priority sort were applied only to the six already fetched preview rows.
+  for (let index = 0; index < 8; index++) {
+    work(`ordinary-${index}`, "customer", date(1), date(), date(), "계약예정");
+  }
+  work("visit-reserved", "customer", date(3), date(), date(-4), "집방문예약");
+  work("visit-planned", "customer", date(4), date(), date(-4), "집방문예정");
+  work("balance-soon", "customer", date(5), date(), date(-3), "잔금예정");
+  // Same day: insertion order and the most recent edit must not disturb
+  // original registration order, then stable ID order.
+  work("balance-new", "customer", date(7), date(-10), date(-1), "잔금예정");
+  work("balance-z", "customer", date(7), date(), date(-2), "잔금예정");
+  work("balance-a", "customer", date(7), date(-9), date(-2), "잔금예정");
+  work("today-priority", "customer", date(), date(), date(-2), "잔금예정");
+  work("past-priority", "customer", date(-1), date(), date(-2), "잔금예정");
+  work("outside-priority", "customer", date(31), date(), date(-2), "잔금예정");
+  work("ordinary-work", "customer", date(1));
+  work("cancelled-visit", "customer", date(2), date(), date(), "집방문예약취소");
+  const expected = ["visit-reserved", "visit-planned", "balance-soon", "balance-a", "balance-z", "balance-new", ...Array.from({ length: 8 }, (_, index) => `ordinary-${index}`)];
+  const home = await (await bootstrapRoute.GET()).json();
+  assert.deepEqual(ids(home.upcoming), expected.slice(0, 6));
+  assert.equal(home.metrics.upcoming_count, expected.length);
+  const paged = [];
+  for (const offset of [0, 4, 8, 12, 16]) {
+    const response = await workRoute.GET(request("work-logs", { schedule: "1", from: date(1), to: date(7), limit: "4", offset: String(offset) }));
+    assert.equal(response.status, 200);
+    const page = await response.json();
+    assert.equal(page.total, expected.length);
+    paged.push(...ids(page.workLogs));
+  }
+  assert.deepEqual(paged, expected);
+  assert.equal(new Set(paged).size, expected.length);
+  const insights = await (await insightsRoute.GET()).json();
+  assert.deepEqual(ids(insights.upcoming), expected.slice(0, 12));
 });
 
 test("업무 현황의 예정 일정과 미갱신 매물은 홈·매물 관리와 같은 순서를 유지한다", async (t) => {

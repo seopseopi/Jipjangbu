@@ -2,6 +2,7 @@ import { getD1 } from "../../../db";
 import { apiError, integerQueryParam, ready } from "../_shared";
 import { searchedWorkSummary, WORK_SUMMARY_SQL } from "../_queries";
 import { propertySearch, workSearch } from "../_search.js";
+import { HOME_UPCOMING_ORDER, WORK_RECENT_ORDER } from "../_ordering";
 import { InputError, saveWorkLog, type WorkLogPayload } from "./data";
 
 export async function GET(request: Request) {
@@ -72,7 +73,7 @@ export async function GET(request: Request) {
         .bind(...binds),
       db
         .prepare(
-          `${summary.sql} ${predicate} ORDER BY w.work_date ${schedule ? "ASC" : "DESC"}, w.updated_at DESC, w.id DESC LIMIT ? OFFSET ?`,
+          `${summary.sql} ${predicate} ORDER BY ${schedule ? HOME_UPCOMING_ORDER : WORK_RECENT_ORDER} LIMIT ? OFFSET ?`,
         )
         .bind(...summary.bindings, ...binds, limit, offset),
     ]);
