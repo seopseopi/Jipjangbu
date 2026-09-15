@@ -3911,7 +3911,7 @@ function HistoryModal({
       {(!data.listing || data.items.length > 0) && <RecordContainer className={data.listing ? "listing-work-details" : undefined}>
       {data.listing && <summary><Icon name="next" size={16} /> 개별 업무 보기 <span>{data.items.length.toLocaleString("ko-KR")}건</span></summary>}
       {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
-      <div className="history-list" aria-busy={Boolean(data.loading)}>
+      <div className="history-list" data-schedule-days={data.scheduleDays} aria-busy={Boolean(data.loading)}>
         {!data.items.length ? (
           !data.loading && !data.error ? <EmptyState title={data.emptyMessage || "기록이 없습니다."} /> : null
         ) : (

@@ -45,6 +45,42 @@ function renderHistory(listing, onFollowUp, { items = [], customer, onOpenWork =
   });
 }
 
+test("전체 일정의 날짜·업무구분은 같은 글자 크기와 굵기를 사용하고 업무 읽기·원순서를 유지한다", () => {
+  const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+  assert.match(css, /\.history-list strong,\s*\.history-list\[data-schedule-days\] \.history-entry-meta > time\s*\{\s*font-size:\s*var\(--text-base\);\s*font-weight:\s*650;/);
+  assert.match(css, /html\[data-readable="true"\]\s*\{\s*--text-base:\s*17px;/);
+  const items = [
+    { id: "synthetic-next", work_date: "2026-09-16", work_type: "집방문예약", content: "합성 방문 일정", customer_name: "합성 고객" },
+    { id: "synthetic-later", work_date: "2026-09-18", work_type: "잔금예정", content: "합성 확인 일정", customer_name: "합성 고객" },
+  ];
+  for (const scheduleDays of [7, 30]) {
+    const opened = [];
+    const tree = HistoryModal({
+      data: { title: `앞으로 ${scheduleDays}일 전체 일정`, scheduleDays, items },
+      onClose() {}, onRefresh() {}, onOpenWork: (id) => opened.push(id), onNewWork() {}, onCopy() {}, onFollowUp() {},
+    });
+    const list = descendants(tree).find((element) => hasClass(element, "history-list"));
+    assert.equal(list.props["data-schedule-days"], scheduleDays);
+    const rows = elements(list.props.children);
+    for (const [index, row] of rows.entries()) {
+      const meta = descendants(row).find((element) => hasClass(element, "history-entry-meta"));
+      const date = elements(meta.props.children).find((element) => element.type === "time");
+      const status = elements(meta.props.children).find((element) => element.type === "strong");
+      assert.equal(date.props.dateTime, items[index].work_date);
+      assert.equal(status.props.children, items[index].work_type);
+      row.props.onClick();
+    }
+    assert.deepEqual(opened, items.map((item) => item.id));
+  }
+});
+
+test("일반 고객·매물 이력에는 전체 일정용 날짜 강조를 적용하지 않는다", () => {
+  const tree = renderHistory(undefined, () => {}, { customer: { id: "synthetic-customer", name: "합성 고객" } });
+  const list = descendants(tree).find((element) => hasClass(element, "history-list"));
+  assert.equal(list.props["data-schedule-days"], undefined);
+  assert.doesNotMatch(renderToStaticMarkup(list), /data-schedule-days/);
+});
+
 test("전체 이력에 없는 이전 메모만 가격 아래 접힌 영역에 보존하고 할 일 버튼은 카드 밖에 연결된다", () => {
   const notes = `  첫 상담 메모\n\n<확인> & 추가 내용\n${"긴메모".repeat(120)}\n마지막 줄  `;
   for (const sourceNotes of [notes, ""]) {
