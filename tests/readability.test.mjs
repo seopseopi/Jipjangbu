@@ -25,27 +25,27 @@ const tokens = style("globals", ":root");
 
 test("한글 본문 폰트는 외부 연결 없이 실제 WOFF2 파일·유니코드 서브셋·라이선스를 제공한다", () => {
   const fonts = css("fonts");
-  assert.equal(tokens["--font-korean"], '"Noto Sans KR"');
+  assert.equal(tokens["--font-korean"], '"Pretendard Variable"');
   assert.match(css("globals"), /@import "\.\/fonts\.css"/);
   assert.doesNotMatch(readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8"), /next\/font/);
-  assert.doesNotMatch(fonts, /https?:\/\//);
+  assert.doesNotMatch(fonts.replace(/\/\*[\s\S]*?\*\//g, ""), /https?:\/\//);
   const faces = [...fonts.matchAll(/@font-face\s*\{([^}]+)\}/g)];
-  const files = readdirSync(new URL("../public/fonts/noto-sans-kr/", import.meta.url)).filter((file) => file.endsWith(".woff2"));
+  const files = readdirSync(new URL("../public/fonts/pretendard/", import.meta.url)).filter((file) => file.endsWith(".woff2"));
   assert.ok(faces.length > 1, "only the subsets used by the visible text need downloading");
   const referenced = new Set();
   for (const [, face] of faces) {
-    assert.match(face, /font-family: 'Noto Sans KR'/);
-    assert.match(face, /font-weight: 100 900/);
+    assert.match(face, /font-family: 'Pretendard Variable'/);
+    assert.match(face, /font-weight: 45 920/);
     assert.match(face, /font-display: swap/);
     assert.match(face, /unicode-range: U\+/);
-    const asset = face.match(/url\(\/fonts\/noto-sans-kr\/([\w-]+\.woff2)\)/)?.[1];
+    const asset = face.match(/url\(\/fonts\/pretendard\/(PretendardVariable\.subset\.\d+\.woff2)\)/)?.[1];
     assert.ok(asset);
     referenced.add(asset);
-    const data = readFileSync(new URL(`../public/fonts/noto-sans-kr/${asset}`, import.meta.url));
+    const data = readFileSync(new URL(`../public/fonts/pretendard/${asset}`, import.meta.url));
     assert.equal(data.subarray(0, 4).toString(), "wOF2");
   }
   assert.deepEqual([...referenced].sort(), files.sort());
-  assert.match(readFileSync(new URL("../public/fonts/noto-sans-kr/OFL.txt", import.meta.url), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/);
+  assert.match(readFileSync(new URL("../public/fonts/pretendard/OFL.txt", import.meta.url), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/);
 });
 
 test("좁은 달력은 일정 목록으로 전환하며 월간 칸의 날짜·고객·업무는 같은 압축 크기를 쓴다", () => {
@@ -77,7 +77,9 @@ test("본문·보조 글씨는 흰색과 회색 바탕 모두에서 충분히 �
       assert.ok(ratio >= 4.5, `${foreground} / ${background}: ${ratio.toFixed(2)}`);
     }
   }
-  assert.match(style("globals", "body").font, /^500 var\(--text-base\)/);
+  assert.match(style("globals", "body").font, /^400 var\(--text-base\)\/1\.7/);
+  assert.equal(style("globals", "h1")["font-weight"], "700");
+  assert.equal(style("globals", "h2")["font-weight"], "700");
 });
 
 test("업무 종류와 주의 색상도 배경에서 읽히며 네이비 브랜드를 유지한다", () => {
@@ -104,7 +106,7 @@ test("입력칸 경계와 카드 안팎의 구분이 옅어지지 않는다", ()
   ]) assert.equal(style(file, selector).border, "1px solid var(--line-strong)");
 });
 
-test("날짜·고객명·업무구분은 각 조회 화면에서 같은 기본 크기와 700 굵기를 쓴다", () => {
+test("날짜·고객명·업무구분은 각 조회 화면에서 같은 기본 크기와 중간 600 굵기를 쓴다", () => {
   const surfaces = {
     globals: [".record-date", ".tag", ".table-row b", ".calendar-cell > b", ".history-record-meta",
       ".history-record-meta strong", ".history-record-meta > time", ".history-record-facts dd",
@@ -125,10 +127,10 @@ test("날짜·고객명·업무구분은 각 조회 화면에서 같은 기본 �
   for (const [file, selectors] of Object.entries(surfaces)) for (const selector of selectors) {
     const value = style(file, selector);
     assert.equal(value["font-size"], "var(--text-base)", `${file}: ${selector} size`);
-    assert.equal(value["font-weight"], "700", `${file}: ${selector} weight`);
+    assert.equal(value["font-weight"], "600", `${file}: ${selector} weight`);
   }
   assert.equal(style("work-detail-view", ".work-read-customer")["font-size"], "var(--text-base)");
-  assert.equal(style("work-detail-view", ".work-read-customer strong")["font-weight"], "700");
+  assert.equal(style("work-detail-view", ".work-read-customer strong")["font-weight"], "600");
 });
 
 test("일반·큰 글씨 모드에서 날짜도 함께 커지고 요약·모바일 메뉴가 작아지지 않는다", () => {

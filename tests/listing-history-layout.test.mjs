@@ -48,7 +48,7 @@ function renderHistory(listing, onFollowUp, { items = [], customer, onOpenWork =
 
 test("전체 일정의 날짜·업무구분은 같은 글자 크기와 굵기를 사용하고 업무 읽기·원순서를 유지한다", () => {
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.history-list strong,\s*\.history-list \.history-entry-meta > time\s*\{\s*font-size:\s*var\(--text-base\);\s*font-weight:\s*700;/);
+  assert.match(css, /\.history-list strong,\s*\.history-list \.history-entry-meta > time\s*\{\s*font-size:\s*var\(--text-base\);\s*font-weight:\s*600;/);
   assert.match(css, /html\[data-readable="true"\]\s*\{\s*--text-base:\s*18px;/);
   const items = [
     { id: "synthetic-next", work_date: "2026-09-16", work_type: "집방문예약", content: "합성 방문 일정", customer_name: "합성 고객" },
@@ -81,8 +81,8 @@ test("고객 이력 날짜도 일정 여부와 무관하게 업무구분과 같�
   assert.equal(list.props["data-schedule-days"], undefined);
   assert.doesNotMatch(renderToStaticMarkup(list), /data-schedule-days/);
   const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.history-list strong,\s*\.history-list \.history-entry-meta > time[^}]*font-weight:\s*700/);
-  assert.match(css, /\.history-record-meta strong,\s*\.history-record-meta > time[^}]*font-weight:\s*700/);
+  assert.match(css, /\.history-list strong,\s*\.history-list \.history-entry-meta > time[^}]*font-weight:\s*600/);
+  assert.match(css, /\.history-record-meta strong,\s*\.history-record-meta > time[^}]*font-weight:\s*600/);
 });
 
 test("전체 이력에 없는 이전 메모만 가격 아래 접힌 영역에 보존하고 할 일 버튼은 카드 밖에 연결된다", () => {

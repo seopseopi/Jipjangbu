@@ -66,9 +66,9 @@
 .followup-item-body { min-width: 0; }
 .followup-item-top { display: grid; grid-template-columns: max-content minmax(0, 1fr) auto; align-items: start; gap: 8px 12px; }
 .followup-item-top > h3 { min-width: 0; max-width: 100%; }
-.followup-item h3 { margin: 0; color: var(--ink); font-size: var(--text-base); font-weight: 700; line-height: 1.65; overflow-wrap: anywhere; }
+.followup-item h3 { margin: 0; color: var(--ink); font-size: var(--text-base); font-weight: 600; line-height: 1.65; overflow-wrap: anywhere; }
 .followup-item.is-completed h3 { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
-.followup-due { display: inline-grid; grid-template-columns: 16px auto; align-items: center; gap: 2px 5px; flex-shrink: 0; min-width: 0; max-width: 100%; margin-top: 1px; padding: 4px 9px; border-radius: 6px; color: var(--ink); background: var(--tint); font-size: var(--text-base); font-weight: 700; line-height: 1.5; }
+.followup-due { display: inline-grid; grid-template-columns: 16px auto; align-items: center; gap: 2px 5px; flex-shrink: 0; min-width: 0; max-width: 100%; margin-top: 1px; padding: 4px 9px; border-radius: 6px; color: var(--ink); background: var(--tint); font-size: var(--text-base); font-weight: 600; line-height: 1.5; }
 .followup-due time { min-width: 0; white-space: nowrap; }
 .followup-overdue-label { grid-column: 2; font-size: var(--text-caption); font-weight: 600; white-space: nowrap; }
 .followup-due.is-today { color: var(--gold); background: var(--gold-soft); }
@@ -121,7 +121,7 @@
 .followup-compact .followup-list { border: 0; box-shadow: none; border-radius: 0; background: transparent; }
 .followup-compact .followup-item { padding: 18px 0 13px; background: transparent; }
 .followup-compact .followup-item.is-overdue { padding-left: 10px; background: transparent; }
-.followup-compact .followup-item h3 { font-size: var(--text-base); font-weight: 700; }
+.followup-compact .followup-item h3 { font-size: var(--text-base); font-weight: 600; }
 .followup-compact .followup-item-top { display: flex; flex-wrap: wrap; gap: 8px; }
 .followup-compact .followup-item-top > h3 { order: 1; flex-basis: 100%; }
 .followup-compact .followup-check { margin-left: auto; }
@@ -153,7 +153,7 @@
   .followup-item-top { display: flex; flex-wrap: wrap; gap: 8px; }
   .followup-item-top > h3 { order: 1; flex-basis: 100%; }
   .followup-check { margin-left: auto; }
-  .followup-item h3 { font-size: var(--text-base); font-weight: 700; }
+  .followup-item h3 { font-size: var(--text-base); font-weight: 600; }
   .followup-message { align-items: flex-start; }
   .followup-error { flex-wrap: wrap; }
   .followup-compact { padding: 19px; }

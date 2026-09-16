@@ -9,8 +9,8 @@
 .deletion-draft-warning { margin: 12px 0 20px; padding: 12px 14px; border: 1px solid var(--gold-line); border-radius: 6px; background: var(--gold-soft); color: var(--gold); font-size: var(--text-small); }
 .deletion-preview { min-width: 0; }
 .deletion-record-heading { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
-.deletion-record-heading strong { display: block; font-size: var(--text-base); font-weight: 700; overflow-wrap: anywhere; }
-.deletion-record-heading p { margin: 5px 0 0; color: var(--ink-2); font-size: var(--text-base); font-weight: 700; white-space: pre-wrap; overflow-wrap: anywhere; }
+.deletion-record-heading strong { display: block; font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
+.deletion-record-heading p { margin: 5px 0 0; color: var(--ink-2); font-size: var(--text-base); font-weight: 600; white-space: pre-wrap; overflow-wrap: anywhere; }
 .deletion-preview section { margin-top: 20px; }
 .deletion-preview h3 { margin: 0 0 9px; font-size: var(--text-base); }
 .deletion-preview h3 span { color: var(--muted); font-weight: 500; }

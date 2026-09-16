@@ -15,10 +15,10 @@
 .trash-record:hover { background: var(--wash); }
 .trash-kind { margin-top: 1px; padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 3px; color: var(--ink-2); text-align: center; font-size: var(--text-small); font-weight: 600; }
 .trash-record-main { display: grid; gap: 5px; min-width: 0; }
-.trash-record-main strong { font-size: var(--text-base); font-weight: 700; overflow-wrap: anywhere; }
+.trash-record-main strong { font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
 .trash-record-main > span { color: var(--muted); font-size: var(--text-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 .trash-record-action { display: grid; gap: 7px; text-align: right; font-size: var(--text-small); }
-.trash-record-action time, .trash-deleted-time { color: var(--ink); font-size: var(--text-base); font-variant-numeric: tabular-nums; font-weight: 700; }
+.trash-record-action time, .trash-deleted-time { color: var(--ink); font-size: var(--text-base); font-variant-numeric: tabular-nums; font-weight: 600; }
 .trash-record-action > span { display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--green-dark); }
 .trash-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 48px 14px; color: var(--muted); text-align: center; }
 .trash-empty strong { color: var(--ink); font-size: var(--text-base); }

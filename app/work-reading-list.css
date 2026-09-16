@@ -5,9 +5,9 @@
 .work-record-meta { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; margin-bottom: 6px; }
 .work-record-meta > span { min-width: 0; }
 .work-record-date, .work-record-customer-link, .work-record-open { min-height: 36px; padding: 4px 0; border: 0; background: transparent; text-align: left; }
-.work-record-date { color: var(--ink); font-size: var(--text-base); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.work-record-date { color: var(--ink); font-size: var(--text-base); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .work-record-customer-link { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; max-width: 100%; color: var(--ink); }
-.work-record-customer-link b { font-size: var(--text-base); font-weight: 700; overflow-wrap: anywhere; }
+.work-record-customer-link b { font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
 .work-record-customer-link .work-customer-id { color: var(--muted); font-size: var(--text-caption); overflow-wrap: anywhere; }
 .work-record-open { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--text-small); font-weight: 500; white-space: nowrap; }
 .work-record-date:hover, .work-record-customer-link:hover b, .work-record-open:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }

@@ -120,7 +120,7 @@ test("할 일 날짜는 쪼개지지 않고 좁은 영역의 제목·메모는 �
   assert.match(css, /\.followup-due time\s*\{[^}]*min-width:\s*0;[^}]*white-space:\s*nowrap/);
   assert.match(css, /\.followup-check\s*\{[^}]*min-width:\s*72px;[^}]*min-height:\s*44px/);
   assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-base\)/);
-  assert.match(css, /\.followup-due\s*\{[^}]*font-weight:\s*700/);
+  assert.match(css, /\.followup-due\s*\{[^}]*font-weight:\s*600/);
 });
 
 test("완료 글씨를 표시하며 확인 취소는 저장하지 않고 승인해야 완료 요청을 보낸다", async () => {

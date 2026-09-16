@@ -12,14 +12,14 @@ import {
 
 test("로컬 글꼴과 라이선스는 로그인 없이 읽되 API·다른 파일·쓰기 요청은 공개하지 않는다", async () => {
   const env = { DB: { prepare() { throw new Error("Font requests must not touch business data"); } } };
-  for (const path of ["/fonts/noto-sans-kr/noto-sans-kr-a6481771.woff2", "/fonts/noto-sans-kr/OFL.txt"]) {
+  for (const path of ["/fonts/pretendard/PretendardVariable.subset.0.woff2", "/fonts/pretendard/OFL.txt"]) {
     for (const method of ["GET", "HEAD"]) {
       assert.equal(isPublicAsset(path, method), true);
       assert.equal(await handleSecurityRequest(new Request(`https://test.invalid${path}`, { method }), env, { waitUntil() {} }), null);
     }
     for (const method of ["POST", "PUT", "PATCH", "DELETE"]) assert.equal(isPublicAsset(path, method), false);
   }
-  for (const path of ["/api/work-logs", "/fonts/private.json", "/fonts/noto-sans-kr/backup.sql", "/fonts/noto-sans-kr/noto-sans-kr-a6481771.woff2/private", "/fonts/noto-sans-kr/../private.json"]) {
+  for (const path of ["/api/work-logs", "/fonts/private.json", "/fonts/pretendard/backup.sql", "/fonts/pretendard/PretendardVariable.subset.0.woff2/private", "/fonts/pretendard/../private.json"]) {
     assert.equal(isPublicAsset(path, "GET"), false);
   }
   const response = await handleSecurityRequest(new Request("https://test.invalid/api/work-logs"), env, { waitUntil() {} });

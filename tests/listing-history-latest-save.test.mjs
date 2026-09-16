@@ -229,7 +229,7 @@ test("고객·날짜별 업무 이력은 listing 전용 상단을 만들지 않�
   assert.ok(savedStyle, "save-time styling is more specific than the global .history-list p body rule");
   assert.match(savedStyle, /color:\s*var\(--ink\)/);
   assert.match(savedStyle, /font-size:\s*var\(--text-base\)/);
-  assert.match(savedStyle, /font-weight:\s*700/);
+  assert.match(savedStyle, /font-weight:\s*600/);
   assert.match(savedStyle, /white-space:\s*normal/);
 });
 
