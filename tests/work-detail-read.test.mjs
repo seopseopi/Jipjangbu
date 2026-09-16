@@ -25,7 +25,7 @@ const item = {
   id: "synthetic-work", work_date: "2026-09-13", work_type: "집방문", customer_id: "synthetic-customer",
   customer_name: "검증 고객", content: "첫 번째 방문 기록\n두 번째 줄도 모두 표시", details: [property()],
 };
-const render = (overrides = {}, callbacks = {}) => WorkDetailView({ item: { ...item, ...overrides }, onEdit() {}, onDelete() {}, onCustomerHistory() {}, onListingHistory() {}, ...callbacks });
+const render = (overrides = {}, callbacks = {}) => WorkDetailView({ item: { ...item, ...overrides }, onCopy() {}, onEdit() {}, onDelete() {}, onCustomerHistory() {}, onListingHistory() {}, ...callbacks });
 const markup = (element) => renderToStaticMarkup(element);
 function descendants(element) {
   return [element, ...React.Children.toArray(element.props.children).flatMap((child) => React.isValidElement(child) ? descendants(child) : [])];
@@ -44,6 +44,21 @@ test("읽기 화면은 입력란 없이 날짜·업무·고객과 원문 전체�
   assert.doesNotMatch(html, /<(?:input|select|textarea|form|h2)\b/);
   assert.doesNotMatch(html, /업무 저장|접기|더 보기/);
   assert.equal(buttons(render(), "업무 삭제").length, 1);
+});
+
+test("업무 복사는 읽기 화면의 명시적 버튼이며 수정·삭제와 다른 동작을 실행한다", () => {
+  const calls = [], before = JSON.stringify(item);
+  const tree = render({}, { onCopy: () => calls.push("copy"), onEdit: () => calls.push("edit"), onDelete: () => calls.push("delete") });
+  const button = buttons(tree, "업무 복사")[0];
+  assert.equal(button.props.type, "button");
+  assert.equal(button.props.className, "primary-button");
+  assert.deepEqual(calls, []);
+  button.props.onClick();
+  assert.deepEqual(calls, ["copy"]);
+  assert.equal(JSON.stringify(item), before);
+  const css = readFileSync(new URL("../app/work-detail-view.css", import.meta.url), "utf8");
+  assert.match(css, /\.work-read-header\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.match(css, /\.work-read-actions\s*\{[^}]*flex-basis:\s*100%/);
 });
 
 test("열 개의 물건을 등록 순서대로 기본 펼침 상태로 전부 표시한다", () => {

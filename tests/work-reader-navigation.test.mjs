@@ -215,6 +215,61 @@ test("새 업무 등록은 기존 업무 읽기 API를 요청하지 않고 빈 �
   assert.equal(h.editor.current.item, undefined);
 });
 
+test("읽기 화면의 업무 복사는 읽은 원본을 새 등록 모드에 넘기며 명부 준비 전 저장·원본 재조회를 하지 않는다", async () => {
+  const pending = deferred(), original = { id: "original", content: "읽던 합성 원문", details: [{ unit_number: "101" }] };
+  const h = harness(() => assert.fail("copy should not read or write the original again"), { loadReferenceData: () => pending.promise });
+  h.reader.set({ id: original.id, item: original, loading: false });
+  let task;
+  callbacks("WorkDetailView", "onCopy", { workReader: h.reader.current, openWork: (...args) => { task = h.openWork(...args); } })[0]();
+  assert.equal(h.opening.current.copySource, original);
+  assert.equal(h.editor.current, null);
+  pending.resolve();
+  await task;
+  assert.equal(h.editor.current.mode, "copy");
+  assert.equal(h.editor.current.item, original);
+  callbacks("WorkModal", "onClose", { workOpenVersion: h.workOpenVersion, setWorkModal: h.editor.set })[0]();
+  assert.equal(h.editor.current, null);
+  assert.equal(h.reader.current.item, original);
+});
+
+test("업무 복사 준비 실패·재시도는 같은 원본을 유지하고 취소 뒤 늦은 응답은 무시한다", async () => {
+  const original = { id: "original", details: [] };
+  let fail = true;
+  const h = harness(() => assert.fail("no duplicate source read"), { loadReferenceData: async () => { if (fail) throw new Error("명부 조회 실패"); } });
+  await h.openWork(undefined, undefined, undefined, undefined, original);
+  assert.equal(h.opening.current.copySource, original);
+  assert.match(h.opening.current.error, /명부 조회 실패/);
+  fail = false;
+  const request = h.opening.current;
+  await h.openWork(request.id, request.initialCustomerId, request.initialWorkType, request.initialListing, request.copySource);
+  assert.equal(h.editor.current.mode, "copy");
+  assert.equal(h.editor.current.item, original);
+  const pending = deferred(), cancelled = harness(() => assert.fail(), { loadReferenceData: () => pending.promise });
+  const task = cancelled.openWork(undefined, undefined, undefined, undefined, original);
+  cancelled.closeWorkOpening();
+  pending.resolve();
+  await task;
+  assert.equal(cancelled.editor.current, null);
+});
+
+test("복사 저장 성공은 새 업무를 즉시 보여주고 원래 이력·필터는 갱신하며 원본을 다시 읽지 않는다", async () => {
+  const original = { id: "original", item: { id: "original" } }, created = { id: "new", content: "신규 저장 결과", details: [] };
+  const previous = { title: "합성 고객 이력", historyWorkType: "전화", items: [] };
+  const reader = state(original), editor = state({ mode: "copy" }), reference = state({ kind: "customer" }), calls = [];
+  const onSaved = callbacks("WorkModal", "onSaved", {
+    workOpenVersion: { current: 0 }, workReadVersion: { current: 0 }, setWorkModal: editor.set,
+    workReader: original, historyModal: previous, setWorkReader: reader.set, setReaderReference: reference.set,
+    afterMutation: async (message) => calls.push(["list", message]), refreshHistory: async (history) => calls.push(["history", history]),
+    readWork: () => assert.fail("the returned new work already contains its saved content"),
+  })[0];
+  await onSaved("새 업무 저장 완료", created);
+  assert.equal(editor.current, null);
+  assert.deepEqual(reader.current, { id: "new", item: created, loading: false });
+  assert.equal(reference.current, null);
+  assert.deepEqual(calls, [["list", "새 업무 저장 완료"], ["history", previous]]);
+  assert.equal(previous.historyWorkType, "전화");
+});
+
 test("홈·업무일지·달력·현황·통합검색·이력의 기존 업무 진입은 읽기 콜백으로 연결된다", async () => {
   const calls = [];
   for (const [component, prop] of [["DashboardView", "onOpen"], ["JournalView", "onOpen"], ["CalendarView", "onOpen"], ["InsightsView", "onOpenWork"], ["GlobalSearch", "onOpenWork"], ["HistoryModal", "onOpenWork"]]) {

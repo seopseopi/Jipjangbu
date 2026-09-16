@@ -5,6 +5,8 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import ts from "typescript";
 import { formatHistoryTimestamp, latestSavedListingEvent } from "../app/history-timestamps.ts";
+import { findWorkDraftIssue } from "../app/work-form-rules.ts";
+import { initialWorkDraft, workModalHandler } from "./helpers/work-copy.mjs";
 
 // Execute the actual API handlers and schema against synthetic in-memory data.
 // The binding adapter models D1's all-or-nothing batch, including a deliberately
@@ -115,6 +117,80 @@ async function history(identity = key(), expectedStatus = 200) {
   assert.equal(response.status, expectedStatus, JSON.stringify(body));
   return body;
 }
+
+function copyForm(original, changeDraft = () => {}) {
+  const draft = initialWorkDraft({ mode: "copy", item: original });
+  changeDraft(draft);
+  const calls = [], errors = [], saved = [];
+  const submit = workModalHandler("submit", {
+    ...draft, modal: { mode: "copy", item: original }, saving: false, savePendingRef: { current: false }, savingMountedRef: { current: true },
+    customers: [{ id: "synthetic-customer" }, { id: "synthetic-other" }], lookups: { workTypes: ["매물등록", "매물수정", "전화"] }, findWorkDraftIssue,
+    setSaving() {}, setErrorField() {}, onBusyChange() {}, setError: (message) => { if (message) errors.push(message); },
+    onSaved: async (...args) => saved.push(args),
+    jsonFetch: async (url, options) => {
+      calls.push({ url, ...options });
+      assert.equal(url, "/api/work-logs");
+      assert.equal(options.method, "POST");
+      const response = await workRoute.POST(new Request(`https://synthetic.invalid${url}`, options));
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error);
+      return body;
+    },
+  });
+  return { draft, calls, errors, saved, submit: () => submit({ preventDefault() {} }) };
+}
+
+test("실제 복사 폼 → 신규 등록 API → DB·매물이력: 원본 10개 물건은 보존하고 새 ID의 업무를 추가한다", async (t) => {
+  const db = database(t);
+  const details = Array.from({ length: 10 }, (_, index) => property({ unitNumber: String(1501 + index), source: `합성 업소 ${index + 1}` }));
+  const original = await mutate("POST", payload({ workDate: "2026-09-01", details }));
+  const before = db.snapshot();
+  const form = copyForm(original, (draft) => {
+    draft.customerId = "synthetic-other";
+    draft.workType = "매물수정";
+    draft.content = "복사 후 새 가격 확인";
+    draft.details[0].salePrice = "56000";
+  });
+  await form.submit();
+  assert.deepEqual(form.errors, []);
+  assert.equal(form.saved.length, 1);
+  const created = form.saved[0][1];
+  assert.notEqual(created.id, original.id);
+  assert.equal(created.work_date, "2026-09-16");
+  assert.equal(created.customer_id, "synthetic-other");
+  assert.equal(created.work_type, "매물수정");
+  assert.equal(created.legacy_id, null);
+  assert.equal(created.details.length, 10);
+  const after = db.snapshot();
+  assert.equal(after.work_logs.length, 2);
+  assert.deepEqual(after.work_logs.find((work) => work.id === original.id), before.work_logs[0]);
+  assert.deepEqual(after.work_log_properties.filter((item) => item.work_log_id === original.id), before.work_log_properties);
+  assert.deepEqual(after.listing_events.filter((item) => item.work_log_id === original.id), before.listing_events);
+  const originalIds = new Set(original.details.map((item) => item.id));
+  assert(created.details.every((item) => !originalIds.has(item.id) && item.work_log_id === created.id));
+  assert.deepEqual(created.details.map((item) => item.unit_number), details.map((item) => item.unitNumber));
+  assert.deepEqual(created.details.map((item) => item.source), details.map((item) => item.source));
+  assert.equal(db.sqlite.prepare("SELECT COUNT(*) AS count FROM customers").get().count, 2, "copy does not duplicate customers");
+  const listingHistory = await history(key(details[0]));
+  assert.equal(listingHistory.listing.sale_price, "56000");
+  assert.deepEqual(listingHistory.events.map((item) => item.work_log_id), [created.id, original.id]);
+});
+
+test("복사 저장 중 매물 반영 실패는 전체 롤백하고 초안을 유지해 정상 재시도한다", async (t) => {
+  const db = database(t), original = await mutate("POST", payload({ workDate: "2026-09-01" }));
+  const before = db.snapshot(), form = copyForm(original);
+  const draftBefore = JSON.stringify(form.draft);
+  db.failProjection();
+  await form.submit();
+  assert.equal(form.errors.length, 1);
+  assert.equal(form.saved.length, 0);
+  assert.deepEqual(db.snapshot(), before);
+  assert.equal(JSON.stringify(form.draft), draftBefore);
+  db.clearFailure();
+  await form.submit();
+  assert.equal(form.saved.length, 1);
+  assert.equal(db.snapshot().work_logs.length, 2);
+});
 
 test("매물 개별 업무에는 상태변경뿐 아니라 두 번째 물건의 전화도 포함하고 수정·삭제·주소 경계를 반영한다", async (t) => {
   database(t);

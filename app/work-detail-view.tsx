@@ -24,12 +24,14 @@ function detailText(value: unknown): string {
 /** Read stored work facts only; editing and related history are explicit actions. */
 export function WorkDetailView({
   item,
+  onCopy,
   onEdit,
   onDelete,
   onCustomerHistory,
   onListingHistory,
 }: {
   item: WorkDetailReadItem;
+  onCopy: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onCustomerHistory: () => void;
@@ -80,6 +82,9 @@ export function WorkDetailView({
           </div>
         </div>
         <div className="work-read-actions">
+          <button type="button" className="primary-button" onClick={onCopy}>
+            <Icon name="copy" size={17} /> 업무 복사
+          </button>
           <button type="button" className="secondary-button" onClick={onEdit}>
             <Icon name="edit" size={17} /> 업무 수정
           </button>

@@ -64,7 +64,7 @@ function namedHandler(root, name, environment) {
 test("the actual work submit stops before any request and records the first missing field", async () => {
   const found = { error: "", field: null };
   const submit = namedHandler(workModal, "submit", {
-    saving: false, ...draft, workType: "매물수정", customers, lookups: { workTypes }, findWorkDraftIssue,
+    saving: false, savePendingRef: { current: false }, ...draft, workType: "매물수정", customers, lookups: { workTypes }, findWorkDraftIssue,
     setErrorField: (field) => { found.field = field; }, setError: (message) => { found.error = message; },
     setSaving: () => assert.fail("must not start saving"), jsonFetch: () => assert.fail("must not send an invalid record"),
   });
@@ -79,7 +79,7 @@ test("the actual work submit preserves all entered fields and reports a failed s
   let sent, error = "", saving = false;
   const details = [property];
   const submit = namedHandler(workModal, "submit", {
-    ...draft, details, content: "검증 상담 메모", item: undefined, saving: false, customers, lookups: { workTypes }, findWorkDraftIssue,
+    ...draft, details, content: "검증 상담 메모", item: undefined, saving: false, savePendingRef: { current: false }, customers, lookups: { workTypes }, findWorkDraftIssue,
     onBusyChange: undefined, savingMountedRef: { current: true },
     setErrorField: () => {}, setError: (message) => { error = message; }, setSaving: (value) => { saving = value; },
     jsonFetch: async (url, init) => { sent = { url, body: JSON.parse(init.body) }; throw new Error("연결을 확인해 주세요."); },
@@ -159,7 +159,7 @@ function busyHarness(modalNode, name, options = {}) {
   const run = namedHandler(modalNode, name, {
     ...draft, details: [property], content: "검증 메모", item: { id: "synthetic-work" },
     modal: { mode: "edit", item: { id: "synthetic-customer" } },
-    id: "synthetic-customer", name: "검증 고객", notes: "", saving: false,
+    id: "synthetic-customer", name: "검증 고객", notes: "", saving: false, savePendingRef: { current: false },
     customers, lookups: { workTypes }, findWorkDraftIssue,
     setErrorField: () => {}, setError: (value) => { if (value) errors.push(value); }, setSaving: () => {},
     window: { confirm: () => true }, savingMountedRef: mounted,

@@ -211,6 +211,7 @@ type WorkModalState = {
 };
 type WorkOpeningState = {
   id?: string;
+  copySource?: WorkDetail;
   initialCustomerId?: string;
   initialWorkType?: string;
   initialListing?: Listing;
@@ -856,9 +857,10 @@ export function WorkManager() {
     initialCustomerId?: string,
     initialWorkType?: string,
     initialListing?: Listing,
+    copySource?: WorkDetail,
   ) {
     const version = ++workOpenVersion.current;
-    const request = { id, initialCustomerId, initialWorkType, initialListing };
+    const request = { id, initialCustomerId, initialWorkType, initialListing, ...(copySource ? { copySource } : {}) };
     // A slow directory/detail request must not make the button look unresponsive.
     // Keep the existing reader and any draft mounted until the new form is ready.
     setWorkOpening(request);
@@ -867,14 +869,16 @@ export function WorkManager() {
       // Home can render before reference data; never open a form with an empty name picker.
       const [, data] = await Promise.all([
         loadReferenceData(),
-        id
+        id && !copySource
           ? jsonFetch<{ workLog: WorkDetail }>(`/api/work-logs/${encodeURIComponent(id)}`)
           : undefined,
       ]);
       if (version !== workOpenVersion.current) return;
       setWorkOpening(null);
       setWorkModal(
-        data
+        copySource
+          ? { mode: "copy", item: copySource }
+          : data
           ? { mode: "edit", item: data.workLog }
           : { mode: "new", initialCustomerId, initialWorkType, initialListing },
       );
@@ -1602,6 +1606,7 @@ export function WorkManager() {
           {workReader.error && <div className="form-error" role="alert"><p>{workReader.error}</p><button type="button" className="secondary-button" onClick={() => void readWork(workReader.id)}><Icon name="refresh" size={16} /> 다시 불러오기</button></div>}
           {workReader.item && <Suspense fallback={<p role="status">읽기 화면을 준비하고 있습니다…</p>}>
             <WorkDetailView item={workReader.item} onEdit={() => void openWork(workReader.id)}
+              onCopy={() => void openWork(undefined, undefined, undefined, undefined, workReader.item!)}
               onDelete={() => setDeletionTarget({ type: "work", id: workReader.id })}
               onCustomerHistory={() => openReaderReference({ kind: "customer", id: workReader.item!.customer_id, name: workReader.item!.customer_name })}
               onListingHistory={(key) => { const [, building_name, building_dong, unit_number] = key.split("|"); openReaderReference({ kind: "listing", key, name: workPropertyLabel({ building_name, building_dong, unit_number }) }); }} />
@@ -1620,10 +1625,15 @@ export function WorkManager() {
           onClose={() => { workOpenVersion.current += 1; setWorkModal(null); }}
           onCopy={(item) => { workOpenVersion.current += 1; setWorkModal({ mode: "copy", item }); }}
           onDelete={(id, unsavedDraft) => setDeletionTarget({ type: "work", id, unsavedDraft })}
-          onSaved={async (message) => {
+          onSaved={async (message, copiedWork) => {
             workOpenVersion.current += 1;
             setWorkModal(null);
-            await Promise.all([afterMutation(message), refreshHistory(historyModal), workReader ? readWork(workReader.id) : undefined]);
+            if (copiedWork) {
+              workReadVersion.current += 1;
+              setReaderReference(null);
+              setWorkReader({ id: copiedWork.id, item: copiedWork, loading: false });
+            }
+            await Promise.all([afterMutation(message), refreshHistory(historyModal), !copiedWork && workReader ? readWork(workReader.id) : undefined]);
           }}
         />
       )}
@@ -1647,11 +1657,11 @@ export function WorkManager() {
         />
       )}
       {workOpening && (
-        <Modal title={workOpening.id ? "업무 수정" : "새 업무 등록"} onClose={closeWorkOpening}>
+        <Modal title={workOpening.copySource ? "업무 복사 · 새 업무 등록" : workOpening.id ? "업무 수정" : "새 업무 등록"} onClose={closeWorkOpening}>
           {workOpening.error ? (
             <div className="form-error" role="alert">
               <p>{workOpening.error}</p>
-              <button type="button" className="secondary-button" onClick={() => void openWork(workOpening.id, workOpening.initialCustomerId, workOpening.initialWorkType, workOpening.initialListing)}>
+              <button type="button" className="secondary-button" onClick={() => void openWork(workOpening.id, workOpening.initialCustomerId, workOpening.initialWorkType, workOpening.initialListing, workOpening.copySource)}>
                 <Icon name="refresh" size={16} /> 다시 불러오기
               </button>
             </div>
@@ -3035,7 +3045,7 @@ function WorkModal({
   lookups: Lookups;
   onNewCustomer: () => void;
   onClose: () => void;
-  onSaved: (message: string) => Promise<void>;
+  onSaved: (message: string, copiedWork?: WorkDetail) => Promise<void>;
   onCopy: (item: WorkDetail) => void;
   onDelete: (id: string, unsavedDraft: boolean) => void;
   onBusyChange?: (busy: boolean) => void;
@@ -3053,19 +3063,20 @@ function WorkModal({
   const [details, setDetails] = useState<PropertyDetail[]>(
     source?.details?.length
       ? source.details.map((detail) => ({
-          propertyType: String(detail.property_type || ""),
-          buildingName: String(detail.building_name || ""),
-          buildingDong: String(detail.building_dong || ""),
-          unitNumber: String(detail.unit_number || ""),
-          sizeType: String(detail.size_type || ""),
-          salePrice: String(detail.sale_price || ""),
-          jeonsePrice: String(detail.jeonse_price || ""),
-          monthlyRent: String(detail.monthly_rent || ""),
-          source: String(detail.source || ""),
+          propertyType: String(detail.property_type ?? ""),
+          buildingName: String(detail.building_name ?? ""),
+          buildingDong: String(detail.building_dong ?? ""),
+          unitNumber: String(detail.unit_number ?? ""),
+          sizeType: String(detail.size_type ?? ""),
+          salePrice: String(detail.sale_price ?? ""),
+          jeonsePrice: String(detail.jeonse_price ?? ""),
+          monthlyRent: String(detail.monthly_rent ?? ""),
+          source: String(detail.source ?? ""),
         }))
       : modal.initialListing ? [propertyFromListing(modal.initialListing)] : [blankProperty()],
   );
   const [saving, setSaving] = useState(false);
+  const savePendingRef = useRef(false);
   const savingMountedRef = useRef(true);
   const busyCallbackRef = useRef(onBusyChange);
   useEffect(() => { busyCallbackRef.current = onBusyChange; }, [onBusyChange]);
@@ -3171,20 +3182,21 @@ function WorkModal({
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (saving || savePendingRef.current) return;
     const issue = findWorkDraftIssue({ workDate, customerId, workType, details }, customers, lookups.workTypes);
     if (issue) {
       setErrorField(issue.field);
       setError(issue.message);
       return;
     }
+    savePendingRef.current = true;
     setSaving(true);
     setError("");
     setErrorField(null);
     onBusyChange?.(true);
     try {
       const url = item ? `/api/work-logs/${item.id}` : "/api/work-logs";
-      await jsonFetch(url, {
+      const result = await jsonFetch<{ workLog?: WorkDetail }>(url, {
         method: item ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -3195,10 +3207,11 @@ function WorkModal({
           details,
         }),
       });
-      await onSaved(item ? "업무를 수정했습니다." : "업무를 저장했습니다.");
+      await onSaved(item ? "업무를 수정했습니다." : modal.mode === "copy" ? "업무를 복사해 새 업무로 저장했습니다." : "업무를 저장했습니다.", modal.mode === "copy" ? result.workLog : undefined);
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      savePendingRef.current = false;
       setSaving(false);
       if (savingMountedRef.current) onBusyChange?.(false);
     }
@@ -3212,7 +3225,7 @@ function WorkModal({
         item
           ? "업무 수정"
           : modal.mode === "copy"
-            ? "기존 기록으로 새 업무"
+            ? "업무 복사 · 새 업무 등록"
             : modal.initialListing && modal.initialWorkType === "매물수정" ? "매물 수정 이력 추가" : "새 업무 등록"
       }
       subtitle="한 업무에 물건을 최대 10개까지 함께 기록할 수 있습니다"
@@ -3228,10 +3241,11 @@ function WorkModal({
         </div>
         {error && <div ref={errorSummaryRef} className="form-error work-form-error" role="alert" tabIndex={-1}><p>{error}</p></div>}
         {modal.mode === "copy" && (
-          <p className="editor-context">
-            기존 기록은 그대로 유지됩니다. 날짜는 오늘로 설정했으니 내용을
-            확인하고 저장해 주세요.
-          </p>
+          <div className="work-copy-context" role="note">
+            <strong>복사한 내용으로 새 업무를 등록합니다.</strong>
+            {source && <span>원본 · {displayDate(source.work_date)} · {source.work_type} · {source.customer_name}{source.customer_id && ` · ${source.customer_id}`}</span>}
+            <p>원본은 바뀌지 않습니다. 업무일은 오늘로 설정했으며, 고객·업무구분·내용·매물과 가격은 복사한 기록 기준입니다. 필요한 항목을 수정한 뒤 새 업무로 저장해 주세요.</p>
+          </div>
         )}
         {modal.initialListing && modal.initialWorkType === "매물수정" && <p className="editor-context">기존 기록을 덮어쓰지 않고 새 매물 수정 업무를 추가합니다. 날짜는 오늘, 고객은 최근 이력 기준이므로 실제 업무에 맞는지 확인해 주세요. 현재 매물 정보는 업무일이 가장 최근인 이력으로 표시됩니다.</p>}
         <div className="work-form-section"><h3>1. 기본 업무</h3><p>* 표시한 항목은 꼭 입력해 주세요.</p></div>
@@ -3538,7 +3552,7 @@ function WorkModal({
                 onCopy(item);
               }}
             >
-              <Icon name="copy" size={18} /> 이 기록으로 새 업무
+              <Icon name="copy" size={18} /> 업무 복사
             </button>
           )}
           {item && (
@@ -3564,7 +3578,7 @@ function WorkModal({
           </button>
           <button className="primary-button" disabled={saving}>
             <Icon name="save" size={18} />
-            {saving ? "저장 중…" : item ? "수정 저장" : "업무 저장"}
+            {saving ? "저장 중…" : item ? "수정 저장" : modal.mode === "copy" ? "새 업무로 저장" : "업무 저장"}
           </button>
         </div>
       </form>

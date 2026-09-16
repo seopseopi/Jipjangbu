@@ -1,9 +1,9 @@
 /* A flat reading surface: one compact heading, full-width notes, aligned facts. */
 .work-read-view { min-width: 0; color: var(--ink); }
-.work-read-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
-.work-read-heading { min-width: 0; }
+.work-read-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px 20px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+.work-read-heading { flex: 1 1 240px; min-width: 0; }
 .work-read-header > button { flex: 0 0 auto; }
-.work-read-actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.work-read-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .work-read-actions > button { min-height: 44px; }
 .work-read-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--text-base); }
 .work-read-meta time { color: var(--ink); font-weight: 650; font-variant-numeric: tabular-nums; }
@@ -56,6 +56,8 @@
   .work-read-header { flex-wrap: wrap; gap: 8px 12px; margin-bottom: 20px; }
   .work-read-heading { flex: 1 1 180px; }
   .work-read-header > button { min-height: 40px; padding: 8px 12px; }
+  .work-read-actions { flex-basis: 100%; justify-content: flex-start; }
+  .work-read-actions > button { flex: 1 1 110px; }
   .work-read-customer { gap: 0 8px; }
   .work-read-customer strong { flex-basis: 100%; }
   .work-read-content { margin-bottom: 22px; }

@@ -1,6 +1,10 @@
 .work-form-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 0 0 22px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--green-soft); color: var(--ink); font-size: var(--text-small); line-height: 1.65; }
 .work-form-overview > span { min-width: 0; overflow-wrap: anywhere; }
 .work-form-overview strong { margin-right: 5px; }
+.work-copy-context { display: grid; gap: 7px; margin-bottom: 20px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--green-soft); color: var(--ink); font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; }
+.work-copy-context > strong { color: var(--green-dark); font-size: var(--text-base); }
+.work-copy-context > span { color: var(--muted); }
+.work-copy-context > p { margin: 0; }
 .work-form .work-form-error { margin: 0 0 20px; outline-offset: 4px; }
 .work-form .work-form-error p { margin: 0; line-height: 1.65; }
 .work-form-section { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; margin: 0 0 15px; }

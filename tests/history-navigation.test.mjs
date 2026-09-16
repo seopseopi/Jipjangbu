@@ -109,7 +109,16 @@ test("refreshing after editing retains the history's rows until their replacemen
   pending.resolve([{ id: "work", content: "after" }]);
   await task;
   assert.equal(state.current.items[0].content, "after");
-  const saved = source.slice(source.indexOf("onSaved={async (message) =>"), source.indexOf("{customerModal &&"));
+  let saved;
+  function visit(node) {
+    if ((ts.isJsxSelfClosingElement(node) || ts.isJsxOpeningElement(node)) && node.tagName.getText(ast) === "WorkModal") {
+      const attribute = node.attributes.properties.find((property) => ts.isJsxAttribute(property) && property.name.getText(ast) === "onSaved");
+      saved = attribute?.initializer?.getText(ast);
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.ok(saved, "WorkModal has an onSaved callback");
   assert.match(saved, /refreshHistory\(historyModal\)/);
   assert.doesNotMatch(saved, /setHistoryModal\(null\)/);
 });
