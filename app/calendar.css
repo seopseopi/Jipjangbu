@@ -16,10 +16,10 @@
   .calendar-agenda { display: block; min-width: 0; }
   .calendar-agenda-day { min-width: 0; padding: 18px; border-bottom: 1px solid var(--line); }
   .calendar-agenda-day:last-child { border-bottom: 0; }
-  .calendar-agenda-day.is-today { background: var(--paper); box-shadow: inset 3px 0 0 var(--ledger); }
+  .calendar-agenda-day.is-today { background: var(--wash); }
   .calendar-agenda-day-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-bottom: 12px; }
   .calendar-agenda-day-head h2 { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; color: var(--ink); font-size: var(--text-base); line-height: 1.6; }
-  .calendar-agenda-day-head h2 > span { padding: 1px 7px; border-radius: 3px; background: var(--ledger); color: var(--ink); font-size: var(--text-caption); }
+  .calendar-agenda-day-head h2 > span { padding: 1px 7px; border-radius: 3px; background: var(--green); color: #fff; font-size: var(--text-caption); }
   .calendar-agenda-day-head > span { color: var(--muted); font-size: var(--text-small); }
   .calendar-agenda-events { display: grid; gap: 10px; }
   .calendar-agenda-event { display: grid; gap: 6px; width: 100%; min-width: 0; min-height: var(--control-height); padding: 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); text-align: left; }
