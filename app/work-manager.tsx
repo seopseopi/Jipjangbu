@@ -33,6 +33,7 @@ import { getWorkProperties, workPropertyLabel } from "./work-property-summary";
 import { getPropertyDisplayGroups } from "./property-display";
 import { WorkSummaryProperties } from "./work-summary-properties";
 import { ListingHistorySummary } from "./listing-history-summary";
+import { HistoryWorkTypeFilter } from "./history-work-type-filter";
 import { formatHistoryTimestamp } from "./history-timestamps";
 import type { RelatedHistoryTarget } from "./history-query";
 import { canCloseCustomerDraft, customerDraftChanged } from "./customer-draft";
@@ -228,6 +229,7 @@ type HistoryData = {
   subtitle: string;
   items: WorkSummary[] | ListingEvent[];
   workItems?: WorkSummary[];
+  historyWorkType?: string;
   customer?: Pick<Customer, "id" | "name">;
   listing?: Listing;
   listingKey?: string;
@@ -1062,6 +1064,7 @@ export function WorkManager() {
     setHistoryModal((current) => ({
       title: `${customer.name} 업무 이력`, subtitle: customer.id, customer,
       items: preserve && current?.customer?.id === customer.id ? current.items : [],
+      historyWorkType: preserve && current?.customer?.id === customer.id ? current.historyWorkType : "",
       loading: true,
     }));
     try {
@@ -1069,12 +1072,13 @@ export function WorkManager() {
         new URLSearchParams({ customerId: customer.id, includeSource: "1" }),
       );
       if (version !== historyOpenVersion.current) return;
-      setHistoryModal({
+      setHistoryModal((current) => ({
         title: `${customer.name} 업무 이력`,
         subtitle: customer.id,
         items,
         customer,
-      });
+        historyWorkType: current?.historyWorkType ?? "",
+      }));
     } catch (error) {
       if (version === historyOpenVersion.current) setHistoryModal((current) => current ? { ...current, loading: false, error: (error as Error).message } : null);
     }
@@ -1102,6 +1106,7 @@ export function WorkManager() {
       items: preserve && current?.listing?.identity_key === key ? current.items : [],
       listing: preserve ? current?.listing : undefined,
       workItems: preserve && current?.listing?.identity_key === key ? current.workItems : undefined,
+      historyWorkType: preserve && (current?.listing?.identity_key === key || current?.listingKey === key) ? current.historyWorkType : "",
       listingKey: key,
       loading: true,
     }));
@@ -1112,14 +1117,15 @@ export function WorkManager() {
         workLogs: WorkSummary[];
       }>(`/api/listings/${encodeURIComponent(key)}`);
       if (version !== historyOpenVersion.current) return;
-      setHistoryModal({
+      setHistoryModal((current) => ({
         title: `${targetText(data.listing)} 이력`,
         subtitle: data.listing.property_type,
         items: data.events,
         workItems: data.workLogs,
         listing: data.listing,
         listingKey: key,
-      });
+        historyWorkType: current?.historyWorkType ?? "",
+      }));
     } catch (error) {
       if (version !== historyOpenVersion.current) return;
       const missing = (error as Error).message === "매물을 찾을 수 없습니다.";
@@ -1576,6 +1582,8 @@ export function WorkManager() {
       {historyModal && !workReader && (
         <HistoryModal
           data={historyModal}
+          workTypes={lookups.workTypes}
+          onWorkTypeChange={(historyWorkType) => setHistoryModal((current) => current ? { ...current, historyWorkType } : null)}
           onClose={() => { historyOpenVersion.current += 1; workOpenVersion.current += 1; setHistoryModal(null); }}
           onRefresh={() => void refreshHistory(historyModal)}
           onOpenWork={(id) => {
@@ -1598,7 +1606,7 @@ export function WorkManager() {
               onCustomerHistory={() => openReaderReference({ kind: "customer", id: workReader.item!.customer_id, name: workReader.item!.customer_name })}
               onListingHistory={(key) => { const [, building_name, building_dong, unit_number] = key.split("|"); openReaderReference({ kind: "listing", key, name: workPropertyLabel({ building_name, building_dong, unit_number }) }); }} />
           </Suspense>}
-          {readerReference && <ReaderReferencePanel target={readerReference} onClose={closeReaderReference} />}
+          {readerReference && <ReaderReferencePanel target={readerReference} workTypes={lookups.workTypes} onClose={closeReaderReference} />}
         </Modal>
       )}
       {workModal && (
@@ -3290,7 +3298,7 @@ function WorkModal({
         {selectedCustomer && referenceHistory?.kind === "customer" && referenceHistory.id === customerId && (
           <div id="editor-customer-history">
             <Suspense fallback={<p className="form-help" role="status">고객 이력을 준비하고 있습니다…</p>}>
-              <RelatedHistory target={{ kind: "customer", id: selectedCustomer.id, name: selectedCustomer.name }} currentWorkId={item?.id} onClose={closeReferenceHistory} />
+              <RelatedHistory target={{ kind: "customer", id: selectedCustomer.id, name: selectedCustomer.name }} workTypes={lookups.workTypes} currentWorkId={item?.id} onClose={closeReferenceHistory} />
             </Suspense>
           </div>
         )}
@@ -3371,7 +3379,7 @@ function WorkModal({
                 return target?.kind === "listing" && target.key === referenceHistory.key ? (
                   <div id={`editor-listing-history-${index}`}>
                     <Suspense fallback={<p className="form-help" role="status">매물 이력을 준비하고 있습니다…</p>}>
-                      <RelatedHistory target={target} currentWorkId={item?.id} onClose={closeReferenceHistory} />
+                      <RelatedHistory target={target} workTypes={lookups.workTypes} currentWorkId={item?.id} onClose={closeReferenceHistory} />
                     </Suspense>
                   </div>
                 ) : null;
@@ -3716,6 +3724,8 @@ function CustomerModal({
 }
 function HistoryModal({
   data,
+  workTypes = [],
+  onWorkTypeChange,
   onClose,
   onRefresh,
   onOpenWork,
@@ -3726,6 +3736,8 @@ function HistoryModal({
   onCopy,
 }: {
   data: HistoryData;
+  workTypes?: string[];
+  onWorkTypeChange: (value: string) => void;
   onClose: () => void;
   onRefresh: () => void;
   onOpenWork: (id: string) => void;
@@ -3736,11 +3748,16 @@ function HistoryModal({
   onCopy: (id: string) => void;
 }) {
   const RecordContainer = data.listing ? "details" : "div";
-  const records = data.listing ? data.workItems ?? data.items : data.items;
+  const allRecords = data.listing ? data.workItems ?? data.items : data.items;
+  const filterable = Boolean(data.customer || data.listing || data.listingKey);
+  const selectedType = filterable ? data.historyWorkType ?? "" : "";
+  const records = selectedType ? allRecords.filter((record) => ("event_date" in record ? record.status : record.work_type) === selectedType) : allRecords;
+  const availableTypes = [...workTypes, ...allRecords.map((record) => "event_date" in record ? record.status : record.work_type)];
   return (
     <Modal title={data.title} subtitle={data.subtitle} onClose={onClose} reading>
       {data.loading && <p className="form-help" role="status">이력을 불러오고 있습니다…</p>}
       {data.error && <div className="form-error" role="alert"><p>{data.error}</p>{(data.customer || data.listing || data.listingKey || data.date || data.scheduleDays) && <button type="button" className="secondary-button" onClick={onRefresh}><Icon name="refresh" size={16} /> 다시 불러오기</button>}</div>}
+      {filterable && <HistoryWorkTypeFilter value={selectedType} workTypes={availableTypes} count={data.error || (!selectedType && !allRecords.length && data.listing?.source_notes?.trim()) ? undefined : records.length} loading={data.loading} onChange={onWorkTypeChange} />}
       {data.customer && (
         <div className="history-actions">
           <button
@@ -3772,10 +3789,11 @@ function HistoryModal({
               .filter(Boolean)
               .join(" / ") || "가격 미기재"}
           </p>
-          <ListingHistorySummary
+          {!selectedType && <ListingHistorySummary
             events={data.items.filter((item): item is ListingEvent => "event_date" in item)}
             sourceNotes={data.listing.source_notes}
-          />
+          />}
+          {selectedType && <p className="history-list-guide">선택한 업무구분만 표시합니다. 현재 매물 상태·가격은 전체 이력 기준이며, 업무구분을 확인할 수 없는 원본 메모는 전체 보기에서 확인할 수 있습니다.</p>}
         </div>
         <div className="listing-history-actions">
           {onModifyListing && !data.listing.closed_at && (
@@ -3811,12 +3829,12 @@ function HistoryModal({
         </>
       )}
       {data.customer && <p className="history-list-guide">고객ID 또는 물건지·업소가 고객ID와 일치하는 업무입니다.</p>}
-      {(!data.listing || records.length > 0) && <RecordContainer className={data.listing ? "listing-work-details" : undefined}>
+      {(!data.listing || records.length > 0 || selectedType) && <RecordContainer className={data.listing ? "listing-work-details" : undefined} open={data.listing && selectedType ? true : undefined}>
       {data.listing && <summary><Icon name="next" size={16} /> 개별 업무 보기 <span>{records.length.toLocaleString("ko-KR")}건</span></summary>}
-      {records.length > 0 && <p className="history-list-guide">{records.length.toLocaleString("ko-KR")}건의 기록 · {data.listing ? "이 매물이 포함된 전체 업무 · " : ""}기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
+      {records.length > 0 && <p className="history-list-guide">{records.length.toLocaleString("ko-KR")}건의 기록 · {selectedType ? `${selectedType} · ` : data.listing ? "이 매물이 포함된 전체 업무 · " : ""}기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" data-schedule-days={data.scheduleDays} aria-busy={Boolean(data.loading)}>
         {!records.length ? (
-          !data.loading && !data.error ? <EmptyState title={data.emptyMessage || "기록이 없습니다."} /> : null
+          !data.loading && !data.error ? <EmptyState title={data.emptyMessage || (selectedType ? `${selectedType} 업무 이력이 없습니다. 다른 업무구분을 선택하거나 전체 보기를 눌러 주세요.` : "기록이 없습니다.")} /> : null
         ) : (
           records.map((raw) => {
             const isEvent = "event_date" in raw;
@@ -3979,13 +3997,13 @@ function Modal({
     </div>
   );
 }
-function ReaderReferencePanel({ target, onClose }: { target: RelatedHistoryTarget; onClose: () => void }) {
+function ReaderReferencePanel({ target, workTypes, onClose }: { target: RelatedHistoryTarget; workTypes: string[]; onClose: () => void }) {
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     panel.current?.scrollIntoView({ block: "start" });
     panel.current?.focus({ preventScroll: true });
   }, [target]);
-  return <div ref={panel} tabIndex={-1} aria-label="선택한 관련 이력"><Suspense fallback={<p role="status">관련 이력을 준비하고 있습니다…</p>}><RelatedHistory target={target} onClose={onClose} /></Suspense></div>;
+  return <div ref={panel} tabIndex={-1} aria-label="선택한 관련 이력"><Suspense fallback={<p role="status">관련 이력을 준비하고 있습니다…</p>}><RelatedHistory target={target} workTypes={workTypes} onClose={onClose} /></Suspense></div>;
 }
 function EmptyState({ title }: { title: string }) {
   return (

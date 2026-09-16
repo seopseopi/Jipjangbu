@@ -8,6 +8,7 @@ import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { HistoryWorkTypeFilter } from "./helpers/history-work-type-filter.mjs";
 
 // Exercise the real parent modal plus its real summary, with no requests and
 // entirely synthetic notes. The main memo retains every event in business-date
@@ -22,7 +23,7 @@ const code = ts.transpileModule(node.getText(ast), {
 const environment = {
   React, Modal: ({ children }) => children, Icon: () => null, EmptyState: "aside",
   targetText: workPropertyLabel, displayDate: (value) => value.replaceAll("-", "."), statusTone: () => "normal",
-  getWorkProperties, workPropertyLabel, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp,
+  getWorkProperties, workPropertyLabel, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp, HistoryWorkTypeFilter,
 };
 const HistoryModal = new Function(...Object.keys(environment), `${code}; return HistoryModal;`)(...Object.values(environment));
 const markup = (element) => renderToStaticMarkup(element);
@@ -70,6 +71,64 @@ function timeline(tree) {
   assert.ok(list);
   return React.Children.toArray(list.props.children).filter(React.isValidElement);
 }
+
+test("고객 이력은 전체 데이터에서 정확한 업무구분만 추려 원순서·읽기 동작·건수를 유지한다", () => {
+  const works = Array.from({ length: 1003 }, (_, index) => ({ id: `work-${index}`, work_date: "2026-09-16", work_type: index >= 1000 ? "집방문" : "집방문예약", content: `합성 내용 ${index}`, customer_name: "합성 고객", customer_id: "합성ID" }));
+  const snapshot = JSON.stringify(works);
+  const opened = [];
+  const tree = history({ listing: undefined, customer: { id: "합성ID", name: "합성 고객" }, items: works, historyWorkType: "집방문" }, { onOpenWork: (id) => opened.push(id) });
+  const rows = timeline(tree);
+  assert.equal(rows.length, 3);
+  rows.forEach((row) => row.props.onClick());
+  assert.deepEqual(opened, ["work-1000", "work-1001", "work-1002"]);
+  const filter = descendants(tree).find((item) => item.type === HistoryWorkTypeFilter);
+  assert.equal(filter.props.count, 3);
+  assert.equal(filter.props.value, "집방문");
+  assert.equal(JSON.stringify(works), snapshot);
+});
+
+test("매물 업무구분 조회는 상태 이벤트에 없는 전화도 표시하고 현재 가격·원본을 수정하지 않는다", () => {
+  const works = [
+    { id: "call", work_date: "2026-09-16", work_type: "전화", content: "합성 전화 내용", customer_name: "합성 고객" },
+    { id: "registration", work_date: "2026-09-15", work_type: "매물등록", content: "다른 구분 내용", customer_name: "합성 고객" },
+  ];
+  const snapshot = JSON.stringify(listing);
+  const tree = history({ workItems: works, historyWorkType: "전화" });
+  const html = markup(tree);
+  assert.match(html, /합성 전화 내용/);
+  assert.equal(html.split("합성 전화 내용").length - 1, 1, "filtered content is not duplicated in a second memo");
+  assert.doesNotMatch(html, /다른 구분 내용|엑셀에 남아 있는 합성 원본 메모/);
+  assert.match(html, /현재 매물.*매물등록.*매매 35000/);
+  assert.equal(byClass(tree, "listing-work-details")[0].props.open, true);
+  assert.equal(timeline(tree).length, 1);
+  assert.equal(JSON.stringify(listing), snapshot);
+  const all = history({ workItems: works, historyWorkType: "" });
+  assert.equal(timeline(all).length, 2);
+  assert.equal(summary(all).element.props.sourceNotes, listing.source_notes);
+});
+
+test("해당 구분 0건에서도 필터를 유지하고 전체 보기로 복귀할 수 있다", () => {
+  for (const data of [
+    { listing: undefined, customer: { id: "합성ID", name: "합성 고객" }, items: [] },
+    { listing, workItems: [] },
+  ]) {
+    const changes = [];
+    const tree = history({ ...data, historyWorkType: "집방문" }, { onWorkTypeChange: (value) => changes.push(value) });
+    const filter = descendants(tree).find((item) => item.type === HistoryWorkTypeFilter);
+    assert.equal(filter.props.count, 0);
+    assert.match(markup(tree), /집방문 업무 이력이 없습니다/);
+    filter.props.onChange("");
+    assert.deepEqual(changes, [""]);
+    if (data.listing) assert.equal(byClass(tree, "listing-work-details")[0].props.open, true);
+  }
+});
+
+test("오늘 업무·날짜·예정 일정에는 고객·매물 전용 필터가 끼어들지 않는다", () => {
+  for (const extra of [{ date: "2026-09-16" }, { scheduleDays: 7 }, { sort: "updated" }]) {
+    const tree = history({ listing: undefined, items: [], ...extra });
+    assert.equal(descendants(tree).some((item) => item.type === HistoryWorkTypeFilter), false);
+  }
+});
 
 test("상단 전체 매물 이력은 미래 일정과 과거 업무 수정 내용을 모두 API 업무일 순서 그대로 한 본문에 표시한다", () => {
   const items = Object.freeze([Object.freeze({ ...future }), Object.freeze({ ...edited })]);

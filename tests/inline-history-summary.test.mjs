@@ -5,6 +5,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { HistoryWorkTypeFilter } from "./helpers/history-work-type-filter.mjs";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 import { createHistoryRequestScope, HISTORY_PAGE_SIZE, historyQueryUrl, mergeHistoryRecords, retryInterruptedHistoryRead } from "../app/history-query.ts";
@@ -20,15 +21,15 @@ function compile(names, environment) {
   const compiled = ts.transpileModule(declarations.join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React } }).outputText.replace(/^export /gm, "");
   return new Function(...Object.keys(environment), `${compiled}; return ${names.at(-1)};`)(...Object.values(environment));
 }
-const shared = { React, Icon: () => null, ListingHistorySummary, WorkSummaryProperties, formatHistoryTimestamp };
+const shared = { React, Icon: () => null, ListingHistorySummary, WorkSummaryProperties, formatHistoryTimestamp, HistoryWorkTypeFilter };
 const Row = compile(["HistoryRecordRow"], { ...shared, useId: React.useId, useState: React.useState });
 const markup = (tree) => renderToStaticMarkup(tree);
 function descendants(element) {
   if (!React.isValidElement(element)) return [];
   return [element, ...React.Children.toArray(element.props.children).flatMap(descendants)];
 }
-function panelHarness(target, read) {
-  const states = [], effects = [], cleanups = [], requests = [];
+function panelHarness(target, read, workTypes = ["전화", "집방문", "매물등록", "매물수정", "잔금예정"]) {
+  const states = [], effects = [], cleanups = new Map(), requests = [];
   let cursor = 0;
   const useState = (initial) => {
     const index = cursor++;
@@ -40,20 +41,30 @@ function panelHarness(target, read) {
     if (!(index in states)) states[index] = { current: initial };
     return states[index];
   };
-  const useEffect = (effect) => {
+  const sameDeps = (a, b) => a && b && a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
+  const useCallback = (callback, deps) => {
     const index = cursor++;
-    if (!(index in states)) { states[index] = true; effects.push(effect); }
+    if (!sameDeps(states[index]?.deps, deps)) states[index] = { deps, callback };
+    return states[index].callback;
+  };
+  const useEffect = (effect, deps) => {
+    const index = cursor++;
+    if (!sameDeps(states[index]?.deps, deps)) {
+      states[index] = { deps };
+      effects.push(() => { cleanups.get(index)?.(); cleanups.set(index, effect()); });
+    }
   };
   const Panel = compile(["errorMessage", "HistoryPanel"], {
-    ...shared, useState, useRef, useEffect, useId: () => "synthetic-panel", useCallback: (callback) => callback,
+    ...shared, useState, useRef, useEffect, useId: () => "synthetic-panel", useCallback,
     createHistoryRequestScope, HISTORY_PAGE_SIZE, historyQueryUrl, mergeHistoryRecords, retryInterruptedHistoryRead, HistoryRecordRow: Row,
     clientJsonFetch: (url, options) => { requests.push({ url, options }); return read(url, options); },
   });
-  const render = () => { cursor = 0; return Panel({ target, onClose() {} }); };
+  const render = () => { cursor = 0; return Panel({ target, workTypes, onClose() {} }); };
+  const settle = async () => { render(); for (const effect of effects.splice(0)) effect(); await new Promise((resolve) => setImmediate(resolve)); return render(); };
   return {
     render, requests,
-    async mount() { render(); for (const effect of effects.splice(0)) cleanups.push(effect()); await new Promise((resolve) => setImmediate(resolve)); return render(); },
-    async settle() { await new Promise((resolve) => setImmediate(resolve)); return render(); },
+    mount: settle,
+    settle,
     dispose() { cleanups.forEach((cleanup) => cleanup?.()); },
   };
 }
@@ -212,4 +223,136 @@ test("펼친 저장 업무도 업무일과 실제 저장시각을 따로 보여�
     assert.doesNotMatch(html, /한국\s*시간/);
     if (updated_at) assert.match(html, /2026\.09\.13 10:02/);
   }
+});
+
+const filterControl = (tree) => descendants(tree).find((item) => item.type === HistoryWorkTypeFilter);
+const historyRows = (tree) => descendants(tree).filter((item) => item.type === Row);
+const moreButton = (tree) => descendants(tree).find((item) => item.type === "button" && markup(item).includes("10건 더 보기"));
+const savedWork = (id, work_type = "전화") => ({ id, work_type, work_date: "2026-09-16", customer_name: "합성 고객", customer_id: "합성ID", content: `합성 메모 ${id}`, property_count: 0 });
+
+test("보조 매물 구분 선택은 첫 10건 밖의 업무도 필터하고 더보기·원문·전체 복귀를 유지한다", async (t) => {
+  const works = Array.from({ length: 24 }, (_, index) => savedWork(`record-${index}`, index < 11 ? "전화" : "집방문"));
+  const snapshot = JSON.stringify(works);
+  const h = panelHarness(listingTarget, async () => ({ listing: { source_notes: "합성 원본" }, events, workLogs: works }));
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  filterControl(tree).props.onChange("집방문");
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 13);
+  assert.equal(historyRows(tree).length, 10);
+  assert.equal(historyRows(tree)[0].props.record.workId, "record-11");
+  assert(historyRows(tree).every((item) => item.props.record.workType === "집방문"));
+  assert.equal(descendants(tree).some((item) => item.type === ListingHistorySummary), false, "no duplicate memo above filtered records");
+  assert.equal(descendants(tree).find((item) => item.props.className === "listing-individual-records").props.open, true);
+  moreButton(tree).props.onClick();
+  tree = h.render();
+  assert.equal(historyRows(tree).length, 13);
+  assert.equal(moreButton(tree), undefined);
+  filterControl(tree).props.onChange("");
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 24);
+  assert.equal(historyRows(tree).length, 10, "reset also resets the visible page");
+  assert.equal(descendants(tree).find((item) => item.type === ListingHistorySummary).props.sourceNotes, "합성 원본");
+  assert.equal(h.requests.length, 1, "listing filter reuses the full read snapshot");
+  assert.equal(JSON.stringify(works), snapshot);
+});
+
+test("보조 고객 이력은 현재 페이지 밖의 업무구분을 서버에서 조회하고 다음 페이지에도 조건을 보낸다", async (t) => {
+  const works = Array.from({ length: 23 }, (_, index) => savedWork(`record-${index}`, index < 11 ? "전화" : "집방문"));
+  const h = panelHarness(customerTarget, async (url) => {
+    const params = new URL(url, "https://test.invalid").searchParams;
+    assert.equal(params.get("includeSource"), "1");
+    const records = params.get("workType") ? works.filter((work) => work.work_type === params.get("workType")) : works;
+    const offset = Number(params.get("offset"));
+    return { workLogs: records.slice(offset, offset + 10), total: records.length };
+  });
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  assert.equal(filterControl(tree).props.count, 23);
+  assert(filterControl(tree).props.workTypes.includes("집방문"));
+  filterControl(tree).props.onChange("집방문");
+  tree = h.render();
+  assert.equal(historyRows(tree).length, 0, "hide old records immediately");
+  assert.equal(filterControl(tree).props.count, undefined);
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 12);
+  assert.equal(historyRows(tree).length, 10);
+  moreButton(tree).props.onClick();
+  tree = await h.settle();
+  assert.equal(historyRows(tree).length, 12);
+  assert(historyRows(tree).every((item) => item.props.record.workType === "집방문"));
+  const page = new URL(h.requests.at(-1).url, "https://test.invalid").searchParams;
+  assert.equal(page.get("workType"), "집방문");
+  assert.equal(page.get("offset"), "10");
+  filterControl(tree).props.onChange("");
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 23);
+  assert.equal(historyRows(tree).length, 10);
+  const reset = new URL(h.requests.at(-1).url, "https://test.invalid").searchParams;
+  assert.equal(reset.has("workType"), false);
+  assert.equal(reset.get("offset"), "0");
+});
+
+test("보조 고객 더보기 도중 구분을 바꾸면 취소를 무시한 이전 응답도 새 목록에 섞이지 않는다", async (t) => {
+  let finishOldPage;
+  const h = panelHarness(customerTarget, async (url) => {
+    const params = new URL(url, "https://test.invalid").searchParams;
+    if (params.get("workType")) return { workLogs: [], total: 0 };
+    if (params.get("offset") === "10") return new Promise((resolve) => { finishOldPage = resolve; });
+    return { workLogs: Array.from({ length: 10 }, (_, i) => savedWork(`old-${i}`)), total: 20 };
+  });
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  moreButton(tree).props.onClick();
+  const oldRequest = h.requests.at(-1);
+  filterControl(h.render()).props.onChange("집방문");
+  assert.equal(oldRequest.options.signal.aborted, true);
+  tree = await h.settle();
+  finishOldPage({ workLogs: [savedWork("late-old")], total: 20 });
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.value, "집방문");
+  assert.equal(filterControl(tree).props.count, 0);
+  assert.equal(historyRows(tree).length, 0);
+  assert.match(markup(tree), /집방문 업무 이력이 없습니다/);
+  assert.equal(moreButton(tree), undefined);
+});
+
+test("보조 고객 필터 조회 실패는 0건과 구분하고 같은 조건의 재시도를 지원한다", async (t) => {
+  let fail = true;
+  const h = panelHarness(customerTarget, async (url) => {
+    const params = new URL(url, "https://test.invalid").searchParams;
+    if (params.get("workType") === "집방문") {
+      if (fail) throw new Error("합성 통신 오류");
+      assert.equal(params.get("offset"), "0");
+      return { workLogs: [savedWork("visit", "집방문")], total: 1 };
+    }
+    return { workLogs: [savedWork("call")], total: 1 };
+  });
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  filterControl(tree).props.onChange("집방문");
+  tree = await h.settle();
+  assert.match(markup(tree), /합성 통신 오류/);
+  assert.doesNotMatch(markup(tree), /조회 0건|업무 이력이 없습니다/);
+  assert.equal(historyRows(tree).length, 0);
+  fail = false;
+  descendants(tree).find((item) => item.type === "button" && markup(item).includes("다시 불러오기")).props.onClick();
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.value, "집방문");
+  assert.equal(filterControl(tree).props.count, 1);
+  assert.equal(historyRows(tree)[0].props.record.workId, "visit");
+});
+
+test("보조 매물에 없는 구분은 빈 결과를 명시하고 전체로 되돌리면 원본만 있는 메모도 복구한다", async (t) => {
+  const h = panelHarness(listingTarget, async () => ({ listing: { source_notes: "유형 미확인 합성 메모" }, events: [], workLogs: [] }));
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  filterControl(tree).props.onChange("집방문");
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 0);
+  assert.match(markup(tree), /집방문 업무 이력이 없습니다/);
+  assert.doesNotMatch(markup(tree), /유형 미확인 합성 메모/);
+  filterControl(tree).props.onChange("");
+  tree = await h.settle();
+  assert.match(markup(tree), /유형 미확인 합성 메모/);
 });

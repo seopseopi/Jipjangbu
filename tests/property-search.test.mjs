@@ -118,6 +118,32 @@ async function response(route, path, params) {
   return body;
 }
 const journal = (params = {}) => response(workRoute, "work-logs", params);
+
+test("고객 이력의 업무구분은 고객ID·물건지 연결 모두에 적용하고 중복 없이 전체 건수와 다음 페이지를 반환한다", async (t) => {
+  const data = database(t);
+  data.customer("customer", "합성 고객");
+  data.customer("other", "다른 합성 고객");
+  for (let index = 0; index < 13; index++) {
+    data.work(`call-${index}`, { customerId: index % 2 ? "other" : "customer", type: "전화" });
+    data.property(`p-${index}`, `call-${index}`, { source: "customer" });
+    data.property(`duplicate-${index}`, `call-${index}`, { sequence: 2, source: "customer" });
+  }
+  data.work("visit", { type: "집방문" });
+  data.work("source-visit", { customerId: "other", type: "집방문" });
+  data.property("source-visit-p", "source-visit", { source: "customer" });
+  data.work("unrelated", { customerId: "other", type: "전화" });
+  const params = { customerId: "customer", includeSource: "1", workType: "전화", limit: "10" };
+  const first = await journal(params), second = await journal({ ...params, offset: "10" });
+  assert.equal(first.total, 13);
+  assert.equal(second.total, 13);
+  assert.equal(first.workLogs.length, 10);
+  assert.equal(second.workLogs.length, 3);
+  assert.equal(new Set([...first.workLogs, ...second.workLogs].map((work) => work.id)).size, 13);
+  assert([...first.workLogs, ...second.workLogs].every((work) => work.work_type === "전화"));
+  assert.equal((await journal({ ...params, workType: "집방문" })).total, 2);
+  assert.equal((await journal({ ...params, workType: "전화예약" })).total, 0);
+  assert.equal((await journal({ ...params, workType: "" })).total, 15);
+});
 async function allSurfaces(q) {
   const [work, global, listings, tasks] = await Promise.all([
     journal({ q }), response(searchRoute, "search", { q }),

@@ -9,6 +9,7 @@ import { getWorkProperties, workPropertyLabel } from "../app/work-property-summa
 import { getPropertyDisplayGroups } from "../app/property-display.ts";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { HistoryWorkTypeFilter } from "./helpers/history-work-type-filter.mjs";
 import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 
 // Render and execute actual production reading components with synthetic work.
@@ -23,8 +24,8 @@ function compile(names) {
   const compiled = ts.transpileModule(declarations.join("\n"), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
   }).outputText;
-  return new Function("React", "Modal", "Icon", "workTypeIcon", "getWorkProperties", "workPropertyLabel", "getPropertyDisplayGroups", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", `${compiled}; return ${names.at(-1)};`)(
-    React, ({ children }) => children, () => null, () => "journal", getWorkProperties, workPropertyLabel, getPropertyDisplayGroups, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp,
+  return new Function("React", "Modal", "Icon", "workTypeIcon", "getWorkProperties", "workPropertyLabel", "getPropertyDisplayGroups", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", "HistoryWorkTypeFilter", `${compiled}; return ${names.at(-1)};`)(
+    React, ({ children }) => children, () => null, () => "journal", getWorkProperties, workPropertyLabel, getPropertyDisplayGroups, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp, HistoryWorkTypeFilter,
   );
 }
 const helpers = ["displayDate", "targetText", "statusTone", "EmptyState"];

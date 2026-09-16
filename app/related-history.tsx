@@ -5,6 +5,7 @@ import { clientJsonFetch } from "./client-api";
 import { Icon } from "./icons";
 import { WorkSummaryProperties } from "./work-summary-properties";
 import { ListingHistorySummary } from "./listing-history-summary";
+import { HistoryWorkTypeFilter } from "./history-work-type-filter";
 import { formatHistoryTimestamp } from "./history-timestamps";
 import {
   createHistoryRequestScope,
@@ -111,10 +112,12 @@ function priceLabel(property: SavedProperty) {
 
 export function RelatedHistory({
   target,
+  workTypes,
   currentWorkId,
   onClose,
 }: {
   target: RelatedHistoryTarget;
+  workTypes?: string[];
   currentWorkId?: string;
   onClose: () => void;
 }) {
@@ -123,6 +126,7 @@ export function RelatedHistory({
     <HistoryPanel
       key={historyTargetKey(target)}
       target={target}
+      workTypes={workTypes}
       currentWorkId={currentWorkId}
       onClose={onClose}
     />
@@ -131,10 +135,12 @@ export function RelatedHistory({
 
 function HistoryPanel({
   target,
+  workTypes = [],
   currentWorkId,
   onClose,
 }: {
   target: RelatedHistoryTarget;
+  workTypes?: string[];
   currentWorkId?: string;
   onClose: () => void;
 }) {
@@ -144,8 +150,9 @@ function HistoryPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [visibleCount, setVisibleCount] = useState(HISTORY_PAGE_SIZE);
-  const baseUrl = historyQueryUrl(target);
+  const [workType, setWorkType] = useState("");
   const isListing = target.kind === "listing";
+  const baseUrl = historyQueryUrl(target, 0, isListing ? "" : workType);
 
   const load = useCallback(
     async (scope: RequestScope, offset: number) => {
@@ -257,12 +264,29 @@ function HistoryPanel({
     };
   }, [load]);
 
-  const visibleRecords = isListing
-    ? (data?.records ?? []).slice(0, visibleCount)
+  const matchingRecords = isListing && workType
+    ? (data?.records ?? []).filter((record) => record.workType === workType)
     : (data?.records ?? []);
+  const total = isListing ? matchingRecords.length : data?.total;
+  const visibleRecords = isListing ? matchingRecords.slice(0, visibleCount) : matchingRecords;
   const canShowMore = isListing
-    ? visibleRecords.length < (data?.records.length ?? 0)
+    ? visibleRecords.length < matchingRecords.length
     : Boolean(data?.hasMore);
+
+  function changeWorkType(next: string) {
+    if (next === workType) return;
+    if (!isListing) {
+      // Abort before state changes; even an abort-ignoring old page cannot leak
+      // into the new filter. The new query starts from offset zero in the effect.
+      scopeRef.current?.dispose();
+      scopeRef.current = null;
+      setData(null);
+      setLoading(true);
+      setError("");
+    }
+    setVisibleCount(HISTORY_PAGE_SIZE);
+    setWorkType(next);
+  }
 
   function requestMore() {
     if (loading || !scopeRef.current) return;
@@ -291,7 +315,7 @@ function HistoryPanel({
       <button type="button" className="secondary-button" onClick={requestMore} disabled={loading}>
         <Icon name="plus" size={18} />
         {loading ? "불러오는 중…" : `${HISTORY_PAGE_SIZE}건 더 보기`}
-        {data && ` (${visibleRecords.length}/${data.total})`}
+        {data && ` (${visibleRecords.length}/${total})`}
       </button>
     )}
   </>;
@@ -319,12 +343,14 @@ function HistoryPanel({
           <Icon name="close" size={18} /> 닫기
         </button>
       </div>
+      <HistoryWorkTypeFilter value={workType} workTypes={[...workTypes, ...(data?.records ?? []).map((record) => record.workType)]} count={data && !error && !(!workType && isListing && !data.records.length && data.sourceNotes.trim()) ? total : undefined} loading={loading && !data} onChange={changeWorkType} />
       {data && !isListing && (
         <p className="related-history-summary">
           총 {data.total.toLocaleString("ko-KR")}건 · 업무일 최신순 · 고객ID 또는 물건지·업소 일치
         </p>
       )}
-      {isListing && data && <ListingHistorySummary events={data.listingEvents} sourceNotes={data.sourceNotes} />}
+      {isListing && data && !workType && <ListingHistorySummary events={data.listingEvents} sourceNotes={data.sourceNotes} />}
+      {isListing && workType && <p className="related-history-summary">선택한 업무구분만 표시합니다. 업무구분을 확인할 수 없는 원본 메모는 전체 보기에서 확인할 수 있습니다.</p>}
       {loading && !data && (
         <p className="related-history-status" role="status">
           저장된 이력을 불러오는 중입니다…
@@ -349,16 +375,16 @@ function HistoryPanel({
           </button>
         </div>
       )}
-      {data && !data.records.length && !error && (
-        <p className="related-history-status">
-          {isListing
+      {data && !matchingRecords.length && !error && (
+        <p className="related-history-status" role="status">
+          {workType ? `${workType} 업무 이력이 없습니다. 다른 업무구분을 선택하거나 전체 보기를 눌러 주세요.` : isListing
             ? data.sourceNotes.trim() ? "연결된 개별 업무 기록은 없습니다." : "이 물건에 저장된 매물 변경 이력이 없습니다."
             : "이 고객에게 저장된 업무 이력이 없습니다."}
         </p>
       )}
       {isListing && visibleRecords.length > 0 ? (
-        <details className="listing-individual-records">
-          <summary><Icon name="next" size={16} /> 개별 업무 보기 · {data?.total.toLocaleString("ko-KR")}건</summary>
+        <details className="listing-individual-records" open={workType ? true : undefined}>
+          <summary><Icon name="next" size={16} /> 개별 업무 보기 · {total?.toLocaleString("ko-KR")}건</summary>
           {recordList}
         </details>
       ) : recordList}

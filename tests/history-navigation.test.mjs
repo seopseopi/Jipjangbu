@@ -130,6 +130,34 @@ test("deleting a listing's last event clears obsolete history but leaves its tar
   assert.match(state.current.emptyMessage, /남아 있는 매물 이력이 없습니다.*휴지통/);
 });
 
+test("고객·매물 이력 새로고침은 조회 구분을 유지하고 새 대상을 열 때 전체로 초기화한다", async () => {
+  const customer = { id: "a", name: "합성 고객" };
+  const key = "아파트|합성단지||101";
+  for (const kind of ["customer", "listing"]) {
+    const state = stateBox({ customer: kind === "customer" ? customer : undefined, listing: kind === "listing" ? { identity_key: key } : undefined, listingKey: kind === "listing" ? key : undefined, items: [], historyWorkType: "전화" });
+    const environment = { historyOpenVersion: { current: 0 }, setGlobalSearchOpen() {}, setHistoryModal: state.set,
+      fetchAllWorkLogs: async () => [{ id: "changed", work_type: "집방문" }],
+      jsonFetch: async () => ({ listing: { identity_key: key }, events: [], workLogs: [] }), targetText: () => "합성 매물" };
+    const open = handler(kind === "customer" ? "showCustomerHistory" : "showListingByKey", environment);
+    const target = kind === "customer" ? customer : key;
+    await open(target, true);
+    assert.equal(state.current.historyWorkType, "전화", "even if the last matching record changed type");
+    await open(target);
+    assert.equal(state.current.historyWorkType, "");
+  }
+});
+
+test("이력 새로고침 중 바꾼 조회 구분을 늦게 도착한 결과가 되돌리지 않는다", async () => {
+  const customer = { id: "a", name: "합성 고객" }, pending = deferred();
+  const state = stateBox({ customer, items: [], historyWorkType: "전화" });
+  const open = handler("showCustomerHistory", { historyOpenVersion: { current: 0 }, setGlobalSearchOpen() {}, setHistoryModal: state.set, fetchAllWorkLogs: () => pending.promise });
+  const task = open(customer, true);
+  state.set((current) => ({ ...current, historyWorkType: "집방문" }));
+  pending.resolve([]);
+  await task;
+  assert.equal(state.current.historyWorkType, "집방문");
+});
+
 test("work table and editor expose separate history controls without nested buttons or submit side effects", () => {
   const table = source.slice(source.indexOf("function WorkTable("), source.indexOf("function ListingsView("));
   assert.match(table, /className="table-row work-record-row"/);

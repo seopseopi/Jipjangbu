@@ -7,6 +7,7 @@ import ts from "typescript";
 import { getWorkProperties, workPropertyLabel } from "../app/work-property-summary.ts";
 import { WorkSummaryProperties } from "./helpers/work-summary-properties.mjs";
 import { ListingHistorySummary } from "./helpers/listing-history-summary.mjs";
+import { HistoryWorkTypeFilter } from "./helpers/history-work-type-filter.mjs";
 import { formatHistoryTimestamp } from "../app/history-timestamps.ts";
 
 // Exercise the actual modal markup without a browser or real customer records.
@@ -17,9 +18,9 @@ assert.ok(declaration, "HistoryModal exists");
 const compiled = ts.transpileModule(declaration.getText(ast), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext, jsx: ts.JsxEmit.React },
 }).outputText;
-const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", `${compiled}; return HistoryModal;`)(
+const HistoryModal = new Function("React", "Modal", "Icon", "EmptyState", "targetText", "displayDate", "statusTone", "getWorkProperties", "workPropertyLabel", "WorkSummaryProperties", "ListingHistorySummary", "formatHistoryTimestamp", "HistoryWorkTypeFilter", `${compiled}; return HistoryModal;`)(
   React, ({ children }) => children, "span", "aside", () => "예시 매물",
-  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp,
+  (date) => `표시 날짜 ${date}`, (status) => `tone-${status}`, getWorkProperties, workPropertyLabel, WorkSummaryProperties, ListingHistorySummary, formatHistoryTimestamp, HistoryWorkTypeFilter,
 );
 
 function elements(children) {

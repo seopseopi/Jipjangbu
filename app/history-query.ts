@@ -37,6 +37,7 @@ export function historyTargetKey(target: RelatedHistoryTarget): string {
 export function historyQueryUrl(
   target: RelatedHistoryTarget,
   offset = 0,
+  workType = "",
 ): string {
   if (target.kind === "listing") {
     return `/api/listings/${encodeURIComponent(target.key)}`;
@@ -47,6 +48,7 @@ export function historyQueryUrl(
     limit: String(HISTORY_PAGE_SIZE),
     offset: String(Math.max(0, Math.floor(offset))),
   });
+  if (workType) params.set("workType", workType);
   return `/api/work-logs?${params}`;
 }
 
