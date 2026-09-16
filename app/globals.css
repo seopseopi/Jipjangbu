@@ -62,7 +62,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
 .brand-button { width: 100%; min-height: 52px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; }
 @media (hover: hover) { .brand-button:hover { background: var(--wash); } }
-.brand-mark, .login-logo { display: block; flex: 0 0 auto; width: 28px; height: 28px; background: url("/jipjangbu-logo.png") center/contain no-repeat; }
+.brand-mark, .login-logo { display: block; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 4px; background: #fff url("/jipjangbu-logo.png?v=20260916-light") center/contain no-repeat; }
 .brand strong { display: block; color: var(--green); font-size: 20px; font-weight: 700; letter-spacing: -.045em; line-height: 1.2; }
 .sidebar nav { display: grid; gap: 1px; margin-top: 20px; }
 .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 40px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); text-align: left; font-size: var(--text-base); font-weight: 500; }

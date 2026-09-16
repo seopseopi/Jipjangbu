@@ -19,11 +19,11 @@
 
 ## 앱 로고
 
-<img src="jipjangbu-mark.svg" alt="집장부 기호" width="48" /> &nbsp; <img src="jipjangbu-mark-tile.svg" alt="집장부 앱 아이콘" width="48" />
+<img src="jipjangbu-mark-tile.svg" alt="밝은 배경의 집장부 로고" width="48" />
 
 - 기호: ㅈ을 집 모양으로 그렸습니다. 위 막대는 용마루, 아래는 경사 지붕입니다. 48칸 격자 위의 도형 두 개로만 이루어집니다.
 - 조합: 기호 오른쪽에 "집장부" 글자(IBM Plex Sans KR Bold, 자간 -0.045em)를 둡니다. 앱 사이드바와 로그인 화면은 이 조합을 CSS로 구성합니다.
-- 색: 네이비 `#13254a` 한 가지입니다. 앱의 주요 버튼도 같은 색을 씁니다. 어두운 배경에서는 흰색 기호를 씁니다.
-- 파일: [`jipjangbu-mark.svg`](jipjangbu-mark.svg)(기호) · [`jipjangbu-mark-tile.svg`](jipjangbu-mark-tile.svg)(네이비 타일, 앱 아이콘)
+- 색: 기호와 주요 버튼은 네이비 `#13254a`입니다. README·파비콘·홈 화면 아이콘에는 흰색 배경과 연한 테두리를 넣어 밝은 화면과 다크 모드에서 모두 기호가 보이도록 합니다. 앱의 사이드바·로그인 기호에도 흰색 배경을 둡니다.
+- 파일: [`jipjangbu-mark.svg`](jipjangbu-mark.svg)(투명 배경의 원본 기호) · [`jipjangbu-mark-tile.svg`](jipjangbu-mark-tile.svg)(흰색 타일, README·앱 아이콘)
 - 앱에서 쓰는 PNG: `public/jipjangbu-logo.png`(512px 기호, 사이드바·로그인), `public/jipjangbu-icon-bright.png`(192px 타일, 파비콘·홈 화면 아이콘), `public/jipjangbu-icon.png`(96px 타일)
-- 수정 방법: [`scripts/make_logo.py`](../../scripts/make_logo.py)의 좌표나 색을 고친 뒤 `python3 scripts/make_logo.py`를 실행하면 PNG와 SVG를 함께 다시 만듭니다(Pillow 필요). PNG 파일 이름은 로그인 전에도 열리도록 `worker/security.ts`에 등록되어 있으니 바꾸지 마세요.
+- 수정 방법: [`scripts/make_logo.py`](../../scripts/make_logo.py)의 좌표나 색을 고친 뒤 `python3 scripts/make_logo.py`를 실행하면 PNG와 SVG(`public/favicon.svg` 포함)를 함께 다시 만듭니다(Pillow 필요). PNG 파일 이름은 로그인 전에도 열리도록 `worker/security.ts`에 등록되어 있으니 바꾸지 마세요. 파비콘을 변경할 때는 `app/layout.tsx`의 이미지 버전도 갱신해 기존 브라우저 캐시와 구분합니다.
