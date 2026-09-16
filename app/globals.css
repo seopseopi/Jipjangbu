@@ -1,10 +1,12 @@
 @import "tailwindcss";
+@import "./fonts.css";
 
 /* A quiet, neutral palette: white sheets on light gray, the brand navy for the logo and
    primary actions, and color only where it carries meaning (search matches, danger, work types).
    --green* names are kept for existing references; they now hold the brand navy. */
 :root {
   color-scheme: light;
+  --font-korean: "Noto Sans KR";
   --ink: #101828;
   --ink-2: #263445;
   --muted: #3f4e63;
@@ -155,7 +157,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .responsive-table { overflow-x: auto; scrollbar-color: var(--line-strong) transparent; }
 .table-head, .table-row { display: grid; align-items: center; gap: 18px; min-width: 810px; padding: 0 22px; }
 .work-table .table-head, .work-table .table-row { grid-template-columns: 104px 105px minmax(130px, .75fr) minmax(185px, 1.1fr) minmax(200px, 1.4fr); }
-.listing-table .table-head, .listing-table .table-row { grid-template-columns: minmax(115px, .7fr) minmax(205px, 1.3fr) 103px minmax(145px, 1fr) minmax(126px, .7fr); }
+.listing-table .table-head, .listing-table .table-row { grid-template-columns: minmax(115px, .7fr) minmax(205px, 1.3fr) 110px minmax(145px, 1fr) minmax(152px, .7fr); }
+.listing-table .record-date { white-space: nowrap; }
 .listing-sort-button { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-weight: 600; text-align: left; }
 .listing-sort-button:hover { background: var(--tint); color: var(--ink); }
 .listing-sort-button.is-selected { color: var(--ink); }

@@ -81,7 +81,7 @@ test("요약의 오늘 업무·7일 일정 버튼은 팝업을 열고 매물·�
   const tree = render({ onNavigate: (view) => navigated.push(view), onOpenToday: () => today.push(true), onOpenSchedule: () => scheduled.push(7) });
   for (const label of ["전체 매물 보기", "고객 목록 보기", "전체 보기"]) button(tree, label).props.onClick();
   assert.deepEqual(navigated, ["listings", "customers", "journal"]);
-  button(tree, "업무일이 오늘인 기록").props.onClick();
+  button(tree, "오늘 업무 보기").props.onClick();
   assert.deepEqual(today, [true]);
   button(tree, "7일 일정 확인").props.onClick();
   assert.deepEqual(scheduled, [7]);

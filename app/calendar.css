@@ -1,4 +1,6 @@
-/* Keep the month grid on desktop; use a readable agenda without horizontal panning on mobile. */
+/* Dense month cells share a compact type scale; tablets use a full-width agenda. */
+.calendar-desktop-panel { --text-base: 15px; }
+html[data-readable="true"] .calendar-desktop-panel { --text-base: 17px; }
 .calendar-agenda { display: none; }
 .calendar-controls > button:disabled { opacity: .45; cursor: not-allowed; }
 .calendar-cell button .calendar-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
@@ -10,7 +12,7 @@
 .calendar-card-subjects > small + small, .calendar-card-properties > small + small { padding-top: 5px; border-top: 1px solid var(--line); }
 .calendar-card-properties { border-top: 1px solid var(--line); padding-top: 5px; font-weight: 500; }
 
-@media (max-width: 720px) {
+@media (max-width: 1180px) {
   .calendar-panel.calendar-desktop-panel { display: none; }
   .calendar-agenda { display: block; min-width: 0; }
   .calendar-agenda-day { min-width: 0; padding: 18px; border-bottom: 1px solid var(--line); }

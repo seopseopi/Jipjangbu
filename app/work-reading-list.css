@@ -54,7 +54,9 @@
 }
 @media (max-width: 560px) {
   .work-reading-list .work-record-row { padding: 16px; }
-  .work-record-meta { margin-bottom: 10px; }
+  .work-record-meta { display: flex; flex-wrap: wrap; margin-bottom: 10px; }
+  .work-record-customer { flex: 1 1 160px; }
+  .work-record-open { margin-left: auto; }
   .work-record-customer-link { gap: 2px 7px; }
   .work-record-customer-link .work-customer-id { flex-basis: 100%; }
   .work-record-properties { padding: 11px 12px; border: 1px solid var(--line); }

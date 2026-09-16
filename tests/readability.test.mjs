@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const css = (file) => readFileSync(new URL(`../app/${file}.css`, import.meta.url), "utf8");
@@ -22,6 +22,40 @@ function style(file, selector) {
 }
 
 const tokens = style("globals", ":root");
+
+test("한글 본문 폰트는 외부 연결 없이 실제 WOFF2 파일·유니코드 서브셋·라이선스를 제공한다", () => {
+  const fonts = css("fonts");
+  assert.equal(tokens["--font-korean"], '"Noto Sans KR"');
+  assert.match(css("globals"), /@import "\.\/fonts\.css"/);
+  assert.doesNotMatch(readFileSync(new URL("../app/layout.tsx", import.meta.url), "utf8"), /next\/font/);
+  assert.doesNotMatch(fonts, /https?:\/\//);
+  const faces = [...fonts.matchAll(/@font-face\s*\{([^}]+)\}/g)];
+  const files = readdirSync(new URL("../public/fonts/noto-sans-kr/", import.meta.url)).filter((file) => file.endsWith(".woff2"));
+  assert.ok(faces.length > 1, "only the subsets used by the visible text need downloading");
+  const referenced = new Set();
+  for (const [, face] of faces) {
+    assert.match(face, /font-family: 'Noto Sans KR'/);
+    assert.match(face, /font-weight: 100 900/);
+    assert.match(face, /font-display: swap/);
+    assert.match(face, /unicode-range: U\+/);
+    const asset = face.match(/url\(\/fonts\/noto-sans-kr\/([\w-]+\.woff2)\)/)?.[1];
+    assert.ok(asset);
+    referenced.add(asset);
+    const data = readFileSync(new URL(`../public/fonts/noto-sans-kr/${asset}`, import.meta.url));
+    assert.equal(data.subarray(0, 4).toString(), "wOF2");
+  }
+  assert.deepEqual([...referenced].sort(), files.sort());
+  assert.match(readFileSync(new URL("../public/fonts/noto-sans-kr/OFL.txt", import.meta.url), "utf8"), /SIL OPEN FONT LICENSE Version 1\.1/);
+});
+
+test("좁은 달력은 일정 목록으로 전환하며 월간 칸의 날짜·고객·업무는 같은 압축 크기를 쓴다", () => {
+  assert.equal(style("calendar", ".calendar-desktop-panel")["--text-base"], "15px");
+  assert.equal(style("calendar", 'html[data-readable="true"] .calendar-desktop-panel')["--text-base"], "17px");
+  assert.match(css("calendar"), /@media \(max-width: 1180px\)/);
+  assert.equal(style("globals", ".listing-table .record-date")["white-space"], "nowrap");
+  assert.equal(style("work-reading-list", ".work-record-meta").display, "flex");
+  assert.equal(style("work-reading-list", ".work-record-meta")["flex-wrap"], "wrap");
+});
 function luminance(hex) {
   const rgb = hex.replace(/^#/, "");
   const full = rgb.length === 3 ? [...rgb].map((c) => c + c).join("") : rgb;

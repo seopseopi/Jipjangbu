@@ -1701,7 +1701,7 @@ function DashboardView({
             {metrics.today_count}
             <small>건</small>
           </strong>
-          <button className="attention" onClick={onOpenToday}>업무일이 오늘인 기록</button>
+          <button className="attention" title="업무일이 오늘인 기록" onClick={onOpenToday}>오늘 업무 보기</button>
         </article>
         <article className="metric-card">
           <p className="metric-label">다가오는 일정</p>

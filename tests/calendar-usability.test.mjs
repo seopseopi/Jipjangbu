@@ -238,7 +238,7 @@ test("모바일은 월 그리드 대신 전체 폭 일정 목록을 보여주고
   const css = readFileSync(new URL("../app/calendar.css", import.meta.url), "utf8");
   const subjectsCss = readFileSync(new URL("../app/calendar-subjects.css", import.meta.url), "utf8");
   assert.match(css, /\.calendar-agenda\s*\{\s*display:\s*none/);
-  assert.match(css, /@media\s*\(max-width:\s*720px\)/);
+  assert.match(css, /@media\s*\(max-width:\s*1180px\)/);
   assert.match(css, /\.calendar-panel\.calendar-desktop-panel\s*\{\s*display:\s*none/);
   assert.match(css, /\.calendar-agenda\s*\{\s*display:\s*block/);
   assert.match(css, /\.calendar-agenda-notes\s*\{[^}]*font-size:\s*var\(--text-small\)[^}]*white-space:\s*pre-wrap[^}]*overflow-wrap:\s*anywhere/);
