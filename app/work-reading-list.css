@@ -1,5 +1,6 @@
 /* One record, one visual block: context first, note and connected homes below. */
 .work-reading-list { overflow: visible; }
+.home-body-grid > .recent-panel { margin-top: 0; min-width: 0; }
 .work-reading-list .work-record-row { display: block; min-width: 0; padding: 20px 24px; border-bottom: 1px solid var(--line); color: var(--ink); }
 .work-record-meta { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 12px 16px; margin-bottom: 14px; }
 .work-record-meta > span { min-width: 0; }
@@ -39,11 +40,11 @@
 .work-record-body:not(.has-properties) .work-record-properties { padding: 0; background: transparent; }
 .work-reading-list .work-record-row [data-label]::before { display: none; }
 /* Home shares the recent-work reading cards, with full-width notes. */
-.dashboard-schedule .work-record-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
-.dashboard-schedule .work-record-customer { flex: 1 1 180px; }
-.dashboard-schedule .work-record-open { margin-left: auto; }
-.dashboard-schedule .work-record-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
-.dashboard-schedule .work-record-customer-link .work-customer-id { flex-basis: auto; }
+.home-body-grid .work-record-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.home-body-grid .work-record-customer { flex: 1 1 180px; }
+.home-body-grid .work-record-open { margin-left: auto; }
+.home-body-grid .work-record-body { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.home-body-grid .work-record-customer-link .work-customer-id { flex-basis: auto; }
 @media (max-width: 1080px) {
   .work-reading-list .work-record-row { padding-inline: 20px; }
   .work-record-meta { grid-template-columns: auto 1fr auto; gap: 4px 12px; }

@@ -108,7 +108,8 @@ test("매물 기본순과 이름순은 상태가 앞서지 않고 동과 호의 
   assert.deepEqual(ids(result), ["closed", "tie-a", "tie-z", "unit-10", "no-unit", "suffix-2", "dong-10", "suffix-10", "no-dong"]);
   const again = (await (await listingsRoute.GET(request("listings", { state: "all", sort: "building" }))).json()).listings;
   assert.deepEqual(ids(again), ids(result));
-  const active = (await (await listingsRoute.GET(request("listings"))).json()).listings;
+  assert.deepEqual(ids((await (await listingsRoute.GET(request("listings"))).json()).listings), ids(result), "default state includes closed listings");
+  const active = (await (await listingsRoute.GET(request("listings", { state: "active" }))).json()).listings;
   assert.equal(active.some((item) => item.id === "closed"), false);
 });
 
@@ -217,7 +218,7 @@ test("우선 업무가 없으면 홈의 기존 오늘 최근 수정순·최근 �
   assert.equal(result.metrics.upcoming_count, 4);
 });
 
-test("오늘 업무는 오래 저장한 잔금·집방문 예정도 최상단에 모으며 최근 업무 정렬은 바꾸지 않는다", async (t) => {
+test("오늘 업무는 업무구분보다 최근 수정순을 먼저 적용하며 최근 업무 정렬은 바꾸지 않는다", async (t) => {
   const { date, customer, work } = database(t);
   customer("customer", "합성 고객");
   const today = date();
@@ -230,7 +231,7 @@ test("오늘 업무는 오래 저장한 잔금·집방문 예정도 최상단에
   work("visit-planned", "customer", today, `${today} 03:00:00`, date(-10), "집방문예정");
   work("balance-tie", "customer", today, `${today} 03:00:00`, date(-10), "잔금예정");
   const result = await (await bootstrapRoute.GET()).json();
-  assert.deepEqual(ids(result.today), ["visit-planned", "balance-tie", "visit-booked", "balance-old", "ordinary-new", "other-appointment", "completed-balance", "completed-visit"]);
+  assert.deepEqual(ids(result.today), ["ordinary-new", "other-appointment", "completed-balance", "completed-visit", "visit-planned", "balance-tie", "visit-booked", "balance-old"]);
   assert.deepEqual(ids(result.recent), ["ordinary-new", "other-appointment", "completed-balance", "completed-visit", "visit-planned", "balance-tie", "visit-booked", "balance-old"]);
   assert.equal(result.metrics.today_count, 8);
   assert.deepEqual(ids((await (await bootstrapRoute.GET()).json()).today), ids(result.today));

@@ -116,6 +116,26 @@ async function history(identity = key(), expectedStatus = 200) {
   return body;
 }
 
+test("매물 개별 업무에는 상태변경뿐 아니라 두 번째 물건의 전화도 포함하고 수정·삭제·주소 경계를 반영한다", async (t) => {
+  database(t);
+  const registration = await mutate("POST", payload({ workDate: "2026-09-12" }));
+  const call = await mutate("POST", payload({ workType: "전화", content: "묶음 방문 상담", customerId: "synthetic-other", details: [property({ unitNumber: "999" }), property()] }));
+  await mutate("POST", payload({ workType: "전화", details: [property({ unitNumber: "15030" })] }));
+  await mutate("POST", payload({ workType: "전화", details: [property({ buildingName: "다른 합성단지" })] }));
+  await mutate("POST", payload({ workType: "전화", details: [property({ propertyType: "빌라" })] }));
+  const result = await history();
+  assert.deepEqual(result.events.map((event) => event.work_log_id), [registration.id], "the listing-status timeline must not be rewritten by ordinary work");
+  assert.deepEqual(result.workLogs.map((work) => work.id), [call.id, registration.id]);
+  assert.equal(result.workLogs[0].customer_id, "synthetic-other");
+  assert.equal(JSON.parse(result.workLogs[0].properties_json).length, 2);
+  await mutate("PUT", payload({ workType: "전화", content: "주소 변경", details: [property({ unitNumber: "999" })] }), call.id);
+  assert.deepEqual((await history()).workLogs.map((work) => work.id), [registration.id]);
+  await mutate("PUT", payload({ workType: "전화" }), call.id);
+  assert.equal((await history()).workLogs.length, 2);
+  await mutate("DELETE", null, call.id);
+  assert.deepEqual((await history()).workLogs.map((work) => work.id), [registration.id]);
+});
+
 test("매물 수정 업무는 이전 이력을 보존하며 현재 가격·메모·고객 이력을 함께 갱신한다", async (t) => {
   const db = database(t);
   const registration = await mutate("POST", payload({ workDate: "2026-09-12" }));
@@ -292,7 +312,7 @@ test("매물 현재값·이력은 동일 조회 묶음으로 읽고 신규 수�
   await history();
   const reads = db.batches.slice(before);
   assert.equal(reads.length, 1);
-  assert.equal(reads[0].length, 2);
+  assert.equal(reads[0].length, 3);
   assert.match(reads[0][0], /SELECT \* FROM listings/);
   assert.match(reads[0][1], /FROM listing_events/);
 });

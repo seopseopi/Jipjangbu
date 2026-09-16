@@ -61,13 +61,13 @@
 .followup-item:last-child { border-bottom: none; }
 .followup-item.is-overdue { border-left-color: #c54d49; background: #fff8f7; }
 .followup-item.is-completed { background: #f7f9f8; }
-.followup-check { display: grid; place-items: center; width: 44px; height: 44px; margin: -6px 0 0; padding: 9px; border: 0; background: transparent; border-radius: 50%; }
+.followup-check { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 72px; min-height: 44px; margin: -6px 0 0; padding: 6px; border: 0; background: transparent; border-radius: 8px; color: var(--green-dark); font-size: var(--text-small); font-weight: 650; white-space: nowrap; }
 .followup-check > span { display: grid; place-items: center; width: 25px; height: 25px; border: 1.5px solid #81988b; border-radius: 8px; background: #fff; color: var(--green, #16714d); font-size: 16px; }
 .followup-check:hover { background: #eaf1e5; }
 .followup-check:hover > span { border-color: #426948; }
 .is-completed .followup-check > span { border-color: #537d64; background: #537d64; color: #fff; }
 .followup-item-body { min-width: 0; }
-.followup-item-top { display: grid; grid-template-columns: fit-content(120px) minmax(0, 1fr) 44px; align-items: start; gap: 8px 12px; }
+.followup-item-top { display: grid; grid-template-columns: fit-content(120px) minmax(0, 1fr) auto; align-items: start; gap: 8px 12px; }
 .followup-item-top > h3 { min-width: 0; max-width: 100%; }
 .followup-item h3 { margin: 0; color: var(--followup-ink); font-size: calc(var(--text-base) + 2px); font-weight: 700; line-height: 1.65; overflow-wrap: anywhere; }
 .followup-item.is-completed h3 { color: #647269; text-decoration: line-through; text-decoration-color: #96a69c; }
@@ -124,7 +124,7 @@
 .followup-compact .followup-item { padding: 18px 0 13px; background: transparent; }
 .followup-compact .followup-item.is-overdue { padding-left: 10px; background: #fff8f7; }
 .followup-compact .followup-item h3 { font-size: calc(var(--text-base) + 1px); }
-.followup-compact .followup-item-top { grid-template-columns: fit-content(96px) minmax(0, 1fr) 44px; gap: 6px 8px; }
+.followup-compact .followup-item-top { grid-template-columns: fit-content(96px) minmax(0, 1fr) auto; gap: 6px 8px; }
 .followup-compact .followup-empty { min-height: 155px; padding: 16px; }
 .followup-compact .followup-empty-symbol { display: none; }
 .followup-compact .followup-form { margin: 18px 0 0; padding: 18px; }
@@ -150,7 +150,7 @@
   .followup-form-main { grid-template-columns: minmax(0, 1fr); gap: 0; }
   .followup-date-field input { max-width: 230px; }
   .followup-item { padding: 20px 17px 14px; }
-  .followup-item-top { grid-template-columns: fit-content(96px) minmax(0, 1fr) 44px; gap: 6px 8px; }
+  .followup-item-top { grid-template-columns: fit-content(96px) minmax(0, 1fr) auto; gap: 6px 8px; }
   .followup-item h3 { font-size: calc(var(--text-base) + 1px); }
   .followup-message { align-items: flex-start; }
   .followup-error { flex-wrap: wrap; }

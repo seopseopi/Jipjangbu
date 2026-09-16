@@ -36,7 +36,7 @@ export const LISTING_NAME_DESC_ORDER = `building_name COLLATE NOCASE DESC,
 // Visit appointments were originally named 집방문예약. Keep both names without
 // rewriting existing records, and prioritize before applying preview limits.
 const SCHEDULE_PRIORITY_ORDER = "CASE WHEN trim(w.work_type) IN ('잔금예정', '집방문예정', '집방문예약') THEN 0 ELSE 1 END";
-export const HOME_TODAY_ORDER = `${SCHEDULE_PRIORITY_ORDER}, w.updated_at DESC, w.id DESC`;
+export const HOME_TODAY_ORDER = "w.updated_at DESC, w.id DESC";
 export const HOME_RECENT_WHERE = "w.work_date <= date('now','+9 hours')";
 export const WORK_RECENT_ORDER = "w.work_date DESC, w.updated_at DESC, w.id DESC";
 export const HOME_UPCOMING_ORDER = `${SCHEDULE_PRIORITY_ORDER}, w.work_date, w.created_at, w.id`;

@@ -2,7 +2,7 @@ import { getD1 } from "../../../db";
 import { apiError, integerQueryParam, ready } from "../_shared";
 import { searchedWorkSummary, WORK_SUMMARY_SQL } from "../_queries";
 import { propertySearch, workSearch } from "../_search.js";
-import { HOME_UPCOMING_ORDER, WORK_RECENT_ORDER } from "../_ordering";
+import { HOME_TODAY_ORDER, HOME_UPCOMING_ORDER, WORK_RECENT_ORDER } from "../_ordering";
 import { InputError, saveWorkLog, type WorkLogPayload } from "./data";
 
 export async function GET(request: Request) {
@@ -33,8 +33,11 @@ export async function GET(request: Request) {
       binds.push(workType);
     }
     if (customerId) {
-      where.push("w.customer_id = ?");
+      where.push(params.get("includeSource") === "1"
+        ? "(w.customer_id = ? OR EXISTS (SELECT 1 FROM work_log_properties sp WHERE sp.work_log_id = w.id AND trim(sp.source) = ?))"
+        : "w.customer_id = ?");
       binds.push(customerId);
+      if (params.get("includeSource") === "1") binds.push(customerId);
     }
     if (month) {
       if (month === "9999-12") {
@@ -73,7 +76,7 @@ export async function GET(request: Request) {
         .bind(...binds),
       db
         .prepare(
-          `${summary.sql} ${predicate} ORDER BY ${schedule ? HOME_UPCOMING_ORDER : WORK_RECENT_ORDER} LIMIT ? OFFSET ?`,
+          `${summary.sql} ${predicate} ORDER BY ${params.get("sort") === "updated" ? HOME_TODAY_ORDER : schedule ? HOME_UPCOMING_ORDER : WORK_RECENT_ORDER} LIMIT ? OFFSET ?`,
         )
         .bind(...summary.bindings, ...binds, limit, offset),
     ]);

@@ -232,6 +232,20 @@ const listing = {
 };
 const event = (id, customerId, extra = {}) => ({ id, event_date: "2026-09-13", status: "매물수정", notes: "변경 기록", work_log_id: `work-${id}`, customer_id: customerId, customer_name: `고객 ${customerId}`, ...extra });
 
+test("매물 팝업은 상태 이력과 전체 개별 업무를 분리하고 실제 고객 이름·ID·업무 읽기 연결을 보존한다", () => {
+  const opened = [];
+  const tree = history({ listing, items: [event("event-only", "owner")], workItems: [work] }, { onOpenWork: (id) => opened.push(id) });
+  const individual = byClass(tree, "listing-work-details")[0];
+  assert.match(markup(individual), /개별 업무 보기.*1건/);
+  assert.ok(markup(individual).includes(work.customer_name));
+  assert.ok(markup(individual).includes(work.customer_id));
+  assertAllAddresses(byClass(individual, "history-list")[0]);
+  assert.doesNotMatch(markup(individual), /고객 owner/);
+  const entry = byClass(individual, "history-list")[0].props.children[0];
+  entry.props.onClick();
+  assert.deepEqual(opened, [work.id]);
+});
+
 test("매물 수정 이력 추가는 현재 매물과 가장 최근 이력의 고객을 전달하며 전체 이력 읽기와 개별 업무를 구분한다", () => {
   const modified = [], created = [];
   const items = [event("without-customer", ""), event("latest", "customer-latest"), event("older", "customer-older", { event_date: "2026-09-12" })];

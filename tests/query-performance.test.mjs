@@ -335,7 +335,8 @@ test("매물 종류를 지정하면 기존 종류 인덱스로 탐색하며 전�
   assert.deepEqual(query.values, ["빌라"]);
   assert.ok(plan(query.sql, query.values).some((detail) => /SEARCH listings USING INDEX idx_listings_building \(property_type=\?\)/.test(detail)));
   assert.deepEqual(ids((await read("state=all")).listings), ["villa", "closed", "apartment"]);
-  assert.deepEqual(ids((await read("type=빌라")).listings), ["villa"]);
+  assert.deepEqual(ids((await read("type=빌라")).listings), ["villa", "closed"]);
+  assert.deepEqual(ids((await read("state=active&type=빌라")).listings), ["villa"]);
   assert.deepEqual(ids((await read("state=closed&type=빌라")).listings), ["closed"]);
   assert.deepEqual((await read("state=all&type=없음")).listings, []);
 });

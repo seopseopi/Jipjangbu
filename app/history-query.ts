@@ -43,6 +43,7 @@ export function historyQueryUrl(
   }
   const params = new URLSearchParams({
     customerId: target.id,
+    includeSource: "1",
     limit: String(HISTORY_PAGE_SIZE),
     offset: String(Math.max(0, Math.floor(offset))),
   });

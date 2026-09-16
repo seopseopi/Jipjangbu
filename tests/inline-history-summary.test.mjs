@@ -109,14 +109,30 @@ test("보조 이력의 저장 시각은 유효한 이벤트 시각으로 대체�
   assert.doesNotMatch(markup(rows[1]), /최근 저장 ·|한국시간|Invalid Date/);
 });
 
+test("보조 매물의 개별 업무 목록도 상태 이력과 별개로 전체 업무를 표시한다", async (t) => {
+  const works = Array.from({ length: 12 }, (_, i) => ({ id: `work-${i}`, work_date: "2026-09-16", work_type: "전화", customer_name: "합성 고객", customer_id: "합성 업소", content: `상담 ${i}`, property_count: 0 }));
+  const h = panelHarness(listingTarget, async () => ({ listing: {}, events, workLogs: works }));
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  assert.match(markup(tree), /개별 업무 보기 · 12건/);
+  assert.match(markup(tree), /합성 고객.*합성 업소/);
+  assert.equal(descendants(tree).filter((element) => element.type === Row).length, 10);
+  descendants(tree).find((element) => element.type === "button" && markup(element).includes("10건 더 보기")).props.onClick();
+  tree = await h.settle();
+  assert.deepEqual(descendants(tree).filter((element) => element.type === Row).map((element) => element.props.record.id), works.map((work) => work.id));
+  assert.equal(h.requests.length, 1);
+  assert.equal(descendants(tree).find((element) => element.type === ListingHistorySummary).props.events, events);
+});
+
 test("고객 보조 이력은 원래 업무일과 업무 저장시각을 분리하고 매물 원본 요약을 만들지 않는다", async (t) => {
   const h = panelHarness(customerTarget, async () => ({ workLogs: [
-    { id: "customer-work", work_date: "2026-08-20", work_type: "전화", content: "고객 상담 메모", customer_name: "합성 고객", property_count: 0, updated_at: "2026-09-13 01:02:00" },
+    { id: "customer-work", work_date: "2026-08-20", work_type: "전화", content: "고객 상담 메모", customer_name: "합성 고객", customer_id: "합성 ID", property_count: 0, updated_at: "2026-09-13 01:02:00" },
     { id: "legacy-work", work_date: "2026-07-20", work_type: "전화", content: "기존 메모", customer_name: "합성 고객", property_count: 0 },
   ], total: 2 }));
   t.after(() => h.dispose());
   const tree = await h.mount(), rows = descendants(tree).filter((element) => element.type === Row);
   assert.equal(rows[0].props.record.savedAt, "2026.09.13 10:02");
+  assert.match(markup(rows[0]), /합성 고객.*합성 ID/);
   assert.equal(rows[1].props.record.savedAt, "");
   assert.match(markup(rows[0]), /업무일 · 2026\.08\.20/);
   assert.match(markup(rows[0]), /최근 저장 · 2026\.09\.13 10:02/);
@@ -125,6 +141,7 @@ test("고객 보조 이력은 원래 업무일과 업무 저장시각을 분리�
   assert.equal(descendants(tree).some((element) => element.type === "details" && element.props.className === "listing-individual-records"), false);
   const request = new URL(h.requests[0].url, "https://test.invalid");
   assert.equal(request.searchParams.get("customerId"), customerTarget.id);
+  assert.equal(request.searchParams.get("includeSource"), "1");
   assert.equal(request.searchParams.get("limit"), "10");
 });
 

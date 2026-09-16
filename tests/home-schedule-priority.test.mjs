@@ -46,7 +46,7 @@ const dashboard = {
 function render(extra = {}) {
   return production.DashboardView({
     dashboard, onOpen: noop, onCustomerHistory: noop, onListingHistory: noop,
-    onNavigate: noop, onOpenSchedule: noop, onQuickWork: noop,
+    onNavigate: noop, onOpenSchedule: noop, onOpenToday: noop,
     followUps: React.createElement("aside", { className: "synthetic-followups" }, "챙겨야 할 일"), ...extra,
   });
 }
@@ -56,54 +56,42 @@ function button(tree, label) {
   return found;
 }
 
-test("홈은 오늘 업무·7일 일정을 먼저 두고 챙겨야 할 일은 다음에 두며 기존 기록·읽기 연결을 유지한다", () => {
+test("간소화한 홈은 최근 업무·할 일을 유지하고 오늘·7일 미리보기와 소개·빠른등록은 제거한다", () => {
   const opened = [], customerHistory = noop, listingHistory = noop;
   const tree = render({ onOpen: (id) => opened.push(id), onCustomerHistory: customerHistory, onListingHistory: listingHistory });
   const grid = descendants(tree).find((item) => item.props.className === "home-body-grid");
   const children = React.Children.toArray(grid.props.children);
   assert.equal(children.length, 2);
-  assert.match(children[0].props.className, /dashboard-schedule/);
+  assert.match(children[0].props.className, /recent-panel/);
   assert.equal(children[1].props.className, "synthetic-followups");
-  assert.ok(html(children[0]).indexOf("오늘 업무") < html(children[0]).indexOf("앞으로 7일"));
-  const schedules = descendants(children[0]).filter((item) => item.type === production.WorkTable);
-  assert.deepEqual(schedules.map((item) => item.props.items), [dashboard.today, dashboard.upcoming]);
-  for (const schedule of schedules) {
-    const rows = production.WorkTable(schedule.props);
-    descendants(rows).find((node) => node.props.className === "work-record-open").props.onClick();
-    assert.equal(schedule.props.onCustomerHistory, customerHistory);
-    assert.equal(schedule.props.onListingHistory, listingHistory);
-  }
-  assert.deepEqual(opened, ["today-work", "next-work"]);
+  assert.deepEqual(descendants(tree).filter((item) => item.type === production.WorkTable).map((item) => item.props.items), [dashboard.recent]);
+  assert.doesNotMatch(html(tree), /home-hero|dashboard-schedule|앞으로 7일|자주 하는 업무|전화 상담|방문 예약/);
   const recent = descendants(tree).find((item) => item.type === production.WorkTable && item.props.items === dashboard.recent);
   assert.equal(recent.props.items, dashboard.recent);
   assert.equal(recent.props.onCustomerHistory, customerHistory);
   assert.equal(recent.props.onListingHistory, listingHistory);
   recent.props.onOpen("recent-work");
-  assert.deepEqual(opened, ["today-work", "next-work", "recent-work"]);
-  assert.match(html(tree), /오늘 업무와 다가오는 일정을 한눈에/);
+  assert.deepEqual(opened, ["recent-work"]);
+  assert.doesNotMatch(html(tree), /오늘 업무와 다가오는 일정을 한눈에/);
   assert.doesNotMatch(html(tree), /연락할 일과 일정을 확인/);
 });
 
-test("홈 재배치 뒤에도 빠른 업무 등록·목록·달력·7일 전체 일정 동작은 유지한다", () => {
-  const navigated = [], quick = [], scheduled = [];
-  const tree = render({ onNavigate: (view) => navigated.push(view), onQuickWork: (type) => quick.push(type), onOpenSchedule: () => scheduled.push(7) });
-  for (const label of ["전화 상담", "방문 예약", "매물 등록"]) button(tree, label).props.onClick();
-  assert.deepEqual(quick, ["전화", "집방문예약", "매물등록"]);
-  for (const label of ["매물 목록 보기", "고객 목록 보기", "달력 보기", "전체 보기"]) button(tree, label).props.onClick();
-  assert.deepEqual(navigated, ["listings", "customers", "calendar", "journal"]);
+test("요약의 오늘 업무·7일 일정 버튼은 팝업을 열고 매물·고객·업무일지 바로가기는 유지한다", () => {
+  const navigated = [], today = [], scheduled = [];
+  const tree = render({ onNavigate: (view) => navigated.push(view), onOpenToday: () => today.push(true), onOpenSchedule: () => scheduled.push(7) });
+  for (const label of ["전체 매물 보기", "고객 목록 보기", "전체 보기"]) button(tree, label).props.onClick();
+  assert.deepEqual(navigated, ["listings", "customers", "journal"]);
+  button(tree, "업무일이 오늘인 기록").props.onClick();
+  assert.deepEqual(today, [true]);
   button(tree, "7일 일정 확인").props.onClick();
-  button(tree, "전체 2건 보기").props.onClick();
-  assert.deepEqual(scheduled, [7, 7]);
-  assert.match(html(tree), /우선 일정 1건 미리보기/);
-  assert.match(html(tree), /잔금·집방문 예정 먼저 · 같은 우선순위는 최근 수정순/);
-  assert.match(html(tree), /잔금·집방문 예정 먼저 · 같은 우선순위는 날짜순/);
+  assert.deepEqual(scheduled, [7]);
 });
 
-test("오늘 업무와 앞으로 7일 모두 고객명 옆에 ID를 같은 행으로 표시하고 원래 업무를 연다", () => {
+test("남아 있는 최근 업무 카드는 고객명 옆에 ID를 표시하고 원래 업무를 연다", () => {
   const opened = [];
   const tree = render({ onOpen: (id) => opened.push(id) });
-  const schedules = descendants(tree).filter((item) => item.type === production.WorkTable && item.props.items !== dashboard.recent);
-  assert.equal(schedules.length, 2);
+  const schedules = descendants(tree).filter((item) => item.type === production.WorkTable);
+  assert.equal(schedules.length, 1);
   for (const schedule of schedules) {
     const rows = production.WorkTable(schedule.props);
     const item = schedule.props.items[0];
@@ -117,7 +105,7 @@ test("오늘 업무와 앞으로 7일 모두 고객명 옆에 ID를 같은 행�
     assert.ok(html(rows).indexOf(item.customer_name) < html(rows).indexOf(item.customer_id));
     descendants(rows).find((node) => node.props.className === "work-record-open").props.onClick();
   }
-  assert.deepEqual(opened, ["today-work", "next-work"]);
+  assert.deepEqual(opened, ["recent-work"]);
 });
 
 test("고객 ID가 없어도 이름을 유지하고 긴 고객명·ID는 좁은 화면에서 자연스럽게 줄바꿈한다", () => {
@@ -133,7 +121,7 @@ test("고객 ID가 없어도 이름을 유지하고 긴 고객명·ID는 좁은 
   assert.match(css, /\.work-record-customer-link\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/);
   assert.match(css, /\.work-record-customer-link b\s*\{[^}]*overflow-wrap:\s*anywhere/);
   assert.match(css, /\.work-record-customer-link \.work-customer-id\s*\{[^}]*overflow-wrap:\s*anywhere/);
-  assert.match(css, /\.dashboard-schedule \.work-record-customer-link \.work-customer-id\s*\{[^}]*flex-basis:\s*auto/);
+  assert.match(css, /\.home-body-grid \.work-record-customer-link \.work-customer-id\s*\{[^}]*flex-basis:\s*auto/);
 });
 
 test("홈 업무는 날짜·업무구분·고객 순서의 머리말을 본문보다 먼저 표시하고 빈 목록 안내를 유지한다", () => {
@@ -166,6 +154,24 @@ test("홈 요약은 오늘 업무 바로 다음에 다가오는 일정을 두고
   assert.ok(html(cards[2]).includes("3<small>건"));
   assert.ok(html(cards[3]).includes("4<small>명"));
   assert.match(html(cards[1]), /7일 일정 확인/);
+});
+
+test("오늘 건수 버튼은 오늘 전체 업무를 최근 수정순으로 재조회하고 저장 후 갱신도 같은 조건을 유지한다", async () => {
+  const requests = [], states = [];
+  const runtime = evaluate(`${declaration("openTodayHistory")}\n${declaration("refreshHistory")}\nconst result = { openTodayHistory, refreshHistory };`, {
+    seoulDate: () => "2026-09-16", historyOpenVersion: { current: 0 },
+    setHistoryModal: (next) => { states.push(typeof next === "function" ? next(states.at(-1)) : next); },
+    fetchAllWorkLogs: async (params) => { requests.push(Object.fromEntries(params)); return dashboard.today; },
+  });
+  runtime.openTodayHistory();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(requests, [{ from: "2026-09-16", to: "2026-09-16", sort: "updated" }]);
+  assert.equal(states[0].loading, true);
+  assert.equal(states.at(-1).loading, false);
+  assert.equal(states.at(-1).items, dashboard.today);
+  assert.match(states.at(-1).subtitle, /1건 · 최근 수정순/);
+  await runtime.refreshHistory(states.at(-1));
+  assert.deepEqual(requests[1], requests[0]);
 });
 
 test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 숨겨진 관리 화면 주소는 유지한다", () => {

@@ -159,8 +159,9 @@ test("매물관리 초기화·오래된 매물 필터 복귀는 종류→이름 
   assert.match(source, /\[listingSort, setListingSort\] = useState\("type"\)/);
   const changes = [];
   callback("ListingsView", "onReset", Object.fromEntries(["setQuery", "setListingState", "setPropertyTypeFilter", "setListingSort"].map((name) => [name, (value) => changes.push([name, value])])) )();
-  assert.deepEqual(changes, [["setQuery", ""], ["setListingState", "active"], ["setPropertyTypeFilter", ""], ["setListingSort", "type"]]);
-  const base = Listings({ ...listingProps, query: "", sort: "type" });
+  assert.deepEqual(changes, [["setQuery", ""], ["setListingState", "all"], ["setPropertyTypeFilter", ""], ["setListingSort", "type"]]);
+  assert.match(source, /\[listingState, setListingState\] = useState\("all"\)/);
+  const base = Listings({ ...listingProps, query: "", sort: "type", state: "all" });
   assert.equal(descendants(base).some((item) => item.props.className === "filter-reset"), false);
   const sorted = [], states = [];
   const stale = Listings({ ...listingProps, state: "stale", sort: "oldest", setState: (value) => states.push(value), setSort: (value) => sorted.push(value) });
@@ -210,7 +211,7 @@ function navigationHarness(allow = true) {
 }
 test("홈의 의미형 바로가기는 해당 화면 필터만 초기화하고 사용자가 이동을 취소하면 그대로 둔다", () => {
   const expected = {
-    listings: { ListingState: "active", PropertyTypeFilter: "", ListingSort: "type" },
+    listings: { ListingState: "all", PropertyTypeFilter: "", ListingSort: "type" },
     customers: { CustomerSort: "recent" },
     journal: { WorkTypeFilter: "", WorkPeriod: "" },
     calendar: { CalendarMonth: "2026-09", CalendarWorkType: "" },

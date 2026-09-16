@@ -66,7 +66,7 @@ function harness(overrides = {}, props = {}, io = async () => response) {
   const factory = new Function(...Object.keys(env), `${compiled}; return { FollowUpsView, followUpQueryKey, followUpReadState, todayDate };`);
   const production = factory(...Object.values(env));
   return {
-    state, refs, effects, calls, focus, ...production,
+    state, refs, effects, calls, focus, window: env.window, ...production,
     render(extra = {}) { cursor = 0; refCursor = 0; effects.length = 0; return production.FollowUpsView({ onOpenCustomer() {}, onOpenListing() {}, ...props, ...extra }); },
   };
 }
@@ -109,13 +109,34 @@ test("홈과 전체 할 일은 날짜·제목·완료 체크 순서이며 오늘
 test("할 일 왼쪽 날짜는 좁은 화면에서도 줄바꿈하며 메모 전체 폭과 완료 버튼의 44px 영역을 유지한다", () => {
   const css = readFileSync(new URL("../app/follow-ups.css", import.meta.url), "utf8");
   assert.match(css, /\.followup-item\s*\{\s*display:\s*block/);
-  assert.match(css, /\.followup-item-top\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*fit-content\(120px\) minmax\(0,\s*1fr\) 44px/);
-  assert.match(css, /\.followup-compact \.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) 44px/);
+  assert.match(css, /\.followup-item-top\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*fit-content\(120px\) minmax\(0,\s*1fr\) auto/);
+  assert.match(css, /\.followup-compact \.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) auto/);
   const mobile = css.slice(css.indexOf("@media (max-width: 700px)"));
-  assert.match(mobile, /\.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) 44px/);
+  assert.match(mobile, /\.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) auto/);
   assert.match(css, /\.followup-due time\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere/);
-  assert.match(css, /\.followup-check\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px/);
+  assert.match(css, /\.followup-check\s*\{[^}]*min-width:\s*72px;[^}]*min-height:\s*44px/);
   assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-caption\)/);
+});
+
+test("완료 글씨를 표시하며 확인 취소는 저장하지 않고 승인해야 완료 요청을 보낸다", async () => {
+  for (const compact of [true, false]) {
+    const h = harness({}, { compact });
+    const messages = [];
+    h.window.confirm = (message) => { messages.push(message); return false; };
+    const complete = () => find(h.render(), (element) => element.props.className === "followup-check");
+    assert.match(renderToStaticMarkup(complete()), />완료<\/button>/);
+    complete().props.onClick();
+    await flush();
+    assert.equal(h.calls.length, 0);
+    assert.match(messages[0], /완료 처리할까요/);
+    assert.ok(messages[0].includes(synthetic.title));
+    h.window.confirm = () => true;
+    complete().props.onClick();
+    await flush();
+    const patches = h.calls.filter(([, options]) => options?.method === "PATCH");
+    assert.equal(patches.length, 1);
+    assert.deepEqual(JSON.parse(patches[0][1].body), { completed: true });
+  }
 });
 
 test("홈 할 일 요약은 오늘 다음 기한 지남 순서이며 숫자와 강조를 함께 유지한다", () => {

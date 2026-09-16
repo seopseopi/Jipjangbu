@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     await ready();
     const params = new URL(request.url).searchParams;
     const q = params.get("q")?.trim() ?? "";
-    const state = params.get("state") ?? "active";
+    const state = params.get("state") ?? "all";
     const type = params.get("type")?.trim() ?? "";
     const sort = params.get("sort") ?? "type";
     const orderBy = sort === "recent" ? LISTING_RECENT_ORDER

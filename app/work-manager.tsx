@@ -227,10 +227,12 @@ type HistoryData = {
   title: string;
   subtitle: string;
   items: WorkSummary[] | ListingEvent[];
+  workItems?: WorkSummary[];
   customer?: Pick<Customer, "id" | "name">;
   listing?: Listing;
   listingKey?: string;
   date?: string;
+  sort?: "updated";
   workType?: string;
   scheduleDays?: number;
   from?: string;
@@ -427,7 +429,7 @@ export function WorkManager() {
   const [workTypeFilter, setWorkTypeFilter] = useState("");
   const [workPeriod, setWorkPeriod] = useState("");
   const [calendarWorkType, setCalendarWorkType] = useState("");
-  const [listingState, setListingState] = useState("active");
+  const [listingState, setListingState] = useState("all");
   const [propertyTypeFilter, setPropertyTypeFilter] = useState("");
   const [listingSort, setListingSort] = useState("type");
   const [customerSort, setCustomerSort] = useState("recent");
@@ -1064,7 +1066,7 @@ export function WorkManager() {
     }));
     try {
       const items = await fetchAllWorkLogs(
-        new URLSearchParams({ customerId: customer.id }),
+        new URLSearchParams({ customerId: customer.id, includeSource: "1" }),
       );
       if (version !== historyOpenVersion.current) return;
       setHistoryModal({
@@ -1099,6 +1101,7 @@ export function WorkManager() {
       subtitle: "저장된 매물 변경 이력을 확인합니다",
       items: preserve && current?.listing?.identity_key === key ? current.items : [],
       listing: preserve ? current?.listing : undefined,
+      workItems: preserve && current?.listing?.identity_key === key ? current.workItems : undefined,
       listingKey: key,
       loading: true,
     }));
@@ -1106,12 +1109,14 @@ export function WorkManager() {
       const data = await jsonFetch<{
         listing: Listing;
         events: ListingEvent[];
+        workLogs: WorkSummary[];
       }>(`/api/listings/${encodeURIComponent(key)}`);
       if (version !== historyOpenVersion.current) return;
       setHistoryModal({
         title: `${targetText(data.listing)} 이력`,
         subtitle: data.listing.property_type,
         items: data.events,
+        workItems: data.workLogs,
         listing: data.listing,
         listingKey: key,
       });
@@ -1120,7 +1125,7 @@ export function WorkManager() {
       const missing = (error as Error).message === "매물을 찾을 수 없습니다.";
       setHistoryModal((current) => current ? {
         ...current,
-        ...(missing ? { items: [], listing: undefined } : {}),
+        ...(missing ? { items: [], workItems: [], listing: undefined } : {}),
         loading: false,
         emptyMessage: missing && preserve ? "이 주소에 남아 있는 매물 이력이 없습니다. 삭제한 업무는 휴지통에서 복구할 수 있습니다." : undefined,
         error: missing && preserve ? undefined : missing
@@ -1141,8 +1146,9 @@ export function WorkManager() {
     try {
       const params = new URLSearchParams({ from: history.date, to: history.date });
       if (history.workType) params.set("workType", history.workType);
+      if (history.sort) params.set("sort", history.sort);
       const items = await fetchAllWorkLogs(params);
-      if (version === historyOpenVersion.current) setHistoryModal({ ...history, items, subtitle: `${items.length}건`, loading: false, error: undefined });
+      if (version === historyOpenVersion.current) setHistoryModal({ ...history, items, subtitle: `${items.length}건${history.sort === "updated" ? " · 최근 수정순" : ""}`, loading: false, error: undefined });
     } catch (error) {
       if (version === historyOpenVersion.current) setHistoryModal({ ...history, loading: false, error: (error as Error).message });
     }
@@ -1161,11 +1167,14 @@ export function WorkManager() {
     const from = shiftDate(seoulDate(), 1), to = shiftDate(seoulDate(), days);
     void showScheduleHistory({ title: `앞으로 ${days}일 전체 일정`, subtitle: `${displayDate(from)} ~ ${displayDate(to)} · 예약·예정 업무`, items: [], scheduleDays: days, from, to });
   }
+  function openTodayHistory() {
+    void refreshHistory({ title: "오늘 업무", subtitle: "최근 수정순", date: seoulDate(), sort: "updated", items: [] });
+  }
   function navigateFromDashboard(next: View) {
     if (!navigate(next)) return;
     if (next === "listings") {
       setQueries((current) => ({ ...current, listings: "" }));
-      setListingState("active"); setPropertyTypeFilter(""); setListingSort("type");
+      setListingState("all"); setPropertyTypeFilter(""); setListingSort("type");
     } else if (next === "customers") {
       setQueries((current) => ({ ...current, customers: "" })); setCustomerSort("recent");
     } else if (next === "journal") {
@@ -1350,9 +1359,7 @@ export function WorkManager() {
                   onListingHistory={showWorkListingHistory}
                   onNavigate={navigateFromDashboard}
                   onOpenSchedule={() => openSchedule(7)}
-                  onQuickWork={(workType) =>
-                    void openWork(undefined, undefined, workType)
-                  }
+                  onOpenToday={openTodayHistory}
                   followUps={
                     <FollowUpsView
                       compact
@@ -1465,7 +1472,7 @@ export function WorkManager() {
                   setSort={setListingSort}
                   onReset={() => {
                     setQuery("");
-                    setListingState("active");
+                    setListingState("all");
                     setPropertyTypeFilter("");
                     setListingSort("type");
                   }}
@@ -1668,46 +1675,19 @@ function DashboardView({
   onListingHistory,
   onNavigate,
   onOpenSchedule,
-  onQuickWork,
+  onOpenToday,
   followUps,
 }: {
   dashboard: Dashboard;
   onOpen: (id?: string) => void;
   onNavigate: (view: View) => void;
   onOpenSchedule: () => void;
-  onQuickWork: (workType: string) => void;
+  onOpenToday: () => void;
   followUps: ReactNode;
 } & WorkHistoryActions) {
   const metrics = dashboard.metrics;
   return (
     <>
-      <section className="home-hero">
-        <div className="home-hero-copy">
-          <p className="home-date">
-            <Icon name="calendar" size={16} />
-            {displayDate(seoulDate())}
-          </p>
-          <h2>오늘 업무와 다가오는 일정을 한눈에.</h2>
-          <p>오늘 기록과 앞으로 7일 일정을 확인하고, 새 업무를 바로 기록하세요.</p>
-        </div>
-        <div className="home-hero-actions">
-          <span className="home-section-label">자주 하는 업무 바로 등록</span>
-          <div className="home-quick-actions">
-            <button type="button" onClick={() => onQuickWork("전화")}>
-              <Icon name="phone" size={19} />
-              전화 상담
-            </button>
-            <button type="button" onClick={() => onQuickWork("집방문예약")}>
-              <Icon name="calendarPlus" size={19} />
-              방문 예약
-            </button>
-            <button type="button" onClick={() => onQuickWork("매물등록")}>
-              <Icon name="housePlus" size={19} />
-              매물 등록
-            </button>
-          </div>
-        </div>
-      </section>
       <div className="metric-grid">
         <article className="metric-card featured">
           <p className="metric-label">
@@ -1718,7 +1698,7 @@ function DashboardView({
             {metrics.today_count}
             <small>건</small>
           </strong>
-          <span>업무일이 오늘인 기록</span>
+          <button className="attention" onClick={onOpenToday}>업무일이 오늘인 기록 <Icon name="next" size={16} /></button>
         </article>
         <article className="metric-card">
           <p className="metric-label">
@@ -1743,7 +1723,7 @@ function DashboardView({
             <small>건</small>
           </strong>
           <button onClick={() => onNavigate("listings")}>
-            매물 목록 보기 <Icon name="next" size={16} />
+            전체 매물 보기 <Icon name="next" size={16} />
           </button>
         </article>
         <article className="metric-card">
@@ -1761,52 +1741,7 @@ function DashboardView({
         </article>
       </div>
       <div className="home-body-grid">
-        <section className="panel schedule-panel dashboard-schedule">
-          <div className="panel-head">
-            <h2 className="heading-icon">
-              <Icon name="journal" />
-              오늘 업무
-            </h2>
-            <button
-              className="text-button"
-              onClick={() => onNavigate("calendar")}
-            >
-              달력 보기
-            </button>
-          </div>
-          {dashboard.today.length > 0 && <p className="schedule-preview-note">잔금·집방문 예정 먼저 · 같은 우선순위는 최근 수정순</p>}
-          <WorkTable
-            items={dashboard.today}
-            onOpen={onOpen}
-            onCustomerHistory={onCustomerHistory}
-            onListingHistory={onListingHistory}
-            empty="오늘 등록된 업무가 없습니다."
-          />
-          <div className="panel-head">
-            <h2 className="heading-icon">
-              <Icon name="upcoming" />
-              앞으로 7일
-            </h2>
-            <button
-              className="text-button"
-              onClick={onOpenSchedule}
-            >
-              전체 {metrics.upcoming_count}건 보기
-            </button>
-          </div>
-          {(dashboard.upcoming?.length ?? 0) > 0 && <p className="schedule-preview-note">잔금·집방문 예정 먼저 · 같은 우선순위는 날짜순</p>}
-          {metrics.upcoming_count > (dashboard.upcoming?.length ?? 0) && <p className="schedule-preview-note">우선 일정 {dashboard.upcoming?.length ?? 0}건 미리보기 · 전체 보기에서 남은 일정도 확인할 수 있습니다.</p>}
-          <WorkTable
-            items={dashboard.upcoming ?? []}
-            onOpen={onOpen}
-            onCustomerHistory={onCustomerHistory}
-            onListingHistory={onListingHistory}
-            empty="앞으로 7일간 등록된 일정이 없습니다."
-          />
-        </section>
-        {followUps}
-      </div>
-      <section className="panel recent-panel">
+        <section className="panel recent-panel">
         <div className="panel-head">
           <div>
             <h2 className="heading-icon">
@@ -1823,7 +1758,9 @@ function DashboardView({
           </button>
         </div>
         <WorkTable items={dashboard.recent} onOpen={onOpen} onCustomerHistory={onCustomerHistory} onListingHistory={onListingHistory} />
-      </section>
+        </section>
+        {followUps}
+      </div>
     </>
   );
 }
@@ -2128,7 +2065,7 @@ function ListingsView({
 }) {
   const resultsVisible = status === "ready" || status === "refreshing";
   const filtered = Boolean(
-    query || state !== "active" || propertyType || sort !== "type",
+    query || state !== "all" || propertyType || sort !== "type",
   );
   const dateSorted = ["recent", "updated", "oldest"].includes(sort);
   const sortDescription = ({
@@ -3799,6 +3736,7 @@ function HistoryModal({
   onCopy: (id: string) => void;
 }) {
   const RecordContainer = data.listing ? "details" : "div";
+  const records = data.listing ? data.workItems ?? data.items : data.items;
   return (
     <Modal title={data.title} subtitle={data.subtitle} onClose={onClose} reading>
       {data.loading && <p className="form-help" role="status">이력을 불러오고 있습니다…</p>}
@@ -3872,14 +3810,15 @@ function HistoryModal({
         </div>
         </>
       )}
-      {(!data.listing || data.items.length > 0) && <RecordContainer className={data.listing ? "listing-work-details" : undefined}>
-      {data.listing && <summary><Icon name="next" size={16} /> 개별 업무 보기 <span>{data.items.length.toLocaleString("ko-KR")}건</span></summary>}
-      {data.items.length > 0 && <p className="history-list-guide">{data.items.length.toLocaleString("ko-KR")}건의 기록 · 기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
+      {data.customer && <p className="history-list-guide">고객ID 또는 물건지·업소가 고객ID와 일치하는 업무입니다.</p>}
+      {(!data.listing || records.length > 0) && <RecordContainer className={data.listing ? "listing-work-details" : undefined}>
+      {data.listing && <summary><Icon name="next" size={16} /> 개별 업무 보기 <span>{records.length.toLocaleString("ko-KR")}건</span></summary>}
+      {records.length > 0 && <p className="history-list-guide">{records.length.toLocaleString("ko-KR")}건의 기록 · {data.listing ? "이 매물이 포함된 전체 업무 · " : ""}기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" data-schedule-days={data.scheduleDays} aria-busy={Boolean(data.loading)}>
-        {!data.items.length ? (
+        {!records.length ? (
           !data.loading && !data.error ? <EmptyState title={data.emptyMessage || "기록이 없습니다."} /> : null
         ) : (
-          data.items.map((raw) => {
+          records.map((raw) => {
             const isEvent = "event_date" in raw;
             const date = isEvent ? raw.event_date : raw.work_date;
             const status = isEvent ? raw.status : raw.work_type;
@@ -3900,13 +3839,13 @@ function HistoryModal({
                   <span className={`history-mark ${statusTone(status)}`} />
                   <time dateTime={date}>업무일 {displayDate(date)}</time>
                   <strong>{status}</strong>
-                  {isEvent && <small>{raw.customer_name}</small>}
+                  {isEvent && <small>{raw.customer_name}{raw.customer_id && ` · ${raw.customer_id}`}</small>}
                   <span className="history-entry-open">{id ? <>내용 보기 <Icon name="next" size={15} /></> : "원본 이력"}</span>
                 </div>
                 {savedLabel && <p className="history-entry-saved">최근 저장 · <time>{savedLabel}</time></p>}
                 {!isEvent && (raw.customer_name || property) && (
                   <div className="history-entry-context">
-                    {raw.customer_name && <span><Icon name="customers" size={16} /><span>고객 · {raw.customer_name}</span></span>}
+                    {(raw.customer_name || raw.customer_id) && <span><Icon name="customers" size={16} /><span>고객 · {raw.customer_name}{raw.customer_id && ` · ${raw.customer_id}`}</span></span>}
                     {property && <WorkSummaryProperties work={raw} showSingle />}
                   </div>
                 )}

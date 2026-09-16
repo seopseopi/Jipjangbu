@@ -58,8 +58,8 @@ function database(t) {
     work(id, date, type = "계약예정", customer = "synthetic-customer", updated = "2026-09-13 01:00:00") {
       sqlite.prepare("INSERT INTO work_logs (id,customer_id,work_date,work_type,content,updated_at,created_at) VALUES (?,?,?,?,?,?,?)").run(id, customer, date, type, "합성 업무 메모", updated, updated);
     },
-    property(id, workId, dong, unit) {
-      sqlite.prepare("INSERT INTO work_log_properties (id,work_log_id,sequence,property_type,building_name,building_dong,unit_number) VALUES (?,?,1,'아파트','합성단지',?,?)").run(id, workId, dong, unit);
+    property(id, workId, dong, unit, source = "") {
+      sqlite.prepare("INSERT INTO work_log_properties (id,work_log_id,sequence,property_type,building_name,building_dong,unit_number,source) VALUES (?,?,1,'아파트','합성단지',?,?,?)").run(id, workId, dong, unit, source);
     },
   };
 }
@@ -69,6 +69,44 @@ async function get(route, path, params = {}) {
   assert.equal(response.status, 200, JSON.stringify(body));
   return body;
 }
+
+test("고객 이력은 고객ID·모든 물건지의 정확한 일치를 합치고 중복·부분일치 없이 페이지와 건수를 맞춘다", async (t) => {
+  const db = database(t);
+  const id = "합성_업소%';--";
+  db.customer(id); db.customer("other");
+  for (const [workId, owner] of [["direct", id], ["both", id], ["source-only", "other"], ["partial", "other"], ["unrelated", "other"]]) {
+    db.work(workId, "2026-09-16", "전화", owner);
+    db.property(`${workId}-first`, workId, "101", "102", workId === "partial" ? `${id}다른업소` : "무관한 업소");
+  }
+  for (const workId of ["both", "source-only"]) {
+    db.property(`${workId}-second`, workId, "102", "103", ` ${id} `);
+    db.property(`${workId}-third`, workId, "103", "104", id);
+  }
+  const all = [];
+  for (const offset of [0, 2]) {
+    const page = await get(workRoute, "/api/work-logs", { customerId: id, includeSource: "1", offset: String(offset), limit: "2" });
+    assert.equal(page.total, 3);
+    all.push(...page.workLogs);
+  }
+  assert.deepEqual(all.map((row) => row.id), ["source-only", "direct", "both"]);
+  assert.equal(all[0].customer_id, "other", "related records retain their actual customer identity");
+  assert.equal(JSON.parse(all[0].properties_json).length, 3);
+  const direct = await get(workRoute, "/api/work-logs", { customerId: id });
+  assert.equal(direct.total, 2, "ordinary exact customer filters remain unchanged");
+});
+
+test("오늘 업무 팝업 조회는 날짜를 한정하고 최근 수정순을 업무구분보다 우선하며 모든 페이지를 읽는다", async (t) => {
+  const db = database(t); db.customer();
+  db.work("old-balance", "2026-09-16", "잔금예정", "synthetic-customer", "2026-09-15 01:00:00");
+  db.work("new-call", "2026-09-16", "전화", "synthetic-customer", "2026-09-16 01:00:00");
+  db.work("outside", "2026-09-17", "전화", "synthetic-customer", "2026-09-17 01:00:00");
+  const ids = [];
+  for (const offset of [0, 1]) {
+    const result = await get(workRoute, "/api/work-logs", { from: "2026-09-16", to: "2026-09-16", sort: "updated", limit: "1", offset: String(offset) });
+    assert.equal(result.total, 2); ids.push(result.workLogs[0].id);
+  }
+  assert.deepEqual(ids, ["new-call", "old-balance"]);
+});
 
 test("전체 일정 API는 월경계 양끝과 모든 페이지에서 집방문 예약 우선·그 안에서는 날짜순을 유지한다", async (t) => {
   const db = database(t);
