@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
-/* A quiet, neutral palette: white sheets on light gray, charcoal for actions and the current
-   place, and color only where it carries meaning (search matches, danger, work types).
-   --green* names are kept for existing references; they now hold the charcoal accent. */
+/* A quiet, neutral palette: white sheets on light gray, the brand navy for the logo and
+   primary actions, and color only where it carries meaning (search matches, danger, work types).
+   --green* names are kept for existing references; they now hold the brand navy. */
 :root {
   color-scheme: light;
   --ink: #1f2328;
@@ -15,10 +15,10 @@
   --canvas: #f5f6f7;
   --wash: #f9fafb;
   --tint: #eff1f3;
-  --green: #2a2f35;
-  --green-dark: #15181c;
-  --green-soft: #eceef1;
-  --green-line: #c3c9cf;
+  --green: #13254a;
+  --green-dark: #0c1a36;
+  --green-soft: #e9edf4;
+  --green-line: #c2cadb;
   --mark: #fcefb4;
   --gold: #82560b;
   --gold-soft: #fbf3dc;
@@ -59,12 +59,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Application frame. */
 .app-shell { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 100dvh; }
 .sidebar { position: sticky; top: 0; display: flex; flex-direction: column; height: 100dvh; overflow-y: auto; padding: 22px 14px 20px; border-right: 1px solid var(--line); background: var(--paper); color: var(--ink-2); scrollbar-color: var(--line-strong) transparent; }
-.brand { display: flex; align-items: center; gap: 12px; padding: 0 8px; }
+.brand { display: flex; align-items: center; gap: 8px; padding: 0 8px; }
 .brand-button { width: 100%; min-height: 52px; border: 0; border-radius: 6px; background: transparent; color: inherit; text-align: left; }
 @media (hover: hover) { .brand-button:hover { background: var(--wash); } }
-.brand-mark, .login-logo { display: block; flex: 0 0 auto; width: 32px; height: 32px; background: url("/jipjangbu-logo.png") center/contain no-repeat; }
-.brand strong { display: block; }
-.brand strong { color: var(--ink); font-size: 19px; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; }
+.brand-mark, .login-logo { display: block; flex: 0 0 auto; width: 28px; height: 28px; background: url("/jipjangbu-logo.png") center/contain no-repeat; }
+.brand strong { display: block; color: var(--green); font-size: 20px; font-weight: 700; letter-spacing: -.045em; line-height: 1.2; }
 .sidebar nav { display: grid; gap: 1px; margin-top: 20px; }
 .nav-item { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 40px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); text-align: left; font-size: var(--text-base); font-weight: 500; }
 .nav-item .nav-icon { color: var(--faint); }
@@ -433,11 +432,9 @@ button.table-row:hover { background: var(--wash); }
 /* Sign in. */
 .login-shell { display: grid; place-items: center; min-height: 100dvh; padding: 32px 20px; background: var(--canvas); }
 .login-card { width: min(420px, 100%); padding: 32px 32px 28px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
-.login-brand { display: inline-flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
-.login-logo { width: 44px; height: 44px; }
-.login-brand strong, .login-brand small { display: block; }
-.login-brand strong { font-size: 22px; font-weight: 700; letter-spacing: -.02em; line-height: 1.25; }
-.login-brand small { margin-top: 2px; color: var(--muted); font-size: 13px; }
+.login-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--green); text-decoration: none; }
+.login-logo { width: 30px; height: 30px; }
+.login-brand strong { display: block; font-size: 23px; font-weight: 700; letter-spacing: -.045em; line-height: 1.2; }
 .login-heading { margin: 28px 0 16px; padding-top: 24px; border-top: 1px solid var(--line); }
 .login-heading h1 { font-size: 26px; }
 .login-heading span { display: block; margin-top: 6px; color: var(--muted); font-size: var(--text-small); }
@@ -741,9 +738,9 @@ button.table-row:hover { background: var(--wash); }
 @media (max-width: 920px) {
   .app-shell { grid-template-columns: 188px minmax(0, 1fr); }
   .sidebar { padding: 20px 8px 18px; }
-  .brand { gap: 9px; padding-inline: 7px; }
-  .brand-mark { width: 30px; height: 30px; }
-  .brand strong { font-size: 20px; }
+  .brand { padding-inline: 7px; }
+  .brand-mark { width: 24px; height: 24px; }
+  .brand strong { font-size: 19px; }
   .nav-item { padding-inline: 11px; gap: 10px; }
   .workspace { padding: 24px 20px 50px; }
   .topbar { flex-wrap: wrap; gap: 16px; }
@@ -763,8 +760,8 @@ button.table-row:hover { background: var(--wash); }
   .app-shell { display: block; }
   .sidebar { position: static; height: auto; overflow: visible; padding: 12px; border-right: 0; border-bottom: 1px solid var(--line); }
   .sidebar .brand { display: flex; width: auto; min-height: 44px; padding: 0 4px; }
-  .brand-mark { width: 30px; height: 30px; }
-  .brand strong { font-size: 20px; }
+  .brand-mark { width: 24px; height: 24px; }
+  .brand strong { font-size: 19px; }
   .sidebar-foot { display: none; }
   .sidebar nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin-top: 10px; }
   .nav-item { flex-direction: column; justify-content: center; gap: 4px; min-width: 0; min-height: 60px; padding: 8px 3px; border-radius: 6px; font-size: 13px; font-weight: 500; line-height: 1.3; text-align: center; white-space: normal; word-break: keep-all; }
