@@ -1,0 +1,64 @@
+name: 버그 제보
+description: 동작 오류나 업무 흐름에서 불편한 점을 알려 주세요.
+title: "[버그] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        이 내용은 공개됩니다. 고객명·전화번호·실제 주소와 업무 내용은 가상의 예시로 바꿔 주세요.
+        비밀번호·비밀키·원본 엑셀·백업 파일은 첨부하지 마세요. 스크린샷에도 개인정보가 없어야 합니다.
+  - type: dropdown
+    id: screen
+    attributes:
+      label: 문제가 발생한 화면
+      options:
+        - 홈
+        - 업무일지
+        - 업무 달력
+        - 고객 관리·이력
+        - 매물 관리·이력
+        - 업무 현황
+        - 챙겨야 할 일
+        - 휴지통
+        - 검색
+        - 로그인·설정·백업
+        - 여러 화면 또는 기타
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 어떤 순서로 사용했나요?
+      description: 같은 문제를 확인할 수 있도록 누른 버튼과 입력 조건을 알려 주세요.
+      placeholder: |
+        1. 업무일지에서 가상의 주소 '예시단지 101동 202호'를 검색했습니다.
+        2. 검색 결과의 매물 주소를 눌렀습니다.
+        3. 이력 대신 빈 화면이 나타났습니다.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 기대한 결과
+      placeholder: 해당 매물의 업무 이력이 보여야 합니다.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 결과
+      description: 오류 문구나 개인정보를 가린 화면을 첨부할 수 있습니다.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: 사용 환경
+      placeholder: 예) Windows · Chrome / iPhone · Safari / 큰 글씨 사용
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 공개 전 확인
+      options:
+        - label: 본문과 첨부 자료에 실제 고객 정보, 연락처, 계정 정보, 비밀키가 없는지 확인했습니다.
+          required: true

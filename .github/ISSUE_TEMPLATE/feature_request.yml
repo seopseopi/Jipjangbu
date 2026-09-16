@@ -1,0 +1,36 @@
+name: 기능 제안
+description: 더 편리한 업무 흐름이나 필요한 기능을 제안해 주세요.
+title: "[제안] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        어떤 업무에서 불편했는지 알려 주시면 개선 방향을 이해하는 데 도움이 됩니다.
+        공개 이슈이므로 실제 고객 자료 대신 가상의 예시를 사용해 주세요.
+  - type: textarea
+    id: problem
+    attributes:
+      label: 어떤 업무가 불편한가요?
+      description: 사용한 화면과 현재 업무 흐름을 설명해 주세요.
+      placeholder: 예) 매물 이력을 보면서 새 업무를 등록하려면 화면을 여러 번 오가야 합니다.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 어떻게 바뀌면 좋을까요?
+      description: 원하는 동작이나 표시 방식을 알려 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: 추가 설명
+      description: 사용 빈도, 현재 대신 사용하는 방법, 개인정보를 가린 참고 화면이 있다면 남겨 주세요.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 공개 전 확인
+      options:
+        - label: 본문과 첨부 자료에 실제 고객 정보, 연락처, 계정 정보, 비밀키가 없는지 확인했습니다.
+          required: true

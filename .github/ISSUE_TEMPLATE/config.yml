@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 집장부 사용 가이드
+    url: https://github.com/seopseopi/Jipjangbu/blob/main/docs/usage.md
+    about: 검색·이력·업무 등록·삭제와 복구·백업 사용법을 확인하세요.
+  - name: 개발·설계 문서
+    url: https://github.com/seopseopi/Jipjangbu/blob/main/docs/README.md
+    about: 개발 환경과 기능별 설계·검증 기록을 확인하세요.
