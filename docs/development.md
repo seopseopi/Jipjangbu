@@ -12,7 +12,7 @@ cd Jipjangbu
 npm ci
 ```
 
-[`.env.example`](../.env.example)을 참고해 Git에서 제외되는 로컬 `.env`를 만듭니다.
+[`.env.example`](../.env.example)을 참고해 Git에서 제외되는 로컬 `.env`를 만듭니다. 로컬 실행 도구가 `.env` 값의 `$이름`을 변수로 바꾸기 때문에, 비밀번호 해시에 들어 있는 `$`는 모두 `\$`로 적어야 합니다.
 
 | 설정 | 용도 |
 | :--- | :--- |
