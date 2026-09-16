@@ -2,21 +2,21 @@
 .trash-help { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 20px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .trash-help .ui-icon { margin-top: 3px; }
 .trash-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; }
-.trash-search { display: flex; flex: 1 1 280px; align-items: center; gap: 10px; max-width: 660px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface, #fff); }
+.trash-search { display: flex; flex: 1 1 280px; align-items: center; gap: 10px; max-width: 660px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 .trash-search input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; color: var(--ink); font-size: var(--text-base); outline-offset: 3px; }
 .trash-search button { display: grid; place-items: center; min-height: 38px; min-width: 32px; border: 0; background: transparent; color: var(--muted); }
 .trash-type { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--text-small); }
-.trash-type select { min-height: 46px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface, #fff); color: var(--ink); font-size: var(--text-base); }
+.trash-type select { min-height: 46px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: var(--text-base); }
 .trash-list-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 18px; padding: 0 0 12px; border-bottom: 1px solid var(--line); }
 .trash-list-heading h2 { margin: 0; font-size: calc(var(--text-base) + 4px); }
 .trash-list-heading h2 span { margin-left: 5px; color: var(--muted); font-size: var(--text-small); font-weight: 500; }
 .trash-list-heading p { margin: 0; color: var(--muted); font-size: var(--text-small); }
 .trash-list { padding: 0; margin: 0; list-style: none; }
 .trash-record { display: grid; grid-template-columns: 50px minmax(0, 1fr) minmax(140px, auto); width: 100%; align-items: start; gap: 15px; padding: 20px 10px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; }
-.trash-record:hover { background: var(--green-soft); }
-.trash-kind { margin-top: 1px; padding: 4px 6px; border-radius: 5px; background: var(--green-soft); color: var(--green-dark); text-align: center; font-size: var(--text-small); font-weight: 600; }
+.trash-record:hover { background: var(--wash); }
+.trash-kind { margin-top: 1px; padding: 2px 6px; border: 1px solid var(--line-strong); border-radius: 3px; color: var(--ink-2); text-align: center; font-size: var(--text-small); font-weight: 600; }
 .trash-record-main { display: grid; gap: 5px; min-width: 0; }
-.trash-record-main strong { font-size: var(--text-base); font-weight: 650; overflow-wrap: anywhere; }
+.trash-record-main strong { font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
 .trash-record-main > span { color: var(--muted); font-size: var(--text-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 .trash-record-action { display: grid; gap: 7px; text-align: right; font-size: var(--text-small); }
 .trash-record-action time, .trash-deleted-time { color: var(--muted); font-size: var(--text-small); font-variant-numeric: tabular-nums; }
@@ -24,7 +24,7 @@
 .trash-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 48px 14px; color: var(--muted); text-align: center; }
 .trash-empty strong { color: var(--ink); font-size: var(--text-base); }
 .trash-more { display: flex; margin: 22px auto 0; }
-.trash-notice { padding: 12px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--green-soft); color: var(--green-dark); font-size: var(--text-small); }
+.trash-notice { padding: 12px 16px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); color: var(--ink-2); box-shadow: inset 3px 0 0 var(--green); font-size: var(--text-small); }
 @media (max-width: 650px) {
   .trash-record { grid-template-columns: 44px minmax(0, 1fr); gap: 8px 12px; padding: 18px 0; }
   .trash-record-action { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px 12px; text-align: left; }

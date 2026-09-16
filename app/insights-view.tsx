@@ -211,7 +211,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
 
       <div className="insights-grid">
         <section className="insights-panel insights-monthly" aria-labelledby="insights-monthly-title">
-          <header className="insights-panel-head"><div><p>업무 흐름</p><h2 id="insights-monthly-title">월별 업무량</h2></div><span>최근 추이</span></header>
+          <header className="insights-panel-head"><div><h2 id="insights-monthly-title">월별 업무량</h2></div></header>
           {data.monthly.length === 0 ? <p className="insights-panel-empty">표시할 월별 업무가 없습니다.</p> : (
             <div className="insights-chart">
               {data.monthly.map((item) => (
@@ -226,7 +226,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
         </section>
 
         <section className="insights-panel insights-work-types" aria-labelledby="insights-work-types-title">
-          <header className="insights-panel-head"><div><p>업무 구성</p><h2 id="insights-work-types-title">업무구분별 현황</h2></div><span>{data.workTypes.length}개 구분</span></header>
+          <header className="insights-panel-head"><div><h2 id="insights-work-types-title">업무구분별 현황</h2></div><span>{data.workTypes.length}개 구분</span></header>
           {data.workTypes.length === 0 ? <p className="insights-panel-empty">표시할 업무구분이 없습니다.</p> : (
             <div className="insights-type-list">
               {data.workTypes.map((item) => (
@@ -240,7 +240,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
         </section>
 
         <section className="insights-panel insights-upcoming" aria-labelledby="insights-upcoming-title">
-          <header className="insights-panel-head"><div><p>다가오는 일정 · 예정·예약 업무</p><h2 id="insights-upcoming-title">앞으로 30일 일정</h2></div>{onOpenSchedule && <button className="text-button" type="button" onClick={onOpenSchedule}>30일 일정 전체 보기 <Icon name="next" size={16} /></button>}</header>
+          <header className="insights-panel-head"><div><h2 id="insights-upcoming-title">앞으로 30일 일정</h2><p>예정·예약 업무</p></div>{onOpenSchedule && <button className="text-button" type="button" onClick={onOpenSchedule}>30일 일정 전체 보기 <Icon name="next" size={16} /></button>}</header>
           {data.upcoming.length > 0 && <p className="insights-preview-note">잔금·집방문 예정 우선 · 같은 우선순위는 날짜순 · 최대 12건 미리보기 · 현재 {data.upcoming.length}건 표시</p>}
           {data.upcoming.length === 0 ? <p className="insights-panel-empty">다가오는 일정이 없습니다.</p> : (
             <div className="insights-item-list">
@@ -257,7 +257,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
         </section>
 
         <section className="insights-panel insights-stale" aria-labelledby="insights-stale-title">
-          <header className="insights-panel-head"><div><p>매물 점검</p><h2 id="insights-stale-title">오래 갱신되지 않은 매물</h2></div>{onReviewStale ? <button className="text-button" type="button" onClick={onReviewStale}>전체 {data.summary.staleListingCount}건 보기</button> : <span>{data.staleListings.length}건</span>}</header>
+          <header className="insights-panel-head"><div><h2 id="insights-stale-title">오래 갱신되지 않은 매물</h2></div>{onReviewStale ? <button className="text-button" type="button" onClick={onReviewStale}>전체 {data.summary.staleListingCount}건 보기</button> : <span>{data.staleListings.length}건</span>}</header>
           {data.staleListings.length === 0 ? <p className="insights-panel-empty">지금 확인이 필요한 오래된 매물이 없습니다.</p> : (
             <div className="insights-item-list">
               {data.staleListings.map((listing) => (

@@ -1,12 +1,12 @@
-.safety-dialog { box-sizing: border-box; width: min(680px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--surface, #fff); color: var(--ink); box-shadow: 0 24px 80px #13292133; overflow-y: auto; }
-.safety-dialog::backdrop { background: #15241ecc; }
+.safety-dialog { box-sizing: border-box; width: min(680px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); margin: auto; padding: 0; border: 0; border-radius: 10px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow-float); overflow-y: auto; }
+.safety-dialog::backdrop { background: rgba(18, 32, 26, .55); }
 .safety-dialog-heading { padding: 23px 24px 17px; border-bottom: 1px solid var(--line); }
 .safety-dialog-heading h2 { margin: 0; font-size: calc(var(--text-base) + 7px); line-height: 1.4; }
 .safety-dialog-body { padding: 20px 24px; min-width: 0; font-size: var(--text-base); line-height: 1.7; }
-.safety-dialog-actions { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--surface, #fff); }
+.safety-dialog-actions { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 16px 24px; border-top: 1px solid var(--line); background: var(--paper); }
 .safety-dialog-actions > button { min-height: 44px; white-space: normal; word-break: keep-all; }
 .deletion-explanation { margin: 0 0 20px; color: var(--muted); }
-.deletion-draft-warning { margin: 12px 0 20px; padding: 12px 14px; border: 1px solid #ead29a; border-radius: 8px; background: #fff9ea; color: #755012; font-size: var(--text-small); }
+.deletion-draft-warning { margin: 12px 0 20px; padding: 12px 14px; border: 1px solid var(--gold-line); border-radius: 6px; background: var(--gold-soft); color: var(--gold); font-size: var(--text-small); }
 .deletion-preview { min-width: 0; }
 .deletion-record-heading { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
 .deletion-record-heading strong { display: block; font-size: calc(var(--text-base) + 2px); overflow-wrap: anywhere; }
@@ -17,9 +17,9 @@
 .deletion-record-content { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.85; }
 .deletion-listings { margin: 0; padding-left: 24px; }
 .deletion-listings li { padding: 4px 0; overflow-wrap: anywhere; }
-.deletion-warnings { margin: 20px 0 0; padding: 14px 16px 14px 32px; border-radius: 8px; background: var(--green-soft); color: var(--green-dark); font-size: var(--text-small); }
+.deletion-warnings { margin: 20px 0 0; padding: 14px 16px 14px 32px; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: var(--ink-2); font-size: var(--text-small); }
 .deletion-warnings li + li { margin-top: 7px; }
-.deletion-blocked, .deletion-error { margin: 18px 0 0; padding: 14px; border: 1px solid #eabcb5; border-radius: 8px; background: #fff5f2; color: #922c22; font-size: var(--text-small); }
+.deletion-blocked, .deletion-error { margin: 18px 0 0; padding: 14px; border: 1px solid var(--seal-line); border-radius: 6px; background: var(--seal-soft); color: var(--seal); font-size: var(--text-small); }
 .deletion-blocked { display: flex; gap: 8px; }
 .deletion-error p { margin: 0 0 10px; overflow-wrap: anywhere; }
 .deletion-error p:last-child { margin-bottom: 0; }

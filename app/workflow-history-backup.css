@@ -1,7 +1,7 @@
 /* Related records retain their identity above the full-width original notes. */
 .history-list-guide { margin: 20px 0 4px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .history-entry-open { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; color: var(--green); font-size: var(--text-caption); white-space: nowrap; }
-.history-entry-context { display: grid; gap: 6px; min-width: 0; color: #354f41; font-size: var(--text-small); line-height: 1.7; }
+.history-entry-context { display: grid; gap: 6px; min-width: 0; color: var(--ink-2); font-size: var(--text-small); line-height: 1.7; }
 .history-entry-context > span:not(.work-summary-properties) { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
 .history-entry-context .ui-icon { flex: 0 0 auto; margin-top: 5px; }
 .history-entry-context > span > span { min-width: 0; overflow-wrap: anywhere; }
@@ -13,11 +13,11 @@
 .listing-work-details > summary::marker, .listing-work-details > summary::-webkit-details-marker { display: none; content: ""; }
 .listing-work-details[open] > summary > .ui-icon { transform: rotate(90deg); }
 .history-list > button:disabled .history-entry-open { color: var(--muted); }
-.backup-action-error { margin: 0; padding: 14px 22px; border-bottom: 1px solid #ead4cc; background: #fff5f0; color: #8a3423; font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; }
-.backup-load-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px; border-bottom: 1px solid #ead4cc; background: #fff7f2; color: #8a3423; }
+.backup-action-error { margin: 0; padding: 14px 22px; border-bottom: 1px solid var(--seal-line); background: var(--gold-soft); color: var(--seal); font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; }
+.backup-load-error { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 18px 22px; border-bottom: 1px solid var(--seal-line); background: var(--gold-soft); color: var(--seal); }
 .backup-load-error > div { flex: 1 1 240px; min-width: 0; font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; }
 .backup-load-error p { margin: 4px 0 0; }
-.backup-latest { display: flex; align-items: center; gap: 11px; padding: 18px 22px; background: var(--green-soft); color: var(--green); }
+.backup-latest { display: flex; align-items: center; gap: 11px; padding: 18px 22px; border-bottom: 1px solid var(--line); background: var(--wash); color: var(--green); }
 .backup-latest > span { font-size: var(--text-small); line-height: 1.6; }
 .backup-latest strong { display: block; color: var(--ink); font-size: var(--text-base); }
 .backup-download-help { margin: 0; padding: 14px 22px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--text-small); line-height: 1.7; }

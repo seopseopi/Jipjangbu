@@ -38,9 +38,8 @@ export default function LoginPage() {
         <span><strong>집장부</strong><small>부동산 업무를 한곳에</small></span>
       </Link>
       <div className="login-heading">
-        <p>관리자 전용</p>
         <h1 id="login-title">로그인</h1>
-        <span>고객과 업무 기록을 안전하게 관리합니다.</span>
+        <span>관리자 전용입니다. 등록된 아이디와 비밀번호를 입력해 주세요.</span>
       </div>
       <form className="login-form" onSubmit={submit}>
         <label htmlFor="username">아이디</label>
@@ -50,7 +49,6 @@ export default function LoginPage() {
         {error && <p className="login-error" role="alert">{error}</p>}
         <button className="login-submit" disabled={submitting}>{submitting ? "확인 중…" : "로그인"}</button>
       </form>
-      <p className="login-note"><span aria-hidden="true">●</span> 로그인 정보와 백업 암호는 GitHub에 저장되지 않습니다.</p>
     </section>
   </main>;
 }

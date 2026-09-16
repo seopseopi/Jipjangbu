@@ -229,7 +229,6 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
       <section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title" tabIndex={-1}>
         <header className="global-search-header">
           <div className="global-search-heading">
-            <p className="global-search-kicker">통합검색</p>
             <h2 id="global-search-title">업무·고객·매물을 한 번에 찾기</h2>
           </div>
           <button className="global-search-close" type="button" onClick={close} aria-label="통합검색 닫기"><Icon name="close" /></button>

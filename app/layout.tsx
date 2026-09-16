@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
-import { Noto_Sans_KR } from "next/font/google";
+import { IBM_Plex_Sans_KR } from "next/font/google";
 import "./globals.css";
 
-const notoSansKr = Noto_Sans_KR({
+// Plex Sans KR keeps dates, prices and 동·호수 numbers even and legible in dense records.
+const plexSansKr = IBM_Plex_Sans_KR({
   variable: "--font-korean",
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -16,5 +19,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ko"><body className={notoSansKr.variable}>{children}</body></html>;
+  return <html lang="ko"><body className={plexSansKr.variable}>{children}</body></html>;
 }

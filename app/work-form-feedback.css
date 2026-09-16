@@ -1,7 +1,7 @@
-.work-form-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 0 0 22px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 11px; background: var(--green-soft); color: var(--ink); font-size: var(--text-small); line-height: 1.65; }
+.work-form-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; margin: 0 0 22px; padding: 13px 15px; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: var(--ink); font-size: var(--text-small); line-height: 1.65; }
 .work-form-overview > span { min-width: 0; overflow-wrap: anywhere; }
 .work-form-overview strong { margin-right: 5px; }
-.work-copy-context { display: grid; gap: 7px; margin-bottom: 20px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--green-soft); color: var(--ink); font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; }
+.work-copy-context { display: grid; gap: 7px; margin-bottom: 20px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: var(--ink); font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; box-shadow: inset 3px 0 0 var(--green); }
 .work-copy-context > strong { color: var(--green-dark); font-size: var(--text-base); }
 .work-copy-context > span { color: var(--muted); }
 .work-copy-context > p { margin: 0; }
@@ -12,9 +12,9 @@
 .work-form-section p { margin: 0; color: var(--muted); font-size: var(--text-caption); }
 .work-form .detail-head p { line-height: 1.7; }
 .work-form .full-label > .form-help { display: inline; margin: 0 0 0 6px; }
-.work-form .listing-rule-notice { margin: 0 0 14px; padding: 11px 13px; border: 1px solid #c4ddcd; border-radius: 9px; background: #f0f7f2; color: #285c3d; font-size: var(--text-small); line-height: 1.7; }
-.work-form .detail-fields [aria-invalid="true"], .work-form .form-grid [aria-invalid="true"] { border-color: #ae542e; box-shadow: 0 0 0 2px #f9e7dc; }
-.work-form .modal-actions { position: sticky; z-index: 4; bottom: -25px; margin-inline: -26px; padding: 15px 26px; background: #fff; border-top: 1px solid #d0dcd4; box-shadow: 0 -8px 18px -15px #284c39; }
+.work-form .listing-rule-notice { margin: 0 0 14px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: var(--ink-2); font-size: var(--text-small); line-height: 1.7; }
+.work-form .detail-fields [aria-invalid="true"], .work-form .form-grid [aria-invalid="true"] { border-color: var(--seal); box-shadow: 0 0 0 2px var(--seal-soft); }
+.work-form .modal-actions { position: sticky; z-index: 4; bottom: -25px; margin-inline: -26px; padding: 15px 26px; background: var(--paper); border-top: 1px solid var(--line-strong); box-shadow: none; }
 .work-form .modal-actions .work-save-state { flex: 1; color: var(--muted); font-size: var(--text-caption); }
 .work-form .work-record-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line); }
 .work-form .work-record-actions .danger-button { margin-left: auto; }

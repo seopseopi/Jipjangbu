@@ -3,13 +3,13 @@
   justify-items: center;
   gap: 10px;
   padding: 40px 22px;
-  color: var(--muted, #5d6963);
+  color: var(--muted);
   text-align: center;
   overflow-wrap: anywhere;
 }
 
 .journal-search-feedback strong {
-  color: var(--ink, #202925);
+  color: var(--ink);
   font-size: var(--text-base, 15px);
 }
 
@@ -28,8 +28,8 @@
 .journal-export-note {
   margin: 0;
   padding: 14px 22px;
-  border-top: 1px solid #e3ebe6;
-  color: var(--muted, #5d6963);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
   font-size: var(--text-small, 14px);
   line-height: 1.7;
 }
@@ -37,8 +37,8 @@
 .journal-refresh-notice {
   margin: 0;
   padding: 10px 22px;
-  background: var(--green-soft, #eaf5ee);
-  color: var(--green-dark, #105537);
+  background: var(--wash);
+  color: var(--green-dark);
   font-size: var(--text-small, 14px);
   line-height: 1.7;
 }
@@ -46,7 +46,7 @@
 .work-property-match {
   display: block;
   margin-bottom: 5px;
-  color: #105537;
+  color: var(--green);
   font-size: var(--text-caption, 13px);
   font-weight: 700;
   line-height: 1.5;

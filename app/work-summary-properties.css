@@ -1,7 +1,7 @@
 .work-summary-properties { container-name: work-property-summary; container-type: inline-size; display: grid; gap: 5px; min-width: 0; margin-top: 9px; text-align: left; }
 .work-summary-property-count { display: block; color: var(--ink); font-size: var(--text-caption); font-weight: 600; line-height: 1.6; }
 .work-summary-property-list { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; min-width: 0; column-gap: 24px; row-gap: 3px; }
-.work-summary-building { grid-column: 1 / -1; min-width: 0; padding-top: 5px; color: var(--ink); font-size: var(--text-small); font-weight: 650; line-height: 1.65; overflow-wrap: anywhere; }
+.work-summary-building { grid-column: 1 / -1; min-width: 0; padding-top: 5px; color: var(--ink); font-size: var(--text-small); font-weight: 600; line-height: 1.65; overflow-wrap: anywhere; }
 .work-summary-building:first-child { padding-top: 0; }
 .work-summary-property { display: flex; align-items: flex-start; gap: 7px; min-width: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; }
 .work-summary-property-number { display: block; flex: 0 0 28px; color: var(--muted); font-size: var(--text-small); font-weight: 400; line-height: 1.65; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -9,8 +9,8 @@
 .work-summary-property-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; min-width: 0; }
 .work-summary-property-label { display: block; min-width: 0; color: var(--ink); font-size: var(--text-small); font-weight: 500; line-height: 1.65; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
 .work-summary-property-meta { display: block; color: var(--muted); font-size: var(--text-caption); line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }
-.work-summary-property-match { display: inline-block; color: var(--green-dark); font-size: var(--text-caption); font-weight: 650; line-height: 1.6; white-space: nowrap; }
-.work-summary-property.is-search-match .work-summary-property-label { color: var(--green-dark); font-weight: 650; }
+.work-summary-property-match { display: inline-block; color: var(--green-dark); font-size: var(--text-caption); font-weight: 600; line-height: 1.6; white-space: nowrap; }
+.work-summary-property.is-search-match .work-summary-property-label { color: var(--ink); font-weight: 600; background: var(--mark); }
 @container work-property-summary (min-width: 520px) {
   .work-summary-property-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

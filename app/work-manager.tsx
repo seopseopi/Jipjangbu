@@ -1289,11 +1289,6 @@ export function WorkManager() {
           ))}
         </nav>
         <div className="sidebar-foot">
-          <p className="sidebar-note">
-            기록은 차곡차곡,
-            <br />
-            오늘의 일은 가볍게.
-          </p>
           <button className="logout-link" onClick={signOut} type="button">
             <Icon name="logout" size={18} />
             로그아웃
@@ -1312,7 +1307,6 @@ export function WorkManager() {
                 <Icon name="back" size={17} /> 홈
               </button>
             )}
-            <p className="eyebrow">{titles[view][1]}</p>
             <h1>{titles[view][0]}</h1>
             <p className="view-purpose">{titles[view][1]}</p>
           </div>
@@ -1932,7 +1926,6 @@ function JournalView({
       <section className="panel data-panel" aria-busy={status === "loading" || status === "refreshing"}>
         <div className="panel-head">
           <div>
-            <p className="eyebrow">WORK RECORDS</p>
             <h2>
               업무 기록{" "}
               <span className="count-badge">
@@ -2209,7 +2202,6 @@ function ListingsView({
       <section className="panel data-panel" aria-busy={status === "loading" || status === "refreshing"}>
         <div className="panel-head">
           <div>
-            <p className="eyebrow">CURRENT LISTINGS</p>
             <h2>
               매물 목록 <span className="count-badge">{resultsVisible ? `${items.length}건` : status === "error" ? "조회 실패" : "조회 중…"}</span>
             </h2>
@@ -2381,7 +2373,6 @@ function CustomersView({
       <section className="panel data-panel" aria-busy={status === "loading" || status === "refreshing"}>
         <div className="panel-head">
           <div>
-            <p className="eyebrow">CUSTOMERS</p>
             <h2>
               고객 목록 <span className="count-badge">{resultsVisible ? `${items.length}명` : status === "error" ? "조회 실패" : "조회 중…"}</span>
             </h2>
@@ -2722,7 +2713,6 @@ function SettingsView({
       <section className="panel settings-panel">
         <div className="panel-head">
           <div>
-            <p className="eyebrow">WORK TYPES</p>
             <h2>업무구분</h2>
           </div>
           <span className="count-badge">{lookups.workTypes.length}</span>
@@ -2736,7 +2726,6 @@ function SettingsView({
       <section className="panel settings-panel">
         <div className="panel-head">
           <div>
-            <p className="eyebrow">BUILDINGS</p>
             <h2>물건·건물 분류</h2>
           </div>
           <span className="count-badge">{lookups.buildings.length}</span>
@@ -2767,7 +2756,6 @@ function SettingsView({
       </section>
       <form className="panel add-setting" onSubmit={submit}>
         <div>
-          <p className="eyebrow">ADD ITEM</p>
           <h2>새 분류 추가</h2>
         </div>
         <label>
@@ -2950,7 +2938,6 @@ function BackupPanel() {
     <section className="panel backup-panel">
       <div className="backup-head">
         <div>
-          <p className="eyebrow">BACKUP</p>
           <h2>데이터 안전 백업</h2>
           <span>
             사용한 날 첫 접속 시 1회, 정보 변경 전·후에 서버에 암호화해 보관합니다.
