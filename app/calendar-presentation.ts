@@ -6,7 +6,6 @@ const PROPERTY_FOCUSED_TYPES = new Set([
   "매물등록", "매물수정", "매물취소", "가계약", "계약서작성", "잔금", "중도금",
   "계약취소", "타계약확인", "경매확인",
 ]);
-const ADDRESS_ONLY_TYPES = new Set(["매물등록", "매물수정", "매물취소", "타계약확인", "경매확인"]);
 
 type CalendarWork = Parameters<typeof getWorkProperties>[0] & {
   customer_id: string;
@@ -22,16 +21,14 @@ export function calendarWorkPresentation(work: CalendarWork) {
   const properties = getWorkProperties(work).map((property, index) => ({
     ...property,
     key: property.id || `property-${index}`,
-    label: workPropertyLabel(property),
+    label: workPropertyLabel(property, true),
   }));
   const propertyFocused = PROPERTY_FOCUSED_TYPES.has(work.work_type.trim()) && properties.length > 0;
   const entries = propertyFocused ? properties.map((property) => {
-    if (isBroker || customer === "자체결정") {
-      return `${property.label}${customerId ? ` (${customerId})` : ""}`;
+    if ((isBroker || customer === "자체결정") && customerId && customerId !== property.source.trim()) {
+      return `${property.label} · 고객 ${customerId}`;
     }
-    if (ADDRESS_ONLY_TYPES.has(work.work_type.trim())) return property.label;
-    const source = property.source.trim();
-    return `${property.label} (${!source || source === "마전현대" ? "단독" : source})`;
+    return property.label;
   }) : [customerLabel];
   return { propertyFocused, entries, customerLabel, properties };
 }

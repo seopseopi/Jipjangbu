@@ -118,9 +118,10 @@ test("매물·계약 달력 카드는 모든 물건을 각각 표시하며 deskt
   for (const element of [desktop, mobile]) {
     const html = renderToStaticMarkup(element);
     assert.match(html, /물건 3개/);
-    assert.match(html, /첫번째단지 101동 1001호 \(단독\)/);
+    assert.match(html, /첫번째단지 101동 1001호/);
+    assert.doesNotMatch(html, /단독|\(\)/);
     assert.match(html, /두번째단지 202동 2002호 \(합성협력업소\)/);
-    assert.match(html, /세번째단지 303동 3003호 \(단독\)/);
+    assert.match(html, /세번째단지 303동 3003호 \(마전현대\)/);
     assert.doesNotMatch(html, /외 2건|업무 수정/);
   }
   const desktopCard = descendants(desktop).find((element) => element.type === "button");
@@ -155,10 +156,10 @@ test("같은 단지의 묶음 물건은 달력 양쪽에서 제목 한 번과 �
   const desktop = findByClass(tree, "calendar-desktop-panel")[0], mobile = findByClass(tree, "calendar-agenda-event")[0];
   for (const element of [desktop, mobile]) {
     assert.deepEqual(findByClass(element, "calendar-subject-building").map((heading) => heading.props.children), ["같은합성단지"]);
-    assert.deepEqual(findByClass(element, "calendar-subject-label").map((label) => label.props.children), ["106동 1503호 (단독)", "106동 1504호 (합성협력업소)", "106동 1505호 (단독)"]);
+    assert.deepEqual(findByClass(element, "calendar-subject-label").map((label) => label.props.children), ["106동 1503호", "106동 1504호 (합성협력업소)", "106동 1505호"]);
     const addresses = findByClass(element, "calendar-subject-property");
     assert.equal(addresses.length, 3);
-    assert.deepEqual(addresses.map((address) => address.props["aria-label"]), ["물건 1 · 같은합성단지 106동 1503호 (단독)", "물건 2 · 같은합성단지 106동 1504호 (합성협력업소)", "물건 3 · 같은합성단지 106동 1505호 (단독)"]);
+    assert.deepEqual(addresses.map((address) => address.props["aria-label"]), ["물건 1 · 같은합성단지 106동 1503호", "물건 2 · 같은합성단지 106동 1504호 (합성협력업소)", "물건 3 · 같은합성단지 106동 1505호"]);
     assert.ok(addresses.every((address) => address.props["aria-hidden"] !== true));
     assert.doesNotMatch(renderToStaticMarkup(element), /<details\b|\shidden(?:=|\s|>)|외 2건/);
   }

@@ -247,7 +247,7 @@ export function InsightsView({ onOpenWork, onOpenListing, refreshKey, onReviewSt
               {data.upcoming.map((item) => (
                 <button className="insights-item insights-upcoming-item" type="button" key={item.id} onClick={() => onOpenWork(item.id)}>
                   <time>{displayDate(item.work_date)}</time>
-                  <span className="insights-item-copy"><strong>{workName(item)}</strong><WorkSummaryProperties work={item} /><small>{item.content || item.customer_name}</small></span>
+                  <span className="insights-item-copy"><strong>{workName(item)}</strong><WorkSummaryProperties work={item} showSingle /><small>{item.content || item.customer_name}</small></span>
                   <span className="insights-item-status">{item.work_type}</span>
                   <Icon name="next" className="insights-item-arrow" size={18} />
                 </button>

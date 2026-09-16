@@ -2001,13 +2001,13 @@ function WorkTable({
                   {groups.map((group) => <span className="work-property-building-group" key={group.key}>
                     <strong className="work-property-building">{group.building || group.items[0].property.property_type || "물건 정보 미입력"}</strong>
                     <ol className="work-property-list">
-                      {group.items.map(({ property, index, shortLabel }) => {
+                      {group.items.map(({ property, index, shortLabel, sourceLabel }) => {
                         const matched = Number(item.search_property_match) === 1 && property.property_type === item.property_type && property.building_name === item.building_name && property.building_dong === item.building_dong && property.unit_number === item.unit_number;
-                        const label = workPropertyLabel(property);
+                        const label = workPropertyLabel(property, true);
                         return <li key={property.id || index} className={matched ? "is-search-match" : undefined}>
                           {property.property_type.trim() && property.building_name.trim() && property.unit_number.trim() ? <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory({ ...item, ...property, id: item.id })} aria-label={`${label} 매물 이력 보기`}>
-                            <span className="work-property-address">{shortLabel}</span>{matched && <span className="work-property-match" aria-label="검색 일치 물건" title="검색 일치 물건"><Icon name="search" size={12} /> 일치</span>}<Icon name="next" size={13} />
-                          </button> : <span className="work-property-incomplete" aria-label={label}>{shortLabel}{matched && <span className="work-property-match" aria-label="검색 일치 물건">일치</span>}</span>}
+                            <span className="work-property-address">{`${shortLabel}${sourceLabel}`}</span>{matched && <span className="work-property-match" aria-label="검색 일치 물건" title="검색 일치 물건"><Icon name="search" size={12} /> 일치</span>}<Icon name="next" size={13} />
+                          </button> : <span className="work-property-incomplete" aria-label={label}>{`${shortLabel}${sourceLabel}`}{matched && <span className="work-property-match" aria-label="검색 일치 물건">일치</span>}</span>}
                         </li>;
                       })}
                     </ol>

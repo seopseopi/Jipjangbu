@@ -102,6 +102,24 @@ test("각 물건 이력 버튼은 선택한 주소와 원래 업무 ID를 함께
   }
 });
 
+test("업무일지·최근업무 및 고객·오늘·매물 개별 이력은 실제 물건지를 주소별 괄호로 표시한다", () => {
+  const items = properties.slice(0, 3).map((property, index) => ({ ...property, source: [" 뉴현대 ", " \t ", "다른물건지"][index] }));
+  const entry = { ...work, property_count: 3, properties_json: JSON.stringify(items) };
+  const selected = [];
+  const tableTree = table([entry], { onListingHistory: (item) => selected.push(item) });
+  const labels = byClass(tableTree, "work-property-address");
+  assert.deepEqual(labels.map((label) => label.props.children), ["107동 901호 (뉴현대)", "106동 902호", "105동 903호 (다른물건지)"]);
+  for (const link of descendants(tableTree).filter((element) => element.type === "button" && element.props["aria-label"]?.endsWith("매물 이력 보기"))) link.props.onClick();
+  assert.deepEqual(selected.map((row) => row.source), items.map((property) => property.source), "history actions use stored data, not display labels");
+  for (const extra of [{ customer: { id: work.customer_id, name: work.customer_name } }, { date: work.work_date }, { listing: { identity_key: "synthetic-listing" }, workItems: [entry] }]) {
+    const tree = history({ items: [entry], ...extra });
+    const list = byClass(tree, "history-list")[0];
+    assert.match(markup(list), /107동 901호 \(뉴현대\)/);
+    assert.match(markup(list), /105동 903호 \(다른물건지\)/);
+    assert.doesNotMatch(markup(list), /106동 902호 \(|\(\)/);
+  }
+});
+
 test("검색에 일치한 두 번째 물건만 표시하되 첫 번째 물건을 위에서 숨기거나 재정렬하지 않는다", () => {
   const matched = { ...work, ...properties[1], id: work.id, search_property_match: 1 };
   const unrelated = { ...work, id: "synthetic-other-work", search_property_match: 0 };
@@ -161,10 +179,10 @@ test("연속된 같은 단지는 제목을 한 번만 보여주되 열 개 동·
   assert.deepEqual(byClass(tree, "work-property-building").map((heading) => heading.props.children), ["같은합성단지"]);
   assert.equal(propertyRows(tree).length, 10);
   const links = descendants(tree).filter((element) => element.type === "button" && element.props["aria-label"]?.endsWith("매물 이력 보기"));
-  assert.deepEqual(links.map((link) => link.props["aria-label"]), sameBuilding.map((property) => `${workPropertyLabel(property)} 매물 이력 보기`));
+  assert.deepEqual(links.map((link) => link.props["aria-label"]), sameBuilding.map((property) => `${workPropertyLabel(property, true)} 매물 이력 보기`));
   for (const [index, link] of links.entries()) {
     const [label] = byClass(link, "work-property-address");
-    assert.equal(label.props.children, `${sameBuilding[index].building_dong}동 ${sameBuilding[index].unit_number}호`);
+    assert.equal(label.props.children, `${sameBuilding[index].building_dong}동 ${sameBuilding[index].unit_number}호 (${sameBuilding[index].source})`);
     assert.doesNotMatch(markup(label), /같은합성단지/);
     link.props.onClick();
   }
@@ -178,7 +196,7 @@ test("단지를 다시 방문한 묶음도 합쳐 재정렬하지 않고 입력�
   assert.deepEqual(byClass(tree, "work-property-building").map((heading) => heading.props.children), ["재방문합성단지", "중간합성단지", "재방문합성단지"]);
   assert.deepEqual(byClass(tree, "work-property-list").map((list) => React.Children.count(list.props.children)), [2, 1, 1]);
   const links = descendants(tree).filter((element) => element.type === "button" && element.props["aria-label"]?.endsWith("매물 이력 보기"));
-  assert.deepEqual(links.map((link) => link.props["aria-label"]), revisited.map((property) => `${workPropertyLabel(property)} 매물 이력 보기`));
+  assert.deepEqual(links.map((link) => link.props["aria-label"]), revisited.map((property) => `${workPropertyLabel(property, true)} 매물 이력 보기`));
 });
 
 test("불완전한 주소도 빠뜨리지 않으며 이력을 추측해 열지 않고 나머지 정상 매물은 연결한다", () => {
@@ -189,7 +207,7 @@ test("불완전한 주소도 빠뜨리지 않으며 이력을 추측해 열지 �
   assert.equal(descendants(propertyRows(tree)[0]).filter((element) => element.type === "button").length, 0);
   const links = descendants(tree).filter((element) => element.type === "button" && element.props["aria-label"]?.endsWith("매물 이력 보기"));
   assert.equal(links.length, 1);
-  assert.equal(links[0].props["aria-label"], `${workPropertyLabel(properties[1])} 매물 이력 보기`);
+  assert.equal(links[0].props["aria-label"], `${workPropertyLabel(properties[1], true)} 매물 이력 보기`);
 });
 
 test("홈·예정 업무 요약에도 모든 주소와 고객 이름을 함께 표시하고 읽기 동작으로 연결한다", () => {

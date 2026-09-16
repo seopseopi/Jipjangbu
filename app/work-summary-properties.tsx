@@ -21,14 +21,14 @@ export function WorkSummaryProperties({ work, showSingle = false, showPrices = f
         {groups.flatMap((group) => {
           const compactBuilding = Boolean(group.building && group.items.length > 1);
           const heading = compactBuilding ? <span className="work-summary-building" key={`building-${group.key}`} role="presentation">{group.building}</span> : null;
-          const entries = group.items.map(({ property, index, shortLabel }) => {
+          const entries = group.items.map(({ property, index, shortLabel, sourceLabel }) => {
           const matched = work.search_property_match === 1 && ["property_type", "building_name", "building_dong", "unit_number"].every((field) => {
             const key = field as "property_type" | "building_name" | "building_dong" | "unit_number";
             return String(property[key] || "").trim() === String(work[key] || "").trim();
           });
           const prices = [property.sale_price && `매매 ${property.sale_price}`, property.jeonse_price && `전세 ${property.jeonse_price}`, property.monthly_rent && `월세 ${property.monthly_rent}`].filter(Boolean).join(" · ");
-          const fullAddress = workPropertyLabel(property);
-          const visibleAddress = compactBuilding ? shortLabel : fullAddress;
+          const fullAddress = workPropertyLabel(property, true);
+          const visibleAddress = compactBuilding ? `${shortLabel}${sourceLabel}` : fullAddress;
           const metadata = [showPrices && [property.property_type, property.size_type].filter(Boolean).join(" · "), showPrices && prices].filter(Boolean).join(" · ");
           return (
             <span className={`work-summary-property${matched ? " is-search-match" : ""}`} role="listitem" key={property.id || index} aria-label={`물건 ${index + 1} · ${fullAddress}`}>

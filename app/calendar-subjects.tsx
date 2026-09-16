@@ -13,13 +13,13 @@ export function CalendarSubjects({ item }: { item: Parameters<typeof calendarWor
         {groups.flatMap((group) => {
           const compactBuilding = Boolean(group.building && group.items.length > 1);
           const heading = compactBuilding ? <span className="calendar-subject-building" key={`building-${group.key}`} role="presentation">{group.building}</span> : null;
-          const entries = group.items.map(({ property, index, shortLabel }) => {
+          const entries = group.items.map(({ property, index, shortLabel, sourceLabel }) => {
             const address = presentation.properties[index].label;
             const fullText = presentation.propertyFocused ? presentation.entries[index] : address;
             // The suffix belongs to this property, not its building. Keeping it
             // per row preserves different broker/source labels in one work.
             const visibleText = compactBuilding && fullText.startsWith(address)
-              ? `${shortLabel}${fullText.slice(address.length)}`
+              ? `${shortLabel}${sourceLabel}${fullText.slice(address.length)}`
               : fullText;
             return (
               <span className="calendar-subject-property" key={property.id || index} role="listitem" aria-label={`물건 ${index + 1} · ${fullText}`} title={fullText}>

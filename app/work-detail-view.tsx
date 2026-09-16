@@ -46,7 +46,7 @@ export function WorkDetailView({
     };
     return {
       key: `${detailText(detail.id)}-${index}`,
-      address: workPropertyLabel(property),
+      address: workPropertyLabel({ ...property, source: detailText(detail.source) }, true),
       type: property.property_type || "물건구분 미입력",
       size: property.size_type,
       history: createPropertyHistoryTarget({

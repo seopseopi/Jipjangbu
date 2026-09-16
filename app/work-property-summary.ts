@@ -49,10 +49,12 @@ export function getWorkProperties(work: WorkWithProperties): WorkPropertySummary
   return [];
 }
 
-export function workPropertyLabel(property: Partial<WorkPropertySummary>): string {
+export function workPropertyLabel(property: Partial<WorkPropertySummary>, includeSource = false): string {
   const building = String(property.building_name || "").trim();
   const dong = String(property.building_dong || "").trim();
   const unit = String(property.unit_number || "").trim();
-  return [building, dong ? `${dong.replace(/동$/, "")}동` : "", unit ? `${unit.replace(/호$/, "")}호` : ""]
+  const address = [building, dong ? `${dong.replace(/동$/, "")}동` : "", unit ? `${unit.replace(/호$/, "")}호` : ""]
     .filter(Boolean).join(" ") || "물건 정보 없음";
+  const source = String(property.source ?? "").trim();
+  return includeSource && source ? `${address} (${source})` : address;
 }

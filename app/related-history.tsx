@@ -93,6 +93,7 @@ function propertyLabel(property: SavedProperty) {
     property.building_dong && `${property.building_dong}동`,
     property.unit_number && `${property.unit_number}호`,
     property.size_type,
+    property.source?.trim() ? `(${property.source.trim()})` : "",
   ]
     .filter(Boolean)
     .join(" ");

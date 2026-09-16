@@ -42,6 +42,29 @@ test("공통 요약은 모든 주소와 물건 개수를 개별 읽기 항목으
   assert.doesNotMatch(result, /외 \d+개|<button|<input|<form/);
 });
 
+test("연결 매물의 물건지는 단일·다중·같은단지·이전 응답에서 각 주소 옆 괄호로 표시하고 빈 값은 생략한다", () => {
+  const sources = [" 뉴현대 ", "", " \n\t ", undefined, "<script>합성업소</script>", "긴 합성 물건지 ".repeat(30)];
+  const items = sources.map((source, i) => ({ ...properties[0], id: `source-${i}`, unit_number: String(1001 + i), source }));
+  const original = JSON.stringify(items);
+  const tree = WorkSummaryProperties({ work: { properties_json: JSON.stringify(items), property_count: items.length }, showSingle: true });
+  const entries = descendants(tree).filter((element) => element.props.role === "listitem");
+  entries.forEach((entry, i) => {
+    const label = descendants(entry).find((element) => element.props.className === "work-summary-property-label");
+    const source = sources[i]?.trim();
+    const expected = `101동 ${1001 + i}호${source ? ` (${source})` : ""}`;
+    assert.equal(label.props.children, expected);
+    assert.equal(label.props.title, `첫번째합성단지 ${expected}`);
+    assert.ok(entry.props["aria-label"].endsWith(expected));
+  });
+  assert.doesNotMatch(html(tree), /<script>|\(\)/);
+  assert.match(html(tree), /&lt;script&gt;합성업소&lt;\/script&gt;/);
+  assert.equal(JSON.stringify(items), original, "display does not rewrite source records");
+  for (const properties_json of [undefined, "not-json", JSON.stringify([items[0]])]) {
+    const single = WorkSummaryProperties({ work: { ...items[0], properties_json, property_count: 1 }, showSingle: true });
+    assert.match(html(single), /첫번째합성단지 101동 1001호 \(뉴현대\)/);
+  }
+});
+
 test("공통 요약은 두번째 물건 검색 일치를 표시하되 원래 물건 순서를 유지한다", () => {
   const tree = WorkSummaryProperties({ work: { ...work, ...properties[1], search_property_match: 1 } });
   const entries = descendants(tree).filter((element) => element.props.role === "listitem");

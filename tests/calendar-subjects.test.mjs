@@ -27,13 +27,13 @@ test("단일 물건의 10개 업무종별은 기존 캘린더 표시문구를 �
   }
 });
 
-test("한 단지 물건 10개는 건물명 한번과 모든 동호수·개별 단독/업소 접미사를 원래 순서로 표시한다", () => {
+test("한 단지 물건 10개는 건물명 한번과 모든 동호수·실제 물건지 접미사를 원래 순서로 표시한다", () => {
   const sources = ["", "마전현대", "합성협력1", "합성협력2", "", "합성협력3", "마전현대", "합성협력4", "", "합성협력5"];
   const properties = sources.map((source, index) => property({ id: `ten-${index}`, sequence: index + 1, unit_number: String(1501 + index), source }));
   const item = work({ work_type: "가계약", property_count: 10, properties_json: JSON.stringify(properties) });
   const tree = CalendarSubjects({ item });
   assert.deepEqual(elements(tree, "calendar-subject-building").map((element) => element.props.children), ["합성단지"]);
-  assert.deepEqual(visible(tree), sources.map((source, index) => `106동 ${1501 + index}호 (${!source || source === "마전현대" ? "단독" : source})`));
+  assert.deepEqual(visible(tree), sources.map((source, index) => `106동 ${1501 + index}호${source ? ` (${source})` : ""}`));
   const rows = elements(tree, "calendar-subject-property");
   assert.equal(rows.length, 10);
   rows.forEach((row, index) => {
@@ -48,18 +48,17 @@ test("물건 중심의 부동산 고객과 자체결정은 축약 후에도 각 
   for (const customer_name of ["합성부동산", "부동산", "자체결정"]) {
     const item = work({ customer_name, work_type: "중도금", property_count: 2, properties_json: JSON.stringify([property(), property({ id: "second", unit_number: "1504", source: "다른업소" })]) });
     const tree = CalendarSubjects({ item });
-    assert.deepEqual(visible(tree), ["106동 1503호 (합성고객ID)", "106동 1504호 (합성고객ID)"]);
-    assert.doesNotMatch(html(tree), /다른업소/);
+    assert.deepEqual(visible(tree), ["106동 1503호 (합성업소) · 고객 합성고객ID", "106동 1504호 (다른업소) · 고객 합성고객ID"]);
   }
 });
 
 test("부동산써브 예외와 주소전용 업무는 기존 업무종별 의미를 바꾸지 않는다", () => {
   const properties_json = JSON.stringify([property(), property({ id: "second", unit_number: "1504", source: "" })]);
   const contract = CalendarSubjects({ item: work({ customer_name: "부동산써브", work_type: "계약서작성", property_count: 2, properties_json }) });
-  assert.deepEqual(visible(contract), ["106동 1503호 (합성업소)", "106동 1504호 (단독)"]);
+  assert.deepEqual(visible(contract), ["106동 1503호 (합성업소)", "106동 1504호"]);
   for (const work_type of ["매물등록", "매물수정", "매물취소", "타계약확인", "경매확인"]) {
     const tree = CalendarSubjects({ item: work({ customer_name: "부동산써브", work_type, property_count: 2, properties_json }) });
-    assert.deepEqual(visible(tree), ["106동 1503호", "106동 1504호"]);
+    assert.deepEqual(visible(tree), ["106동 1503호 (합성업소)", "106동 1504호"]);
   }
 });
 
@@ -71,7 +70,7 @@ test("전화·방문·예정·신규 업무는 고객을 첫 정보로 두고 �
     const children = React.Children.toArray(tree.props.children);
     assert.equal(children[0].props.className, "calendar-subject-customer");
     assert.equal(children[0].props.children, "합성고객ID 합성부동산");
-    assert.deepEqual(visible(tree), ["106동 1503호", "106동 1504호"]);
+    assert.deepEqual(visible(tree), ["106동 1503호 (합성업소)", "106동 1504호 (합성업소)"]);
   }
 });
 
@@ -84,7 +83,7 @@ test("떨어진 동일 단지·서로 다른 물건구분은 합치지 않으며
   ];
   const tree = CalendarSubjects({ item: work({ properties_json: JSON.stringify(properties), property_count: 4 }) });
   assert.equal(elements(tree, "calendar-subject-building").length, 0);
-  assert.deepEqual(visible(tree), ["합성단지 106동 1503호", "다른단지 2002호", "합성단지 106동 1504호", "합성단지"]);
+  assert.deepEqual(visible(tree), ["합성단지 106동 1503호 (합성업소)", "다른단지 2002호 (합성업소)", "합성단지 106동 1504호 (합성업소)", "합성단지 (합성업소)"]);
   assert.deepEqual(elements(tree, "calendar-subject-number").map((element) => element.props.children), [[1, "."], [2, "."], [3, "."], [4, "."]]);
 });
 
@@ -93,7 +92,7 @@ test("연결 물건 없는 업무와 이전 요약 응답은 고객 또는 기�
   assert.deepEqual(elements(empty, "calendar-subject-customer").map((element) => element.props.children), ["합성 고객"]);
   assert.equal(elements(empty, "calendar-subject-property").length, 0);
   const cached = CalendarSubjects({ item: work({ properties_json: undefined, ...property() }) });
-  assert.deepEqual(visible(cached), ["합성단지 106동 1503호"]);
+  assert.deepEqual(visible(cached), ["합성단지 106동 1503호 (합성업소)"]);
 });
 
 test("긴 단지·업소명은 전문 접근성을 유지하며 월간 셀과 모바일에서 말줄임·개별 테두리 없이 줄바꿈한다", () => {
