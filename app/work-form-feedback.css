@@ -3,6 +3,7 @@
 .work-form-overview strong { margin-right: 5px; }
 .work-copy-context { display: grid; gap: 7px; margin-bottom: 20px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--wash); color: var(--ink); font-size: var(--text-small); line-height: 1.7; overflow-wrap: anywhere; box-shadow: inset 3px 0 0 var(--green); }
 .work-copy-context > strong { color: var(--green-dark); font-size: var(--text-base); }
+.work-copy-context > span { font-size: var(--text-base); font-weight: 700; }
 .work-copy-context > span { color: var(--muted); }
 .work-copy-context > p { margin: 0; }
 .work-form .work-form-error { margin: 0 0 20px; outline-offset: 4px; }

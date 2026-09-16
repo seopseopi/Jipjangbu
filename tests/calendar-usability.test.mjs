@@ -256,8 +256,8 @@ test("모바일은 월 그리드 대신 전체 폭 일정 목록을 보여주고
 test("데스크톱 달력의 업무종별 제목과 더보기는 고정 12px 규칙보다 큰 글씨 토큰을 우선한다", () => {
   const css = readFileSync(new URL("../app/calendar.css", import.meta.url), "utf8");
   const globalCss = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
-  assert.match(css, /\.calendar-cell button \.calendar-card-heading > span,\s*\.calendar-cell button\.calendar-more\s*\{[^}]*font-size:\s*var\(--text-caption\)/);
-  assert.match(globalCss, /html\[data-readable="true"\]\s*\{[^}]*--text-caption:\s*14px/);
+  assert.match(css, /\.calendar-cell button \.calendar-card-heading > span,\s*\.calendar-cell button\.calendar-more\s*\{[^}]*font-size:\s*var\(--text-base\)/);
+  assert.match(globalCss, /html\[data-readable="true"\]\s*\{[^}]*--text-caption:\s*16px/);
   const items = Array.from({ length: 5 }, (_, index) => syntheticWork(`synthetic-${index}`, "2026-09-12", { work_type: "매물수정" }));
   const [desktop] = findByClass(renderCalendar({ items }), "calendar-desktop-panel");
   assert.equal(findByClass(desktop, "calendar-card-heading").length, 4);

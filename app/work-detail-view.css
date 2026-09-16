@@ -6,8 +6,8 @@
 .work-read-actions { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .work-read-actions > button { min-height: 44px; }
 .work-read-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--text-base); }
-.work-read-meta time { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.work-read-type { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--green-line); border-radius: 3px; color: var(--green-dark); font-size: var(--text-small); font-weight: 600; }
+.work-read-meta time { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; font-size: var(--text-base); }
+.work-read-type { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--green-line); border-radius: 3px; color: var(--green-dark); font-size: var(--text-base); font-weight: 700; }
 .work-read-customer { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; margin-top: 7px; font-size: var(--text-base); }
 .work-read-customer strong { min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
 .work-read-customer-id { min-width: 0; color: var(--muted); font-size: var(--text-small); overflow-wrap: anywhere; }

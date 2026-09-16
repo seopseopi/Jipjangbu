@@ -115,7 +115,8 @@ test("할 일 왼쪽 날짜는 좁은 화면에서도 줄바꿈하며 메모 전
   assert.match(mobile, /\.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) auto/);
   assert.match(css, /\.followup-due time\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere/);
   assert.match(css, /\.followup-check\s*\{[^}]*min-width:\s*72px;[^}]*min-height:\s*44px/);
-  assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-caption\)/);
+  assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-base\)/);
+  assert.match(css, /\.followup-due\s*\{[^}]*font-weight:\s*700/);
 });
 
 test("완료 글씨를 표시하며 확인 취소는 저장하지 않고 승인해야 완료 요청을 보낸다", async () => {

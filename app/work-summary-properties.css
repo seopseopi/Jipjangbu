@@ -4,7 +4,7 @@
 .work-summary-building { grid-column: 1 / -1; min-width: 0; padding-top: 5px; color: var(--ink); font-size: var(--text-small); font-weight: 600; line-height: 1.65; overflow-wrap: anywhere; }
 .work-summary-building:first-child { padding-top: 0; }
 .work-summary-property { display: flex; align-items: flex-start; gap: 7px; min-width: 0; padding: 2px 0; border: 0; border-radius: 0; background: transparent; }
-.work-summary-property-number { display: block; flex: 0 0 28px; color: var(--muted); font-size: var(--text-small); font-weight: 400; line-height: 1.65; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.work-summary-property-number { display: block; flex: 0 0 28px; color: var(--muted); font-size: var(--text-small); font-weight: 500; line-height: 1.65; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .work-summary-property-copy { display: grid; gap: 1px; min-width: 0; }
 .work-summary-property-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 7px; min-width: 0; }
 .work-summary-property-label { display: block; min-width: 0; color: var(--ink); font-size: var(--text-small); font-weight: 500; line-height: 1.65; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }

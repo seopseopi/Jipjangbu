@@ -16,4 +16,4 @@
 .listing-individual-records > summary::marker, .listing-individual-records > summary::-webkit-details-marker { display: none; content: ""; }
 .listing-individual-records[open] > summary > .ui-icon { transform: rotate(90deg); }
 .listing-individual-records > .secondary-button { margin: 12px 17px; }
-.history-record-saved-at { display: block; margin-top: 4px; color: var(--muted); font-size: var(--text-caption); line-height: 1.7; overflow-wrap: anywhere; }
+.history-record-saved-at { display: block; margin-top: 4px; color: var(--ink); font-size: var(--text-base); line-height: 1.7; overflow-wrap: anywhere; font-weight: 700; }
