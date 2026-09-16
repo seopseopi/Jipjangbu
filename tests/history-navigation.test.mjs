@@ -136,7 +136,32 @@ test("deleting a listing's last event clears obsolete history but leaves its tar
   assert.equal(state.current.listing, undefined);
   assert.equal(state.current.listingKey, key);
   assert.equal(state.current.error, undefined);
-  assert.match(state.current.emptyMessage, /남아 있는 매물 이력이 없습니다.*휴지통/);
+  assert.match(state.current.emptyMessage, /남아 있는 업무·매물 이력이 없습니다.*휴지통/);
+});
+
+test("변경이력 없는 물건은 업무 목록·주소 제목을 열고 새로고침 중에도 목록과 구분을 유지한다", async () => {
+  const key = "아파트|합성단지|105|401", work = { id: "visit", work_type: "집방문" };
+  const state = stateBox(), pending = deferred();
+  let calls = 0;
+  const open = handler("showListingByKey", {
+    historyOpenVersion: { current: 0 }, setGlobalSearchOpen() {}, setHistoryModal: state.set,
+    targetText: (value) => `${value.building_name} ${value.building_dong}동 ${value.unit_number}호`,
+    jsonFetch: async () => ++calls === 1 ? { listing: null, events: [], workLogs: [work] } : pending.promise,
+  });
+  await open(key);
+  assert.equal(state.current.title, "합성단지 105동 401호 이력");
+  assert.equal(state.current.listing, undefined);
+  assert.deepEqual(state.current.workItems, [work]);
+  assert.equal(state.current.error, undefined);
+  state.set((current) => ({ ...current, historyWorkType: "집방문" }));
+  const task = open(key, true);
+  assert.equal(state.current.loading, true);
+  assert.deepEqual(state.current.workItems, [work]);
+  assert.equal(state.current.historyWorkType, "집방문");
+  pending.resolve({ listing: null, events: [], workLogs: [{ ...work, content: "수정 내용" }] });
+  await task;
+  assert.equal(state.current.workItems[0].content, "수정 내용");
+  assert.equal(state.current.historyWorkType, "집방문");
 });
 
 test("고객·매물 이력 새로고침은 조회 구분을 유지하고 새 대상을 열 때 전체로 초기화한다", async () => {

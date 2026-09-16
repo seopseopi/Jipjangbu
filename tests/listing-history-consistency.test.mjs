@@ -53,7 +53,7 @@ function database(t) {
     sqlite.exec(readFileSync(new URL(name, migrations), "utf8"));
   }
   for (const [id, name] of [["synthetic-customer", "합성 고객 가"], ["synthetic-other", "합성 고객 나"]]) sqlite.prepare("INSERT INTO customers(id,name) VALUES (?,?)").run(id, name);
-  for (const type of ["매물등록", "매물수정", "매물취소", "계약작성", "전화"]) sqlite.prepare("INSERT INTO work_types(name) VALUES (?)").run(type);
+  for (const type of ["매물등록", "매물수정", "매물취소", "계약작성", "전화", "집방문"]) sqlite.prepare("INSERT INTO work_types(name) VALUES (?)").run(type);
   let failure = null;
   const batches = [];
   globalThis[Symbol.for(bindingKey)] = {
@@ -190,6 +190,52 @@ test("복사 저장 중 매물 반영 실패는 전체 롤백하고 초안을 �
   await form.submit();
   assert.equal(form.saved.length, 1);
   assert.equal(db.snapshot().work_logs.length, 2);
+});
+
+test("매물 변경이력 없는 물건도 모든 집방문·전화 업무를 중복 없이 최신순으로 조회한다", async (t) => {
+  const db = database(t);
+  const home = property({ buildingName: "합성힐스테이트1차", buildingDong: "105", unitNumber: "401", source: "합성뉴현대" });
+  const older = await mutate("POST", payload({ workDate: "2026-09-01", workType: "집방문", details: [home] }));
+  const recent = await mutate("POST", payload({ workDate: "2026-09-08", workType: "집방문", content: "합성 재방문", details: [property(), home] }));
+  const call = await mutate("POST", payload({ workDate: "2026-09-07", workType: "전화", customerId: "synthetic-other", details: [home, { ...home, source: "다른 합성업소" }] }));
+  for (const other of [{ unitNumber: "4010" }, { buildingDong: "106" }, { buildingName: "다른단지" }, { propertyType: "빌라" }]) {
+    await mutate("POST", payload({ workType: "집방문", details: [{ ...home, ...other }] }));
+  }
+  const before = db.snapshot(), result = await history(key(home));
+  assert.equal(result.listing, null, "do not invent a current status or price");
+  assert.deepEqual(result.events, []);
+  assert.deepEqual(result.workLogs.map((work) => work.id), [recent.id, call.id, older.id]);
+  assert.equal(result.workLogs[1].customer_id, "synthetic-other");
+  assert.equal(JSON.parse(result.workLogs[0].properties_json)[1].source, "합성뉴현대");
+  assert.equal(result.workLogs[0].property_count, 2);
+  assert.deepEqual(db.snapshot(), before, "history reads do not create a listing or change business data");
+  assert.equal(before.listings.length, 0);
+  await history(key({ ...home, unitNumber: "9999" }), 404);
+});
+
+test("마지막 매물 변경업무를 삭제·정정해도 남은 일반 업무와 수정·복구 결과는 조회된다", async (t) => {
+  const db = database(t);
+  const visit = await mutate("POST", payload({ workType: "집방문", workDate: "2026-09-08" }));
+  const registration = await mutate("POST", payload());
+  await mutate("DELETE", undefined, registration.id);
+  let result = await history();
+  assert.equal(result.listing, null);
+  assert.deepEqual(result.workLogs.map((work) => work.id), [visit.id]);
+  const secondRegistration = await mutate("POST", payload());
+  await mutate("PUT", payload({ workType: "전화" }), secondRegistration.id);
+  result = await history();
+  assert.equal(result.listing, null);
+  assert.equal(result.workLogs.length, 2);
+  await mutate("PUT", payload({ workType: "집방문", details: [property({ unitNumber: "1504" })] }), visit.id);
+  assert.deepEqual((await history()).workLogs.map((work) => work.id), [secondRegistration.id]);
+  assert.deepEqual((await history(key(property({ unitNumber: "1504" })))).workLogs.map((work) => work.id), [visit.id]);
+  const removed = await mutate("DELETE", undefined, secondRegistration.id);
+  await history(key(), 404);
+  await deletionStore.restoreTrash(globalThis[Symbol.for(bindingKey)], removed.trashId);
+  const restored = await history();
+  assert.equal(restored.listing, null);
+  assert.deepEqual(restored.workLogs.map((work) => work.id), [secondRegistration.id]);
+  assert.equal(db.snapshot().listings.length, 0);
 });
 
 test("매물 개별 업무에는 상태변경뿐 아니라 두 번째 물건의 전화도 포함하고 수정·삭제·주소 경계를 반영한다", async (t) => {

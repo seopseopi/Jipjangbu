@@ -27,8 +27,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ key: strin
         ORDER BY ${WORK_RECENT_ORDER}
       `).bind(listingKey, listingKey),
     ]);
-    const listing = listings.results[0];
-    if (!listing) return Response.json({ error: "매물을 찾을 수 없습니다." }, { status: 404 });
+    // Ordinary work (visits, calls, etc.) can reference a property that has never
+    // had a listing-status event. Do not discard those work records just because
+    // the derived current-listing row does not exist; reading must not create one.
+    const listing = listings.results[0] ?? null;
+    if (!listing && !events.results.length && !workLogs.results.length) {
+      return Response.json({ error: "매물을 찾을 수 없습니다." }, { status: 404 });
+    }
     return Response.json({ listing, events: events.results, workLogs: workLogs.results });
   } catch (error) {
     return apiError(error, "매물 이력을 불러오지 못했습니다.");

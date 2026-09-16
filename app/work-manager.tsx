@@ -1103,30 +1103,35 @@ export function WorkManager() {
   }
   async function showListingByKey(key: string, preserve = false) {
     const version = ++historyOpenVersion.current;
+    const [property_type, building_name, building_dong, unit_number] = key.split("|");
+    const fallbackTarget = { property_type, building_name, building_dong, unit_number };
     setGlobalSearchOpen(false);
-    setHistoryModal((current) => ({
-      title: preserve && current?.listing?.identity_key === key ? current.title : "매물 이력",
-      subtitle: "저장된 매물 변경 이력을 확인합니다",
-      items: preserve && current?.listing?.identity_key === key ? current.items : [],
-      listing: preserve ? current?.listing : undefined,
-      workItems: preserve && current?.listing?.identity_key === key ? current.workItems : undefined,
-      historyWorkType: preserve && (current?.listing?.identity_key === key || current?.listingKey === key) ? current.historyWorkType : "",
-      listingKey: key,
-      loading: true,
-    }));
+    setHistoryModal((current) => {
+      const sameTarget = preserve && (current?.listing?.identity_key === key || current?.listingKey === key);
+      return {
+        title: sameTarget ? current!.title : `${targetText(fallbackTarget)} 이력`,
+        subtitle: "이 매물이 포함된 업무와 매물 변경 이력을 확인합니다",
+        items: sameTarget ? current!.items : [],
+        listing: sameTarget ? current!.listing : undefined,
+        workItems: sameTarget ? current!.workItems : undefined,
+        historyWorkType: sameTarget ? current!.historyWorkType : "",
+        listingKey: key,
+        loading: true,
+      };
+    });
     try {
       const data = await jsonFetch<{
-        listing: Listing;
+        listing: Listing | null;
         events: ListingEvent[];
         workLogs: WorkSummary[];
       }>(`/api/listings/${encodeURIComponent(key)}`);
       if (version !== historyOpenVersion.current) return;
       setHistoryModal((current) => ({
-        title: `${targetText(data.listing)} 이력`,
-        subtitle: data.listing.property_type,
+        title: `${targetText(data.listing ?? fallbackTarget)} 이력`,
+        subtitle: data.listing?.property_type ?? property_type,
         items: data.events,
         workItems: data.workLogs,
-        listing: data.listing,
+        listing: data.listing ?? undefined,
         listingKey: key,
         historyWorkType: current?.historyWorkType ?? "",
       }));
@@ -1137,9 +1142,9 @@ export function WorkManager() {
         ...current,
         ...(missing ? { items: [], workItems: [], listing: undefined } : {}),
         loading: false,
-        emptyMessage: missing && preserve ? "이 주소에 남아 있는 매물 이력이 없습니다. 삭제한 업무는 휴지통에서 복구할 수 있습니다." : undefined,
+        emptyMessage: missing && preserve ? "이 주소에 남아 있는 업무·매물 이력이 없습니다. 삭제한 업무는 휴지통에서 복구할 수 있습니다." : undefined,
         error: missing && preserve ? undefined : missing
-          ? "이 주소로 저장된 매물 이력이 없습니다. 업무에 적힌 물건구분·건물명·동·호수를 확인해 주세요."
+          ? "이 주소로 저장된 업무·매물 이력이 없습니다. 업무에 적힌 물건구분·건물명·동·호수를 확인해 주세요."
           : (error as Error).message,
       } : null);
     }
@@ -3762,7 +3767,8 @@ function HistoryModal({
   onCopy: (id: string) => void;
 }) {
   const RecordContainer = data.listing ? "details" : "div";
-  const allRecords = data.listing ? data.workItems ?? data.items : data.items;
+  const isListingHistory = Boolean(data.listing || data.listingKey);
+  const allRecords = isListingHistory ? data.workItems ?? data.items : data.items;
   const filterable = Boolean(data.customer || data.listing || data.listingKey);
   const selectedType = filterable ? data.historyWorkType ?? "" : "";
   const records = selectedType ? allRecords.filter((record) => ("event_date" in record ? record.status : record.work_type) === selectedType) : allRecords;
@@ -3843,9 +3849,10 @@ function HistoryModal({
         </>
       )}
       {data.customer && <p className="history-list-guide">고객ID 또는 물건지·업소가 고객ID와 일치하는 업무입니다.</p>}
+      {isListingHistory && !data.listing && allRecords.length > 0 && !data.loading && !data.error && <p className="history-list-guide">매물 변경 이력은 없으며, 이 매물이 포함된 업무 기록을 보여드립니다.</p>}
       {(!data.listing || records.length > 0 || selectedType) && <RecordContainer className={data.listing ? "listing-work-details" : undefined} open={data.listing && selectedType ? true : undefined}>
       {data.listing && <summary><Icon name="next" size={16} /> 개별 업무 보기 <span>{records.length.toLocaleString("ko-KR")}건</span></summary>}
-      {records.length > 0 && <p className="history-list-guide">{records.length.toLocaleString("ko-KR")}건의 기록 · {selectedType ? `${selectedType} · ` : data.listing ? "이 매물이 포함된 전체 업무 · " : ""}기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
+      {records.length > 0 && <p className="history-list-guide">{records.length.toLocaleString("ko-KR")}건의 기록 · {selectedType ? `${selectedType} · ` : isListingHistory ? "이 매물이 포함된 전체 업무 · " : ""}기록을 누르면 업무 내용을 먼저 읽을 수 있습니다.</p>}
       <div className="history-list" data-schedule-days={data.scheduleDays} aria-busy={Boolean(data.loading)}>
         {!records.length ? (
           !data.loading && !data.error ? <EmptyState title={data.emptyMessage || (selectedType ? `${selectedType} 업무 이력이 없습니다. 다른 업무구분을 선택하거나 전체 보기를 눌러 주세요.` : "기록이 없습니다.")} /> : null

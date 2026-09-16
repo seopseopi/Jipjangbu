@@ -161,7 +161,7 @@ function HistoryPanel({
         retryInterruptedHistoryRead(async (readSignal): Promise<HistoryData> => {
           if (isListing) {
             let response: {
-              listing: { source_notes?: string };
+              listing: { source_notes?: string } | null;
               events: ListingEvent[];
               workLogs?: SavedWork[];
             };
@@ -203,7 +203,7 @@ function HistoryPanel({
               total: (response.workLogs ?? response.events).length,
               nextOffset: (response.workLogs ?? response.events).length,
               hasMore: false,
-              sourceNotes: response.listing.source_notes ?? "",
+              sourceNotes: response.listing?.source_notes ?? "",
               listingEvents: response.events,
             };
           }
@@ -272,6 +272,7 @@ function HistoryPanel({
   const canShowMore = isListing
     ? visibleRecords.length < matchingRecords.length
     : Boolean(data?.hasMore);
+  const hasListingTimeline = Boolean(data?.listingEvents.length || data?.sourceNotes.trim());
 
   function changeWorkType(next: string) {
     if (next === workType) return;
@@ -329,7 +330,7 @@ function HistoryPanel({
           <Icon name={isListing ? "listings" : "customers"} size={20} />
           <div>
             <h3 id={headingId}>
-              {isListing ? "매물 변경 이력" : "고객 업무 이력"}
+              {isListing ? "매물 이력" : "고객 업무 이력"}
             </h3>
             <p>{target.name}{target.kind === "customer" && ` · ${target.id}`}</p>
           </div>
@@ -349,7 +350,8 @@ function HistoryPanel({
           총 {data.total.toLocaleString("ko-KR")}건 · 업무일 최신순 · 고객ID 또는 물건지·업소 일치
         </p>
       )}
-      {isListing && data && !workType && <ListingHistorySummary events={data.listingEvents} sourceNotes={data.sourceNotes} />}
+      {isListing && data && hasListingTimeline && !workType && <ListingHistorySummary events={data.listingEvents} sourceNotes={data.sourceNotes} />}
+      {isListing && data && !hasListingTimeline && data.records.length > 0 && <p className="related-history-summary">매물 변경 이력은 없으며, 이 매물이 포함된 업무 기록을 보여드립니다.</p>}
       {isListing && workType && <p className="related-history-summary">선택한 업무구분만 표시합니다. 업무구분을 확인할 수 없는 원본 메모는 전체 보기에서 확인할 수 있습니다.</p>}
       {loading && !data && (
         <p className="related-history-status" role="status">
@@ -378,11 +380,11 @@ function HistoryPanel({
       {data && !matchingRecords.length && !error && (
         <p className="related-history-status" role="status">
           {workType ? `${workType} 업무 이력이 없습니다. 다른 업무구분을 선택하거나 전체 보기를 눌러 주세요.` : isListing
-            ? data.sourceNotes.trim() ? "연결된 개별 업무 기록은 없습니다." : "이 물건에 저장된 매물 변경 이력이 없습니다."
+            ? data.sourceNotes.trim() ? "연결된 개별 업무 기록은 없습니다." : "이 물건에 저장된 업무·매물 이력이 없습니다."
             : "이 고객에게 저장된 업무 이력이 없습니다."}
         </p>
       )}
-      {isListing && visibleRecords.length > 0 ? (
+      {isListing && hasListingTimeline && visibleRecords.length > 0 ? (
         <details className="listing-individual-records" open={workType ? true : undefined}>
           <summary><Icon name="next" size={16} /> 개별 업무 보기 · {total?.toLocaleString("ko-KR")}건</summary>
           {recordList}

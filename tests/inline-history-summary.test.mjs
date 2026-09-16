@@ -162,7 +162,7 @@ test("매물 조회 실패는 빈 이력이나 성공한 전체 메모로 표시
   t.after(() => h.dispose());
   const failed = await h.mount();
   assert.match(markup(failed), /합성 이력 조회 실패/);
-  assert.doesNotMatch(markup(failed), /전체 매물 이력|이 물건에 저장된 매물 변경 이력이 없습니다/);
+  assert.doesNotMatch(markup(failed), /전체 매물 이력|이 물건에 저장된 업무·매물 이력이 없습니다/);
   fails = false;
   const retry = descendants(failed).find((element) => element.type === "button" && markup(element).includes("다시 불러오기"));
   retry.props.onClick();
@@ -179,12 +179,12 @@ test("원본만 남은 매물은 원본을 기본 본문에 표시하고 없는 
     });
     t.after(() => h.dispose());
     const tree = await h.mount(), html = markup(tree);
-    assert.match(html, missing ? /이 물건에 저장된 매물 변경 이력이 없습니다/ : /연결된 개별 업무 기록은 없습니다/);
+    assert.match(html, missing ? /이 물건에 저장된 업무·매물 이력이 없습니다/ : /연결된 개별 업무 기록은 없습니다/);
     assert.doesNotMatch(html, /최근 저장한 업무 내용|role="alert"/);
     if (missing) assert.doesNotMatch(html, /엑셀 원본 메모/);
     else {
       assert.match(html, /<p class="listing-history-memo">옛 원본 메모<\/p>/);
-      assert.doesNotMatch(html, /<details|이 물건에 저장된 매물 변경 이력이 없습니다/);
+      assert.doesNotMatch(html, /<details|이 물건에 저장된 업무·매물 이력이 없습니다/);
       assert.equal(html.split("옛 원본 메모").length - 1, 1);
     }
   }
@@ -229,6 +229,35 @@ const filterControl = (tree) => descendants(tree).find((item) => item.type === H
 const historyRows = (tree) => descendants(tree).filter((item) => item.type === Row);
 const moreButton = (tree) => descendants(tree).find((item) => item.type === "button" && markup(item).includes("10건 더 보기"));
 const savedWork = (id, work_type = "전화") => ({ id, work_type, work_date: "2026-09-16", customer_name: "합성 고객", customer_id: "합성ID", content: `합성 메모 ${id}`, property_count: 0 });
+
+test("보조 이력은 변경이력 없는 물건의 전체 업무를 바로 표시하고 구분·더보기·빈 결과를 지원한다", async (t) => {
+  const works = Array.from({ length: 23 }, (_, i) => savedWork(`visit-${i}`, i < 12 ? "집방문" : "전화"));
+  const h = panelHarness(listingTarget, async () => ({ listing: null, events: [], workLogs: works }));
+  t.after(() => h.dispose());
+  let tree = await h.mount();
+  assert.match(markup(tree), /매물 변경 이력은 없으며/);
+  assert.doesNotMatch(markup(tree), /<details|role="alert"|이 물건에 저장된 업무·매물 이력이 없습니다/);
+  assert.equal(historyRows(tree).length, 10);
+  assert.equal(filterControl(tree).props.count, 23);
+  moreButton(tree).props.onClick();
+  tree = h.render();
+  assert.equal(historyRows(tree).length, 20);
+  filterControl(tree).props.onChange("집방문");
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 12);
+  assert(historyRows(tree).every((row) => row.props.record.workType === "집방문"));
+  moreButton(tree).props.onClick();
+  tree = h.render();
+  assert.equal(historyRows(tree).length, 12);
+  filterControl(tree).props.onChange("잔금예정");
+  tree = await h.settle();
+  assert.match(markup(tree), /잔금예정 업무 이력이 없습니다/);
+  assert.equal(filterControl(tree).props.count, 0);
+  filterControl(tree).props.onChange("");
+  tree = await h.settle();
+  assert.equal(filterControl(tree).props.count, 23);
+  assert.equal(h.requests.length, 1, "filtering all work does not re-fetch or drop later records");
+});
 
 test("보조 매물 구분 선택은 첫 10건 밖의 업무도 필터하고 더보기·원문·전체 복귀를 유지한다", async (t) => {
   const works = Array.from({ length: 24 }, (_, index) => savedWork(`record-${index}`, index < 11 ? "전화" : "집방문"));
