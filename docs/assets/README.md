@@ -17,6 +17,15 @@
 
 공개 전 원본 이미지를 직접 열어 고객명·단지명·업무 내용이 `검증 고객`, `합성 업무`, `삭제 검증 고객` 등 합성 자료임을 확인했습니다. 계정·암호·운영 인증 값·실제 연락처가 포함된 화면, 로컬 인증 설정, SQLite 저장소, 백업 파일은 추가하지 않았습니다. 캡처의 수치와 가격은 운영 성과가 아닙니다.
 
+## 앱 로고
+
+<img src="jipjangbu-mark-tile.svg" alt="집장부 로고" width="64" />
+
+- 파일: [`jipjangbu-mark-tile.svg`](jipjangbu-mark-tile.svg)(앱 아이콘형) · [`jipjangbu-mark.svg`](jipjangbu-mark.svg)(글자만)
+- 형태: 48칸 격자에 그린 "집" 한 글자입니다. ㅂ은 가운데 줄이 있는 칸으로 장부를 겸합니다. 색은 앱 본문 색(`#1f2328`)과 흰색만 씁니다.
+- 앱에서 쓰는 PNG: `public/jipjangbu-logo.png`(512px, 사이드바·로그인), `public/jipjangbu-icon-bright.png`(192px, 파비콘·홈 화면 아이콘), `public/jipjangbu-icon.png`(96px)
+- 수정 방법: [`scripts/make_logo.py`](../../scripts/make_logo.py)의 좌표를 고친 뒤 `python3 scripts/make_logo.py`를 실행하면 PNG와 SVG를 함께 다시 만듭니다(Pillow 필요). PNG 파일 이름은 로그인 전에도 열리도록 `worker/security.ts`에 등록되어 있으니 바꾸지 마세요.
+
 ## 브랜드 배너
 
 ![집장부 소개 배너](jipjangbu-cover.png)
