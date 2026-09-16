@@ -183,7 +183,7 @@ test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 �
   assert.doesNotMatch(JSON.stringify(navItems), /다시 연락할 일/);
   const title = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "titles")[0];
   const titles = evaluate(`const result = ${title.initializer.getText(ast)};`, { dateLabel: "합성 날짜" });
-  assert.deepEqual(titles.tasks, ["챙겨야 할 일", "따로 적어 둔 확인 사항을 관리합니다"]);
+  assert.equal(titles.tasks, "챙겨야 할 일");
   const all = findAll((node) => ts.isJsxAttribute(node) && node.name.getText(ast) === "onShowAll");
   assert.equal(all.length, 1, "the compact home panel retains its only full-list entry point");
   const selected = [];

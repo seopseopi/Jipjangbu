@@ -229,7 +229,7 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
       <section ref={dialogRef} className="global-search-dialog" role="dialog" aria-modal="true" aria-labelledby="global-search-title" tabIndex={-1}>
         <header className="global-search-header">
           <div className="global-search-heading">
-            <h2 id="global-search-title">업무·고객·매물을 한 번에 찾기</h2>
+            <h2 id="global-search-title">통합검색</h2>
           </div>
           <button className="global-search-close" type="button" onClick={close} aria-label="통합검색 닫기"><Icon name="close" /></button>
         </header>
@@ -259,7 +259,7 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
 
           {status === "success" && results.workLogs.length > 0 && (
             <section className="global-search-group" aria-labelledby="global-search-work-title">
-              <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-work-title"><Icon name="journal" size={18} />업무</h3><span>{results.workLogs.length}건</span></div>
+              <div className="global-search-group-head"><h3 id="global-search-work-title">업무</h3><span>{results.workLogs.length}건</span></div>
               <div className="global-search-list">
                 {results.workLogs.map((item) => (
                   <button className="global-search-result global-search-work" type="button" key={item.id} onClick={() => chooseWork(item.id)}>
@@ -275,7 +275,7 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
 
           {status === "success" && results.customers.length > 0 && (
             <section className="global-search-group" aria-labelledby="global-search-customer-title">
-              <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-customer-title"><Icon name="customers" size={18} />고객</h3><span>{results.customers.length}명</span></div>
+              <div className="global-search-group-head"><h3 id="global-search-customer-title">고객</h3><span>{results.customers.length}명</span></div>
               <div className="global-search-list">
                 {results.customers.map((customer) => {
                   const notes = searchExcerpt(customer.notes, trimmedQuery);
@@ -293,7 +293,7 @@ export function GlobalSearch({ open, refreshKey = 0, onClose, onOpenWork, onOpen
 
           {status === "success" && results.listings.length > 0 && (
             <section className="global-search-group" aria-labelledby="global-search-listing-title">
-              <div className="global-search-group-head"><h3 className="heading-icon" id="global-search-listing-title"><Icon name="listings" size={18} />매물</h3><span>{results.listings.length}건</span></div>
+              <div className="global-search-group-head"><h3 id="global-search-listing-title">매물</h3><span>{results.listings.length}건</span></div>
               <div className="global-search-list">
                 {results.listings.map((listing) => (
                   <button className="global-search-result global-search-listing" type="button" key={listing.id} onClick={() => chooseListing(listing)}>

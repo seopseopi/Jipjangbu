@@ -362,8 +362,8 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
 
   return <section className={`followup-view${compact ? " followup-compact" : ""}`} aria-label={compact ? "챙겨야 할 일" : "할 일 관리"}>
     <div className="followup-heading">
-      <div><h2>{compact ? "챙겨야 할 일" : "다음 연락과 약속, 놓치지 않게"}</h2><p>{compact ? (summary?.overdue ? `기한이 지난 ${summary.overdue}건부터 확인해 보세요.` : "고객 연락과 매물 확인을 미리 기록해 두세요.") : "고객 연락, 매물 확인, 약속 준비를 한곳에서 챙기세요."}</p></div>
-      {compact ? onShowAll && <button className="followup-button followup-button-link" disabled={!!busyId} onClick={showAll}>전체 보기 <Icon name="next" size={18} /></button> : !showForm && <button className="followup-button followup-button-primary" disabled={!!busyId} onClick={openNewForm}><Icon name="plus" size={18} />할 일 추가</button>}
+      <div><h2>{compact ? "챙겨야 할 일" : "할 일 목록"}</h2></div>
+      {compact ? onShowAll && <button className="followup-button followup-button-link" disabled={!!busyId} onClick={showAll}>전체 보기</button> : !showForm && <button className="followup-button followup-button-primary" disabled={!!busyId} onClick={openNewForm}><Icon name="plus" size={18} />할 일 추가</button>}
     </div>
 
     {compact && summary && <div className="followup-urgency" aria-label="챙겨야 할 일 요약">
@@ -373,9 +373,9 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
 
     {!compact && <>
       <div className="followup-filters" aria-label="할 일 필터">
-        {filters.map((item) => <button key={item.id} className={`followup-filter${filter === item.id ? " is-active" : ""}${item.id === "overdue" ? " is-overdue" : ""}`} aria-pressed={filter === item.id} onClick={() => { if (item.id === filter) return; if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 목록을 바꿀까요?")) return; setFilter(item.id); setEditingId(null); setEditingRecord(null); setMutationError(""); }} disabled={!!busyId}><Icon name={item.id === "overdue" ? "warning" : item.id === "completed" ? "check" : item.id === "all" ? "tasks" : "calendar"} size={18} />{item.label}{item.count !== undefined && <span>{item.count.toLocaleString()}</span>}</button>)}
+        {filters.map((item) => <button key={item.id} className={`followup-filter${filter === item.id ? " is-active" : ""}${item.id === "overdue" ? " is-overdue" : ""}`} aria-pressed={filter === item.id} onClick={() => { if (item.id === filter) return; if (editDirty && !window.confirm("저장하지 않은 수정 내용이 있습니다. 취소하고 목록을 바꿀까요?")) return; setFilter(item.id); setEditingId(null); setEditingRecord(null); setMutationError(""); }} disabled={!!busyId}>{item.label}{item.count !== undefined && <span>{item.count.toLocaleString()}</span>}</button>)}
       </div>
-      <label className="followup-search" htmlFor={`${formId}-search`}><span><Icon name="search" size={18} />할 일 검색</span><input id={`${formId}-search`} type="search" maxLength={200} value={query} disabled={!!busyId || !!editingId} title={editingId ? "수정을 저장하거나 취소한 뒤 검색할 수 있습니다." : undefined} onChange={(event) => setQuery(event.target.value)} placeholder="할 일, 고객·연락처, 매물 주소, 메모 검색" /></label>
+      <label className="followup-search" htmlFor={`${formId}-search`}><span>할 일 검색</span><input id={`${formId}-search`} type="search" maxLength={200} value={query} disabled={!!busyId || !!editingId} title={editingId ? "수정을 저장하거나 취소한 뒤 검색할 수 있습니다." : undefined} onChange={(event) => setQuery(event.target.value)} placeholder="할 일, 고객·연락처, 매물 주소, 메모 검색" /></label>
       <div className="followup-results-summary"><p><strong>{filters.find((item) => item.id === filter)?.label}</strong>{query.trim() && <> · “{query.trim()}”</>}{readState === "ready" && <> · <strong>{items.length.toLocaleString()}건</strong></>}</p><span>필터 숫자는 검색 전 전체 기준</span>{(query.trim() || filter !== "all") && <button type="button" className="followup-button" disabled={!!busyId || !!editingId} onClick={() => { setFilter("all"); setQuery(""); setSearch(""); }}>조건 초기화</button>}</div>
     </>}
 

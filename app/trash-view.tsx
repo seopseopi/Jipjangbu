@@ -138,7 +138,7 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
   }
 
   return <section className="trash-view" aria-label="휴지통">
-    <p className="trash-help"><Icon name="delete" size={18} />삭제한 업무·고객·할 일을 확인하고 복구할 수 있습니다. 자동으로 비우지 않습니다.</p>
+    <p className="trash-help">휴지통은 자동으로 비워지지 않습니다.</p>
     <div className="trash-controls">
       <label className="trash-search"><Icon name="search" size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="삭제한 기록 검색" aria-label="휴지통 검색" />{query && <button type="button" aria-label="휴지통 검색 지우기" onClick={() => setQuery("")}><Icon name="close" size={17} /></button>}</label>
       <label className="trash-type"><span>기록 종류</span><select value={type} onChange={(event) => setType(event.target.value as DeletionEntityType | "")}><option value="">모든 기록</option><option value="work">업무</option><option value="customer">고객</option><option value="followup">할 일</option></select></label>
@@ -151,7 +151,7 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
       {data.items.length === 0 ? <div className="trash-empty"><Icon name={query || type ? "search" : "empty"} size={28} /><strong>{query || type ? "조건에 맞는 삭제 기록이 없습니다." : "휴지통이 비어 있습니다."}</strong>{(query || type) && <button type="button" className="secondary-button" onClick={() => { setQuery(""); setSearch(""); setType(""); }}>검색 조건 초기화</button>}</div>
         : <ol className="trash-list">{data.items.map((item) => <li key={item.id}><button type="button" className="trash-record" onClick={() => void openDetail(item.id)}>
           <span className="trash-kind">{deletionTypeLabel(item.type)}</span><span className="trash-record-main"><strong>{item.title}</strong><span>{item.subtitle}</span></span>
-          <span className="trash-record-action"><time dateTime={item.deletedAt}>삭제 · {formatHistoryTimestamp(item.deletedAt)}</time><span>내용 확인 · 복구 <Icon name="next" size={17} /></span></span>
+          <span className="trash-record-action"><time dateTime={item.deletedAt}>삭제 · {formatHistoryTimestamp(item.deletedAt)}</time><span>내용 확인 · 복구</span></span>
         </button></li>)}</ol>}
       {data.items.length < data.total && <button type="button" className="secondary-button trash-more" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "불러오는 중…" : `이전 삭제 기록 더 보기 (${data.items.length.toLocaleString("ko-KR")} / ${data.total.toLocaleString("ko-KR")})`}</button>}
     </> : null}

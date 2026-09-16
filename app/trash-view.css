@@ -1,6 +1,5 @@
 .trash-view { min-width: 0; }
 .trash-help { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 20px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
-.trash-help .ui-icon { margin-top: 3px; }
 .trash-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; }
 .trash-search { display: flex; flex: 1 1 280px; align-items: center; gap: 10px; max-width: 660px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
 .trash-search input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; color: var(--ink); font-size: var(--text-base); outline-offset: 3px; }

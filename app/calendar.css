@@ -1,7 +1,6 @@
 /* Keep the month grid on desktop; use a readable agenda without horizontal panning on mobile. */
 .calendar-agenda { display: none; }
 .calendar-controls > button:disabled { opacity: .45; cursor: not-allowed; }
-.calendar-reading-guide { margin: -4px 0 16px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .calendar-cell button .calendar-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .calendar-cell button .calendar-card-heading > span, .calendar-cell button.calendar-more { font-size: var(--text-caption); }
 .calendar-property-count, .calendar-cell button .calendar-property-count { width: fit-content; color: var(--green); font-size: var(--text-caption); font-weight: 600; line-height: 1.6; }

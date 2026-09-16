@@ -1232,16 +1232,16 @@ export function WorkManager() {
     day: "numeric",
     weekday: "long",
   }).format(new Date());
-  const titles: Record<View, [string, string]> = {
-    today: ["오늘의 업무", dateLabel],
-    tasks: ["챙겨야 할 일", "따로 적어 둔 확인 사항을 관리합니다"],
-    insights: ["업무 현황", "쌓인 기록에서 지금 확인할 흐름을 정리합니다"],
-    journal: ["업무일지", "모든 업무 기록을 검색하고 관리합니다"],
-    listings: ["매물 관리", "업무 기록에서 자동으로 갱신된 현재 상태입니다"],
-    customers: ["고객 관리", "고객 정보와 상담 이력을 함께 관리합니다"],
-    calendar: ["업무 달력", "월별 일정과 업무를 한눈에 확인합니다"],
-    trash: ["휴지통", "삭제한 기록을 확인하고 필요할 때 다시 복구합니다"],
-    settings: ["설정", "업무 분류, 백업, 로그인 정보를 확인합니다"],
+  const titles: Record<View, string> = {
+    today: "오늘의 업무",
+    tasks: "챙겨야 할 일",
+    insights: "업무 현황",
+    journal: "업무일지",
+    listings: "매물 관리",
+    customers: "고객 관리",
+    calendar: "업무 달력",
+    trash: "휴지통",
+    settings: "설정",
   };
   const searchView = (["journal", "listings", "customers"] as View[]).includes(
     view,
@@ -1266,10 +1266,8 @@ export function WorkManager() {
           <span className="brand-mark" aria-hidden="true" />
           <span>
             <strong>집장부</strong>
-            <small>부동산 업무를 한곳에</small>
           </span>
         </button>
-        <p className="nav-caption">나의 업무 공간</p>
         <nav aria-label="주요 메뉴">
           {navItems.map(([key, label]) => (
             <button
@@ -1298,17 +1296,8 @@ export function WorkManager() {
       <section className="workspace">
         <header className="topbar">
           <div className="title-stack">
-            {view !== "today" && (
-              <button
-                className="home-button"
-                onClick={() => navigate("today")}
-                type="button"
-              >
-                <Icon name="back" size={17} /> 홈
-              </button>
-            )}
-            <h1>{titles[view][0]}</h1>
-            <p className="view-purpose">{titles[view][1]}</p>
+            <h1>{titles[view]}</h1>
+            {view === "today" && <p className="view-purpose">{dateLabel}</p>}
           </div>
           <div className="topbar-actions">
             <button
@@ -1707,53 +1696,41 @@ function DashboardView({
     <>
       <div className="metric-grid">
         <article className="metric-card featured">
-          <p className="metric-label">
-            <Icon name="journal" size={19} />
-            오늘 업무
-          </p>
+          <p className="metric-label">오늘 업무</p>
           <strong>
             {metrics.today_count}
             <small>건</small>
           </strong>
-          <button className="attention" onClick={onOpenToday}>업무일이 오늘인 기록 <Icon name="next" size={16} /></button>
+          <button className="attention" onClick={onOpenToday}>업무일이 오늘인 기록</button>
         </article>
         <article className="metric-card">
-          <p className="metric-label">
-            <Icon name="upcoming" size={19} />
-            다가오는 일정
-          </p>
+          <p className="metric-label">다가오는 일정</p>
           <strong>
             {metrics.upcoming_count}
             <small>건</small>
           </strong>
           <button className="attention" onClick={onOpenSchedule}>
-            7일 일정 확인 <Icon name="next" size={16} />
+            7일 일정 확인
           </button>
         </article>
         <article className="metric-card">
-          <p className="metric-label">
-            <Icon name="listings" size={19} />
-            진행 중 매물
-          </p>
+          <p className="metric-label">진행 중 매물</p>
           <strong>
             {metrics.active_listing_count}
             <small>건</small>
           </strong>
           <button onClick={() => onNavigate("listings")}>
-            전체 매물 보기 <Icon name="next" size={16} />
+            전체 매물 보기
           </button>
         </article>
         <article className="metric-card">
-          <p className="metric-label">
-            <Icon name="customers" size={19} />
-            전체 고객
-          </p>
+          <p className="metric-label">전체 고객</p>
           <strong>
             {metrics.customer_count}
             <small>명</small>
           </strong>
           <button onClick={() => onNavigate("customers")}>
-            고객 목록 보기 <Icon name="next" size={16} />
+            고객 목록 보기
           </button>
         </article>
       </div>
@@ -1761,14 +1738,8 @@ function DashboardView({
         <section className="panel recent-panel">
         <div className="panel-head">
           <div>
-            <h2 className="heading-icon">
-              <Icon name="journal" />
-              최근 업무
-            </h2>
-            <p className="sort-summary">
-              <Icon name="sort" size={16} />
-              오늘까지의 기록 · 업무일 최신순
-            </p>
+            <h2>최근 업무</h2>
+            <p className="sort-summary">업무일 최신순</p>
           </div>
           <button className="text-button" onClick={() => onNavigate("journal")}>
             전체 보기
@@ -1932,23 +1903,15 @@ function JournalView({
                 {resultsVisible ? `${items.length} / ${total}` : status === "loading" ? "검색 중…" : "조회 실패"}
               </span>
             </h2>
-            <p className="sort-summary">
-              <Icon name="sort" size={16} />
-              업무일 최신순 · 같은 날은 최근 수정순
-            </p>
+            <p className="sort-summary">업무일 최신순</p>
           </div>
-          <span className="helper-text">
-            주소는 매물 이력 · 내용 보기는 업무 상세
-          </span>
         </div>
         {status === "refreshing" && (
           <p className="journal-refresh-notice" role="status">업무 기록을 갱신하고 있습니다. 같은 조건의 기존 결과를 표시 중입니다.</p>
         )}
         {status === "loading" ? (
           <div className="journal-search-feedback" role="status">
-            <Icon name="search" size={24} />
-            <strong>조건에 맞는 업무를 찾고 있습니다.</strong>
-            <p>검색이 끝나면 결과와 건수를 표시합니다.</p>
+            <strong>업무를 찾고 있습니다.</strong>
           </div>
         ) : status === "error" ? (
           <div className="journal-search-feedback journal-search-error" role="alert">
@@ -2005,14 +1968,14 @@ function WorkTable({
           <div className="work-record-meta">
             <span data-label="일자"><button type="button" className="work-record-date" onClick={() => onOpen(item.id)} aria-label={`${displayDate(item.work_date)} ${item.customer_name} 업무 내용 보기`}><time dateTime={item.work_date}>{displayDate(item.work_date)}</time></button></span>
             <span data-label="업무구분"><i className={`tag ${statusTone(item.work_type)}`}>{item.work_type}</i></span>
-            <span data-label="고객" className="work-record-customer"><button type="button" className="work-record-customer-link" onClick={() => onCustomerHistory({ id: item.customer_id, name: item.customer_name })} aria-label={`${item.customer_name} 고객 이력 보기`}><b>{item.customer_name}</b><span className="work-customer-id">{item.customer_id}</span><Icon name="clock" size={14} /></button></span>
-            <button type="button" className="work-record-open" onClick={() => onOpen(item.id)} aria-label={Number(item.property_count) > 1 ? "전체 업무 내용 보기" : `${item.customer_name} 업무 내용 보기`}>내용 보기 <Icon name="next" size={15} /></button>
+            <span data-label="고객" className="work-record-customer"><button type="button" className="work-record-customer-link" onClick={() => onCustomerHistory({ id: item.customer_id, name: item.customer_name })} aria-label={`${item.customer_name} 고객 이력 보기`}><b>{item.customer_name}</b><span className="work-customer-id">{item.customer_id}</span></button></span>
+            <button type="button" className="work-record-open" onClick={() => onOpen(item.id)} aria-label={Number(item.property_count) > 1 ? "전체 업무 내용 보기" : `${item.customer_name} 업무 내용 보기`}>내용 보기</button>
           </div>
           <div className={`work-record-body${properties.length ? " has-properties" : ""}`}>
             <span data-label="내용" className="work-record-content"><button type="button" className="work-cell-button work-record-note" onClick={() => onOpen(item.id)} aria-label={`${item.customer_name} 업무 내용 보기`}><span className="work-record-note-text">{item.content || "기록된 내용이 없습니다."}</span></button></span>
             <span data-label="물건" className="work-record-properties">
               {properties.length > 0 ? <>
-                <span className="work-record-property-heading"><Icon name="listings" size={15} /><strong className="work-property-group-label" aria-label={`함께 기록한 물건 ${item.property_count}개`}>연결 매물 <span>{item.property_count}</span></strong></span>
+                <span className="work-record-property-heading"><strong className="work-property-group-label" aria-label={`함께 기록한 물건 ${item.property_count}개`}>연결 매물 <span>{item.property_count}</span></strong></span>
                 <span className="work-property-groups">
                   {groups.map((group) => <span className="work-property-building-group" key={group.key}>
                     <strong className="work-property-building">{group.building || group.items[0].property.property_type || "물건 정보 미입력"}</strong>
@@ -2022,7 +1985,7 @@ function WorkTable({
                         const label = workPropertyLabel(property, true);
                         return <li key={property.id || index} className={matched ? "is-search-match" : undefined}>
                           {property.property_type.trim() && property.building_name.trim() && property.unit_number.trim() ? <button type="button" className="work-cell-button history-link" onClick={() => onListingHistory({ ...item, ...property, id: item.id })} aria-label={`${label} 매물 이력 보기`}>
-                            <span className="work-property-address">{`${shortLabel}${sourceLabel}`}</span>{matched && <span className="work-property-match" aria-label="검색 일치 물건" title="검색 일치 물건"><Icon name="search" size={12} /> 일치</span>}<Icon name="next" size={13} />
+                            <span className="work-property-address">{`${shortLabel}${sourceLabel}`}</span>{matched && <span className="work-property-match" aria-label="검색 일치 물건" title="검색 일치 물건">일치</span>}
                           </button> : <span className="work-property-incomplete" aria-label={label}>{`${shortLabel}${sourceLabel}`}{matched && <span className="work-property-match" aria-label="검색 일치 물건">일치</span>}</span>}
                         </li>;
                       })}
@@ -2206,18 +2169,12 @@ function ListingsView({
               매물 목록 <span className="count-badge">{resultsVisible ? `${items.length}건` : status === "error" ? "조회 실패" : "조회 중…"}</span>
             </h2>
             <p className="sort-summary">
-              <Icon name="sort" size={16} />
               {sortDescription}
               {state === "all" && dateSorted ? " · 진행 중 우선" : ""}
               {!dateSorted ? " · 동·호수는 숫자순" : ""}
             </p>
-            <p className="listing-sort-hint">매물종류·이름 제목을 누르면 정렬 변경, 한 번 더 누르면 역순</p>
           </div>
-          <span className="helper-text">
-            {state === "stale"
-              ? "진행 중 매물 중 마지막 갱신이 90일 이상 지난 매물입니다. 이력에서 확인할 일을 추가하세요."
-              : "매물을 누르면 전체 이력을 읽고 ‘매물 수정 이력 추가’로 변경 사항을 기록할 수 있습니다"}
-          </span>
+          {state === "stale" && <span className="helper-text">마지막 갱신 후 90일이 지난 진행 중 매물</span>}
         </div>
         <div className="listing-mobile-sort" role="group" aria-label="매물 정렬 기준">
           {sortButton("type", "매물종류")}
@@ -2377,7 +2334,6 @@ function CustomersView({
               고객 목록 <span className="count-badge">{resultsVisible ? `${items.length}명` : status === "error" ? "조회 실패" : "조회 중…"}</span>
             </h2>
             <p className="sort-summary">
-              <Icon name="sort" size={16} />
               {sort === "name"
                 ? "이름 가나다순 · 같은 이름은 고객 ID순"
                 : sort === "history"
@@ -2385,9 +2341,6 @@ function CustomersView({
                   : "최근 업무·등록순 · 미래 예약은 제외"}
             </p>
           </div>
-          <span className="helper-text">
-            이름을 누르면 전체 이력, 고객 ID를 누르면 바로 복사됩니다
-          </span>
         </div>
         <ListReadFeedback status={status} error={error} onRetry={onRetry} label="고객 목록" />
         {resultsVisible && (!items.length ? (
@@ -2548,7 +2501,6 @@ function CalendarView({
       <ListReadFeedback status={status} error={error} onRetry={onRetry} label="달력 기록" />
       {resultsVisible && <>
       <p className="calendar-result-summary">{displayedMonth.replace("-", "년 ")}월 · {workType || "모든 업무구분"} · {Object.values(grouped).reduce((count, rows) => count + rows.length, 0)}건</p>
-      <p className="calendar-reading-guide">매물·계약 업무는 물건 중심, 전화·방문 등은 고객 중심으로 표시합니다. 누르면 먼저 내용을 읽을 수 있습니다.</p>
       <section className="panel calendar-panel calendar-desktop-panel" aria-label="월간 업무 달력">
         <div className="calendar-week">
           <span>일</span>
