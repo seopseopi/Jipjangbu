@@ -342,7 +342,7 @@ export default function PlanThree(props: {
           <span
             key={r.id}
             className={`${props.selected === r.id ? "is-selected" : ""} ${r.id === props.plan.entry?.roomId ? "is-entrance" : ""}`}
-            hidden={!props.showLabels && props.selected !== r.id}
+            hidden={!props.showLabels}
             ref={(el) => {
               labels.current[i] = el;
             }}

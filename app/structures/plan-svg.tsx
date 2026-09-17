@@ -1,5 +1,11 @@
 "use client";
 import { useId } from "react";
+import { hasReferenceFinishes } from "./hillstate-reference";
+import { referenceFinish } from "./reference-finishes";
+import {
+  ReferenceFixturesSvg,
+  ReferenceFloorPatterns,
+} from "./plan-fixtures-svg";
 import {
   transformPoint,
   wallPoint,
@@ -16,6 +22,7 @@ export function PlanSvg({
   onSelect,
   zoom,
   showRoute = true,
+  showLabels = true,
 }: {
   plan: Plan;
   transform: Transform;
@@ -23,8 +30,10 @@ export function PlanSvg({
   onSelect: (id: string) => void;
   zoom: number;
   showRoute?: boolean;
+  showLabels?: boolean;
 }) {
   const arrowId = useId().replace(/:/g, "");
+  const detailed = hasReferenceFinishes(plan);
   const point = (p: Point): Point => {
     const [x, y] = transformPoint(p, plan.coordinateSystem.pivot, transform);
     return [x, -y];
@@ -48,10 +57,11 @@ export function PlanSvg({
     <svg
       className="structure-svg"
       viewBox={`${center[0] - width / zoom / 2} ${center[1] - height / zoom / 2} ${width / zoom} ${height / zoom}`}
-      role="img"
-      aria-label="집 구조 평면도. 아래 방 목록으로 방을 선택할 수 있습니다."
+      role="group"
+      aria-label="집 구조 평면도"
     >
       <defs>
+        {detailed && <ReferenceFloorPatterns id={arrowId} />}
         <marker
           id={arrowId}
           viewBox="0 0 10 10"
@@ -67,14 +77,45 @@ export function PlanSvg({
       {plan.rooms.map((room) => (
         <g key={room.id}>
           <polygon
+            role="button"
+            tabIndex={0}
+            aria-label={room.name}
+            aria-pressed={selected === room.id}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onSelect(room.id);
+              }
+            }}
             points={room.polygon.map((p) => point(p).join(",")).join(" ")}
-            fill={selected === room.id ? "#99bcb4" : roomColor(room)}
+            fill={
+              detailed
+                ? `url(#${arrowId}-${referenceFinish(room.id)})`
+                : selected === room.id
+                  ? "#99bcb4"
+                  : roomColor(room)
+            }
             stroke={selected === room.id ? "#24564c" : "#fff"}
             strokeWidth={0.035}
             onClick={() => onSelect(room.id)}
           />
+          {detailed && selected === room.id && (
+            <polygon
+              points={room.polygon.map((p) => point(p).join(",")).join(" ")}
+              fill="#398778"
+              fillOpacity={0.28}
+              pointerEvents="none"
+            />
+          )}
         </g>
       ))}
+      {detailed && (
+        <ReferenceFixturesSvg
+          plan={plan}
+          transform={transform}
+          onSelect={onSelect}
+        />
+      )}
       {plan.walls.map((w) => (
         <line
           key={w.id}
@@ -205,27 +246,29 @@ export function PlanSvg({
             </g>
           );
         })()}
-      {plan.rooms.map((room) => {
-        const [x, y] = point(room.label);
-        return (
-          <text
-            key={room.id}
-            x={x}
-            y={y}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={room.id === plan.entry?.roomId ? 0.32 : 0.29}
-            fontWeight={650}
-            fill="#263746"
-            stroke="#ffffffcc"
-            strokeWidth={0.065}
-            paintOrder="stroke"
-            style={{ pointerEvents: "none" }}
-          >
-            {room.name}
-          </text>
-        );
-      })}
+      {plan.rooms
+        .filter(() => showLabels)
+        .map((room) => {
+          const [x, y] = point(room.label);
+          return (
+            <text
+              key={room.id}
+              x={x}
+              y={y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={room.id === plan.entry?.roomId ? 0.32 : 0.29}
+              fontWeight={650}
+              fill="#263746"
+              stroke="#ffffffcc"
+              strokeWidth={0.065}
+              paintOrder="stroke"
+              style={{ pointerEvents: "none" }}
+            >
+              {room.name}
+            </text>
+          );
+        })}
     </svg>
   );
 }

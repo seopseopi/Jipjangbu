@@ -744,3 +744,5 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+.structure-svg [role="button"]:focus { outline: none; }
+.structure-svg [role="button"]:focus-visible { stroke: #243c62; stroke-width: .08; }

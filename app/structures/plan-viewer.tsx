@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { PlanSvg } from "./plan-svg";
-import { roomColor, type Plan, type Transform } from "./plan";
+import { type Plan, type Transform } from "./plan";
 import { hasReferenceFinishes } from "./hillstate-reference";
 const PlanThree = lazy(() => import("./plan-three"));
 class ThreeBoundary extends Component<
@@ -34,7 +34,6 @@ export function PlanViewer({
     [selected, setSelected] = useState(""),
     [zoom, setZoom] = useState(1),
     [reset, setReset] = useState(0),
-    [lowWalls, setLowWalls] = useState(true),
     [topView, setTopView] = useState(false),
     [showRoute, setShowRoute] = useState(true),
     [showLabels, setShowLabels] = useState(!hasReferenceFinishes(plan)),
@@ -43,36 +42,23 @@ export function PlanViewer({
     setFailed(true);
     setMode("2d");
   }, []);
+  const selectRoom = useCallback(
+    (id: string) => setSelected((current) => (current === id ? "" : id)),
+    [],
+  );
   const svg = (
     <PlanSvg
       plan={plan}
       transform={transform}
       selected={selected}
-      onSelect={setSelected}
+      onSelect={selectRoom}
       zoom={zoom}
       showRoute={showRoute}
+      showLabels={showLabels}
     />
   );
   return (
     <section className="structure-viewer" aria-label="집 구조 뷰어">
-      {plan.entry && (
-        <div className="structure-entry-guide">
-          <strong>① 출입구 → ② 현관 → ③ 거실</strong>
-          <span>
-            주황색 표시에서 시작해 보세요. 선은 배치를 설명하기 위한 안내입니다.
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              setSelected(plan.entry!.roomId);
-              setZoom(1);
-              setReset((n) => n + 1);
-            }}
-          >
-            현관 찾기
-          </button>
-        </div>
-      )}
       <div className="structure-viewer-bar">
         <div className="structure-segment">
           <button
@@ -111,7 +97,7 @@ export function PlanViewer({
             onClick={() => {
               setZoom(1);
               setTopView(false);
-              setLowWalls(true);
+              setShowLabels(!hasReferenceFinishes(plan));
               setShowRoute(true);
               setSelected("");
               setReset((r) => r + 1);
@@ -122,30 +108,21 @@ export function PlanViewer({
         </div>
       </div>
       <div className="structure-reading-tools">
+        <button
+          type="button"
+          aria-pressed={showLabels}
+          onClick={() => setShowLabels((v) => !v)}
+        >
+          방 이름 {showLabels ? "켜짐" : "꺼짐"}
+        </button>
         {mode === "3d" && (
-          <>
-            <button
-              type="button"
-              aria-pressed={showLabels}
-              onClick={() => setShowLabels((v) => !v)}
-            >
-              방 이름 {showLabels ? "켜짐" : "꺼짐"}
-            </button>
-            <button
-              type="button"
-              aria-pressed={lowWalls}
-              onClick={() => setLowWalls((v) => !v)}
-            >
-              {lowWalls ? "벽 낮게 ✓" : "벽 높이 그대로"}
-            </button>
-            <button
-              type="button"
-              aria-pressed={topView}
-              onClick={() => setTopView((v) => !v)}
-            >
-              {topView ? "위에서 보기 ✓" : "위에서 보기"}
-            </button>
-          </>
+          <button
+            type="button"
+            aria-pressed={topView}
+            onClick={() => setTopView((v) => !v)}
+          >
+            {topView ? "위에서 보기 ✓" : "위에서 보기"}
+          </button>
         )}
         {plan.entry && (
           <button
@@ -156,7 +133,9 @@ export function PlanViewer({
             입구 안내선 {showRoute ? "켜짐" : "꺼짐"}
           </button>
         )}
-        {mode === "2d" && <span>침실은 파랑 · 욕실은 청록 · 현관은 주황</span>}
+        {!hasReferenceFinishes(plan) && (
+          <span>침실은 파랑 · 욕실은 청록 · 현관은 주황</span>
+        )}
       </div>
       <div className="structure-canvas">
         {mode === "2d" ? (
@@ -181,49 +160,17 @@ export function PlanViewer({
                 plan={plan}
                 transform={transform}
                 selected={selected}
-                onSelect={setSelected}
+                onSelect={selectRoom}
                 reset={reset}
                 zoom={zoom}
                 onFailure={failure}
-                lowWalls={lowWalls}
+                lowWalls={true}
                 topView={topView}
                 showRoute={showRoute}
                 showLabels={showLabels}
               />
             </Suspense>
           </ThreeBoundary>
-        )}
-      </div>
-      <div className="structure-room-list" aria-label="방 선택">
-        {plan.rooms.map((r) => (
-          <button
-            type="button"
-            key={r.id}
-            aria-pressed={selected === r.id}
-            onClick={() => setSelected(selected === r.id ? "" : r.id)}
-          >
-            <span style={{ background: roomColor(r) }} />
-            {r.name}
-          </button>
-        ))}
-      </div>
-      <div
-        className="structure-selection-status"
-        role="status"
-        aria-live="polite"
-      >
-        {selected ? (
-          <>
-            <strong>
-              {plan.rooms.find((room) => room.id === selected)?.name}
-            </strong>
-            <span>선택한 공간을 도면에서 강조하고 있습니다.</span>
-            <button type="button" onClick={() => setSelected("")}>
-              선택 해제
-            </button>
-          </>
-        ) : (
-          <span>방 이름이나 도면의 바닥을 누르면 해당 공간이 강조됩니다.</span>
         )}
       </div>
       <p className="structure-help">
@@ -234,9 +181,6 @@ export function PlanViewer({
           ? "자료 기준 치수 확인"
           : "배치 참고용 · 실측 아님"}
         {failed ? " · 3D 사용 불가, 2D로 표시 중" : ""}
-        {mode === "3d" && lowWalls
-          ? " · 내부가 보이도록 벽·문 높이를 낮춰 표시합니다"
-          : ""}
       </p>
     </section>
   );

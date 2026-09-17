@@ -51,6 +51,21 @@ test("원본 설비는 참고 도면에만 적용하고 두 욕실 및 주방 �
   assert.equal(referenceFinish("balcony-front"), "balcony");
   assert.equal(referenceFinish("kitchen"), "wood");
 });
+test("2D와 3D는 같은 설비 목록을 사용하고 벽 높이 조작은 노출하지 않는다", () => {
+  const svg = readFileSync(new URL("../app/structures/plan-fixtures-svg.tsx", import.meta.url), "utf8");
+  const three = readFileSync(new URL("../app/structures/plan-fixtures.tsx", import.meta.url), "utf8");
+  const viewer = readFileSync(new URL("../app/structures/plan-viewer.tsx", import.meta.url), "utf8");
+  for (const kind of new Set(REFERENCE_FIXTURES.map(f=>f.kind))) {
+    assert.ok(svg.includes(`f.kind === "${kind}"`));
+    assert.ok(three.includes(`f.kind === "${kind}"`));
+  }
+  assert.match(svg, /REFERENCE_FIXTURES\.map/);
+  assert.match(three, /REFERENCE_FIXTURES\.map/);
+  assert.doesNotMatch(viewer, /setLowWalls|벽 낮게|벽 높이 그대로/);
+  assert.doesNotMatch(viewer, /structure-entry-guide|현관 찾기|주황색 표시에서 시작/);
+  assert.doesNotMatch(viewer, /structure-room-list|structure-selection-status/);
+  assert.match(viewer, /lowWalls=\{true\}/);
+});
 test("방의 표시 순서와 무관하게 용도별 색이 일정하고 현관은 구분된다", () => {
   const rooms = HILLSTATE_109_REFERENCE.rooms;
   assert.equal(
