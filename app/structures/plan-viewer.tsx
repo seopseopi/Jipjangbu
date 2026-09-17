@@ -36,8 +36,10 @@ export function PlanViewer({
     [reset, setReset] = useState(0),
     [topView, setTopView] = useState(false),
     [showRoute, setShowRoute] = useState(true),
-    [showLabels, setShowLabels] = useState(!hasReferenceFinishes(plan)),
+    [show2dLabels, setShow2dLabels] = useState(true),
+    [show3dLabels, setShow3dLabels] = useState(!hasReferenceFinishes(plan)),
     [failed, setFailed] = useState(false);
+  const showLabels = mode === "2d" ? show2dLabels : show3dLabels;
   const failure = useCallback(() => {
     setFailed(true);
     setMode("2d");
@@ -97,7 +99,8 @@ export function PlanViewer({
             onClick={() => {
               setZoom(1);
               setTopView(false);
-              setShowLabels(!hasReferenceFinishes(plan));
+              setShow2dLabels(true);
+              setShow3dLabels(!hasReferenceFinishes(plan));
               setShowRoute(true);
               setSelected("");
               setReset((r) => r + 1);
@@ -111,7 +114,7 @@ export function PlanViewer({
         <button
           type="button"
           aria-pressed={showLabels}
-          onClick={() => setShowLabels((v) => !v)}
+          onClick={() => mode === "2d" ? setShow2dLabels(v => !v) : setShow3dLabels(v => !v)}
         >
           방 이름 {showLabels ? "켜짐" : "꺼짐"}
         </button>

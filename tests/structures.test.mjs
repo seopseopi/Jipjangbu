@@ -65,6 +65,9 @@ test("2D와 3D는 같은 설비 목록을 사용하고 벽 높이 조작은 노�
   assert.doesNotMatch(viewer, /structure-entry-guide|현관 찾기|주황색 표시에서 시작/);
   assert.doesNotMatch(viewer, /structure-room-list|structure-selection-status/);
   assert.match(viewer, /lowWalls=\{false\}/);
+  assert.match(viewer, /\[show2dLabels, setShow2dLabels\] = useState\(true\)/);
+  assert.match(viewer, /mode === "2d" \? show2dLabels : show3dLabels/);
+  assert.match(viewer, /setShow2dLabels\(true\)/);
 });
 test("방의 표시 순서와 무관하게 용도별 색이 일정하고 현관은 구분된다", () => {
   const rooms = HILLSTATE_109_REFERENCE.rooms;
