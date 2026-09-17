@@ -1,5 +1,6 @@
 import {
   House,
+  PanelsTopLeft,
   ListTodo,
   ChartNoAxesCombined,
   NotebookPen,
@@ -38,6 +39,7 @@ import {
 } from "lucide-react";
 
 const icons = {
+  structures: PanelsTopLeft,
   home: House,
   tasks: ListTodo,
   insights: ChartNoAxesCombined,

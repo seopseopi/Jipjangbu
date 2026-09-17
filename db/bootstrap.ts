@@ -1,4 +1,5 @@
 import { getD1 } from ".";
+import { STRUCTURE_SCHEMA } from "./structure-schema.js";
 
 const WORK_TYPES = [
   "전화", "매물등록", "매물수정", "집방문예약", "집방문예정", "집방문",
@@ -36,6 +37,7 @@ const BUILDINGS: Record<string, string[]> = {
 };
 
 const schemaStatements = [
+  ...STRUCTURE_SCHEMA,
   `CREATE TABLE IF NOT EXISTS customers (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '', is_demo INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -112,7 +114,7 @@ const schemaStatements = [
 
 // Bump when bootstrap schema or default lookup definitions change. Runtime
 // metadata is deliberately not business data and is not included in backups.
-const BOOTSTRAP_VERSION = "2";
+const BOOTSTRAP_VERSION = "3";
 const schemaNames = schemaStatements.map((statement) => {
   const name = statement.match(/^CREATE (?:TABLE|(?:UNIQUE )?INDEX) IF NOT EXISTS (\w+)/)?.[1];
   if (!name) throw new Error("Invalid bootstrap schema statement");

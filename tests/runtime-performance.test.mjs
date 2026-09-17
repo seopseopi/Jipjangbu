@@ -5,6 +5,7 @@ import { registerHooks } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { handleSecurityRequest } from "../worker/security.ts";
+import { STRUCTURE_TABLES } from "../db/structure-schema.js";
 
 const bootstrapUrl = new URL("../db/bootstrap.ts", import.meta.url).href;
 const hook = registerHooks({
@@ -19,7 +20,7 @@ const hook = registerHooks({
 const { ensureDatabase } = await import(bootstrapUrl);
 hook.deregister();
 
-const tables = ["customers", "work_logs", "work_log_properties", "listings", "listing_events", "work_types", "property_buildings", "follow_ups", "trash_records"];
+const tables = [...STRUCTURE_TABLES,"customers", "work_logs", "work_log_properties", "listings", "listing_events", "work_types", "property_buildings", "follow_ups", "trash_records"];
 
 function database(t, migrated = true) {
   const sqlite = new DatabaseSync(":memory:");
@@ -102,7 +103,7 @@ async function snapshot(write, secret) {
 test("초기화 완료된 DB는 새 요청에서도 읽기 1회, 쓰기 0회로 준비되며 완료 여부만 공유한다", async (t) => {
   const { sqlite, db, binding } = database(t);
   await ensureDatabase(db);
-  assert.equal(sqlite.prepare("SELECT value FROM app_runtime_state WHERE key = 'bootstrap_version'").get().value, "2");
+  assert.equal(sqlite.prepare("SELECT value FROM app_runtime_state WHERE key = 'bootstrap_version'").get().value, "3");
   // User-maintained lookups must not be silently reinserted on each cold start.
   sqlite.prepare("DELETE FROM work_types WHERE name = '기타'").run();
   const cold = binding();
@@ -217,7 +218,7 @@ test("서로 다른 서버가 동시에 최초 준비해도 예시나 기본 설
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM app_runtime_state").get().count, 1);
 });
 
-test("전체 백업은 휴지통을 포함한 9개 테이블을 한 batch로 읽고 데이터·암호화 형식을 그대로 보존한다", async (t) => {
+test("전체 백업은 구조 도면과 휴지통을 포함한 모든 업무 테이블을 한 batch로 읽고 암호화한다", async (t) => {
   const { sqlite, db, batches, calls } = database(t, false);
   await ensureDatabase(db);
   sqlite.prepare("INSERT INTO follow_ups (id, title, customer_id) VALUES ('task', '연락 확인', 'DEMO-001')").run();
@@ -228,8 +229,8 @@ test("전체 백업은 휴지통을 포함한 9개 테이블을 한 batch로 읽
   const response = await handleSecurityRequest(request("/api/backups", "POST"), env, { waitUntil() {} });
   assert.equal(response.status, 201);
   assert.equal(response.headers.get("Cache-Control"), "no-store");
-  assert.deepEqual(batches, [9]);
-  assert.equal(calls.length, 9);
+  assert.deepEqual(batches, [tables.length]);
+  assert.equal(calls.length, tables.length);
   assert.equal(writes.length, 1);
   const backup = await snapshot(writes[0], env.BACKUP_ENCRYPTION_KEY);
   assert.equal(backup.format, "jipjangbu-backup-v1");
@@ -243,7 +244,7 @@ test("이전 DB의 할 일 테이블이 없어도 다른 데이터는 빠짐없�
   sqlite.prepare("INSERT INTO customers (id, name) VALUES ('real', '보존 고객')").run();
   const { env, writes, request } = securityEnvironment(db);
   assert.equal((await handleSecurityRequest(request("/api/backups", "POST"), env, { waitUntil() {} })).status, 201);
-  assert.deepEqual(batches, [9, 8]);
+  assert.deepEqual(batches, [tables.length, tables.length-1]);
   const backup = await snapshot(writes[0], env.BACKUP_ENCRYPTION_KEY);
   assert.equal(backup.tables.customers[0].id, "real");
   assert.deepEqual(backup.tables.follow_ups, []);
@@ -277,6 +278,7 @@ test("일일 백업 동시 확인을 공유하고 완료 후 다시 확인하며
     async list() { return { truncated: false, objects: [
       { key: "daily/expired.json.enc", uploaded: new Date(Date.now() - 91 * 86400_000) },
       { key: "daily/retained.json.enc", uploaded: new Date() },
+      { key: "structure-assets/old-plan.png", uploaded: new Date(Date.now() - 100 * 86400_000) },
     ] }; },
     async delete(keys) { deleted.push(...keys); },
   });
@@ -287,7 +289,7 @@ test("일일 백업 동시 확인을 공유하고 완료 후 다시 확인하며
   release();
   await Promise.all(pending);
   assert.equal(writes.length, 1);
-  assert.deepEqual(batches, [9]);
+  assert.deepEqual(batches, [tables.length]);
   assert.deepEqual(deleted, ["daily/expired.json.enc"]);
   await handleSecurityRequest(request("/api/bootstrap"), env, ctx);
   await Promise.all(pending);

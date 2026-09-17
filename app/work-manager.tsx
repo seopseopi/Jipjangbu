@@ -74,6 +74,7 @@ const TrashView = lazy(() =>
 function isAborted(error: unknown) {
   return error instanceof Error && error.name === "AbortError";
 }
+const StructureView = lazy(() => import("./structures/structure-view").then(module => ({ default: module.StructureView })));
 
 function useSearchDelay(value: string) {
   const [settled, setSettled] = useState(value);
@@ -93,6 +94,7 @@ type View =
   | "customers"
   | "calendar"
   | "trash"
+  | "structures"
   | "settings";
 type WorkSummary = {
   id: string;
@@ -254,6 +256,7 @@ const navItems: Array<[View, string]> = [
   ["calendar", "업무 달력"],
   ["journal", "업무일지"],
   ["listings", "매물 관리"],
+  ["structures", "집 구조 보기"],
   ["customers", "고객 관리"],
   ["insights", "업무 현황"],
   ["trash", "휴지통"],
@@ -384,6 +387,7 @@ function downloadCsv(
 
 export function WorkManager() {
   const [view, setView] = useState<View>("today");
+  const [structureKey, setStructureKey] = useState("");
   const currentView = useRef<View>("today");
   const followUpDirty = useRef(false);
   const followUpBusy = useRef(false);
@@ -1233,6 +1237,7 @@ export function WorkManager() {
     weekday: "long",
   }).format(new Date());
   const titles: Record<View, string> = {
+    structures: "집 구조 보기",
     today: "오늘의 업무",
     tasks: "챙겨야 할 일",
     insights: "업무 현황",
@@ -1524,6 +1529,7 @@ export function WorkManager() {
                   }}
                 />
               )}
+              {view === "structures" && <Suspense fallback={<p role="status">집 구조 화면을 준비하고 있습니다…</p>}><StructureView key={structureKey} initialKey={structureKey} refreshKey={insightsRefreshKey} onOpenWork={(id) => void readWork(id)} /></Suspense>}
               {view === "settings" && (
                 <SettingsView
                   lookups={lookups}
@@ -1586,6 +1592,7 @@ export function WorkManager() {
           onModifyListing={(listing, customerId) => void openWork(undefined, customerId, "매물수정", listing)}
           onFollowUp={addFollowUp}
           onCopy={copyCustomerId}
+          onStructure={(key) => { setStructureKey(key); setHistoryModal(null); navigate("structures"); }}
         />
       )}
       {workReader && !workModal && (
@@ -3692,6 +3699,7 @@ function HistoryModal({
   onModifyListing,
   onFollowUp,
   onCopy,
+  onStructure,
 }: {
   data: HistoryData;
   workTypes?: string[];
@@ -3704,6 +3712,7 @@ function HistoryModal({
   onModifyListing?: (listing: Listing, customerId?: string) => void;
   onFollowUp: (draft: FollowUpDraft) => void;
   onCopy: (id: string) => void;
+  onStructure?: (key: string) => void;
 }) {
   const RecordContainer = data.listing ? "details" : "div";
   const isListingHistory = Boolean(data.listing || data.listingKey);
@@ -3714,6 +3723,7 @@ function HistoryModal({
   const availableTypes = [...workTypes, ...allRecords.map((record) => "event_date" in record ? record.status : record.work_type)];
   return (
     <Modal title={data.title} subtitle={data.subtitle} onClose={onClose} reading>
+      {isListingHistory && onStructure && <div className="history-actions"><button type="button" className="secondary-button" onClick={() => onStructure(data.listing?.identity_key || data.listingKey || "")}><Icon name="structures" size={18}/> 집 구조 보기</button></div>}
       {data.loading && <p className="form-help" role="status">이력을 불러오고 있습니다…</p>}
       {data.error && <div className="form-error" role="alert"><p>{data.error}</p>{(data.customer || data.listing || data.listingKey || data.date || data.scheduleDays) && <button type="button" className="secondary-button" onClick={onRefresh}><Icon name="refresh" size={16} /> 다시 불러오기</button>}</div>}
       {filterable && <HistoryWorkTypeFilter value={selectedType} workTypes={availableTypes} count={data.error || (!selectedType && !allRecords.length && data.listing?.source_notes?.trim()) ? undefined : records.length} loading={data.loading} onChange={onWorkTypeChange} />}

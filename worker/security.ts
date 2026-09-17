@@ -1,4 +1,5 @@
 import { safeReturnTo } from "./return-to.js";
+import { STRUCTURE_TABLES } from "../db/structure-schema.js";
 
 const COOKIE_NAME = "jipjangbu_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 7;
@@ -11,6 +12,7 @@ const encoder = new TextEncoder();
 const dailyBackups = new WeakMap<R2Bucket, { key: string; pending: Promise<void> }>();
 
 const BACKUP_TABLES = [
+  ...STRUCTURE_TABLES,
   "customers",
   "work_logs",
   "work_log_properties",
@@ -306,7 +308,7 @@ export async function listBackupSummaries(bucket: R2Bucket): Promise<BackupSumma
   let cursor: string | undefined;
   do {
     const listed = await bucket.list({ limit: 1000, cursor, include: ["customMetadata"] });
-    objects.push(...listed.objects);
+    objects.push(...listed.objects.filter(object => /^(daily|manual|changes)\//.test(object.key) && object.key.endsWith(".json.enc")));
     if (!listed.truncated) break;
     if (!listed.cursor || listed.cursor === cursor) throw new Error("Backup pagination cursor did not advance");
     cursor = listed.cursor;
@@ -456,7 +458,7 @@ async function removeExpiredBackups(bucket: R2Bucket): Promise<void> {
   let cursor: string | undefined;
   do {
     const result = await bucket.list({ limit: 1000, cursor });
-    const expired = result.objects.filter((object) => object.uploaded.getTime() < threshold).map((object) => object.key);
+    const expired = result.objects.filter((object) => /^(daily|manual|changes)\//.test(object.key) && object.key.endsWith(".json.enc") && object.uploaded.getTime() < threshold).map((object) => object.key);
     if (expired.length) await bucket.delete(expired);
     cursor = result.truncated ? result.cursor : undefined;
   } while (cursor);
@@ -479,7 +481,7 @@ async function importAesKey(secret: string): Promise<CryptoKey> {
 
 function isBusinessMutation(pathname: string, method: string): boolean {
   if (!["POST", "PUT", "PATCH", "DELETE"].includes(method)) return false;
-  return /^\/api\/(work-logs|customers|lookups|follow-ups|trash)(\/|$)/.test(pathname);
+  return /^\/api\/(work-logs|customers|lookups|follow-ups|trash|structures)(\/|$)/.test(pathname);
 }
 
 function mutationArea(pathname: string): string {

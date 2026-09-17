@@ -177,9 +177,9 @@ test("오늘 건수 버튼은 오늘 전체 업무를 최근 수정순으로 재
 test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 숨겨진 관리 화면 주소는 유지한다", () => {
   const nav = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "navItems")[0];
   const navItems = evaluate(`const result = ${nav.initializer.getText(ast)};`);
-  assert.deepEqual(navItems.map(([view]) => view), ["today", "calendar", "journal", "listings", "customers", "insights", "trash", "settings"]);
+  assert.deepEqual(navItems.map(([view]) => view), ["today", "calendar", "journal", "listings", "structures", "customers", "insights", "trash", "settings"]);
   assert.deepEqual(navItems[1], ["calendar", "업무 달력"]);
-  assert.deepEqual(navItems[5], ["insights", "업무 현황"]);
+  assert.deepEqual(navItems[6], ["insights", "업무 현황"]);
   assert.doesNotMatch(JSON.stringify(navItems), /다시 연락할 일/);
   const title = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "titles")[0];
   const titles = evaluate(`const result = ${title.initializer.getText(ast)};`, { dateLabel: "합성 날짜" });
