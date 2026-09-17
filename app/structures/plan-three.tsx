@@ -26,7 +26,7 @@ function Controls({
   topView: boolean;
 }) {
   const { camera, gl, invalidate, size } = useThree();
-  const fit = Math.max(1, 1.18 / (size.width / size.height));
+  const fit = Math.max(1, 1.05 / (size.width / size.height));
   useEffect(() => {
     camera.position.set(
       topView ? 0 : (7 * fit) / zoom,
