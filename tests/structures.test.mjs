@@ -11,9 +11,11 @@ import {
   roomColor,
 } from "../app/structures/plan.ts";
 import { STRUCTURE_SCHEMA, STRUCTURE_TABLES } from "../db/structure-schema.js";
+import { REFERENCE_FIXTURES, referenceFinish } from "../app/structures/reference-finishes.ts";
 import {
   HILLSTATE_109_REFERENCE,
   HILLSTATE_SOURCE,
+  hasReferenceFinishes,
 } from "../app/structures/hillstate-reference.ts";
 
 test("입구 안내선은 실제 지정된 출입문 중앙을 지나며 미확인 입구를 허용하지 않는다", () => {
@@ -30,6 +32,24 @@ test("입구 안내선은 실제 지정된 출입문 중앙을 지나며 미확�
   assert.throws(() =>
     validatePlan({ ...p, entry: { ...p.entry, doorId: "missing" } }),
   );
+});
+test("원본 설비는 참고 도면에만 적용하고 두 욕실 및 주방 설비를 포함한다", () => {
+  assert.equal(hasReferenceFinishes(HILLSTATE_109_REFERENCE), true);
+  assert.equal(hasReferenceFinishes(DEMO_PLAN), false);
+  assert.equal(hasReferenceFinishes({...HILLSTATE_109_REFERENCE}), false);
+  assert.equal(new Set(REFERENCE_FIXTURES.map(f => f.id)).size, REFERENCE_FIXTURES.length);
+  for (const roomId of ["bath-master", "bath-common"]) {
+    assert.deepEqual(REFERENCE_FIXTURES.filter(f=>f.roomId===roomId).map(f=>f.kind).sort(), ["basin","toilet","tub"]);
+  }
+  for (const f of REFERENCE_FIXTURES) {
+    const room = HILLSTATE_109_REFERENCE.rooms.find(r=>r.id===f.roomId);
+    assert.ok(room);
+    assert.ok(f.width > 0 && f.depth > 0);
+    assert.doesNotThrow(()=>validatePlan({...HILLSTATE_109_REFERENCE, rooms: HILLSTATE_109_REFERENCE.rooms.map(r=>r.id===f.roomId ? {...r,label:f.center} : r)}));
+  }
+  assert.equal(referenceFinish("bath-master"), "bath");
+  assert.equal(referenceFinish("balcony-front"), "balcony");
+  assert.equal(referenceFinish("kitchen"), "wood");
 });
 test("방의 표시 순서와 무관하게 용도별 색이 일정하고 현관은 구분된다", () => {
   const rooms = HILLSTATE_109_REFERENCE.rooms;

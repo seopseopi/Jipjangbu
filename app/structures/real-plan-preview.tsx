@@ -84,8 +84,9 @@ export function RealPlanPreview() {
         <p>{HILLSTATE_109_REFERENCE.dimensionEvidence.note}</p>
         <p>
           기본형 원본의 꺾인 외곽, 침실·욕실·주방·현관·드레스룸·발코니 위치를
-          따라 작성했습니다. 가구·위생기구와 미세한 벽체/문창 상세는
-          생략했습니다.
+          따라 작성했습니다. 위생기구·주방 설비의 위치와 바닥 색은 원본을
+          참고했고, 높이·재질·타일 크기는 시각화 표현입니다. 쿡탑의 연료 방식은
+          확인되지 않았습니다.
         </p>
         <p>
           출처 확인: {HILLSTATE_SOURCE.checkedAt} ·{" "}

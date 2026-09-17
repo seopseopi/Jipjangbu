@@ -4,6 +4,9 @@ import { useEffect, useMemo, useRef } from "react";
 import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { Shape, Vector3, DoubleSide } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { ReferenceFixtures, useFloorTextures } from "./plan-fixtures";
+import { referenceFinish } from "./reference-finishes";
+import { hasReferenceFinishes } from "./hillstate-reference";
 import {
   roomColor,
   transformPoint,
@@ -105,6 +108,8 @@ function Scene({
   showRoute: boolean;
 }) {
   const { camera, size } = useThree();
+  const detailed = hasReferenceFinishes(plan);
+  const textures = useFloorTextures();
   const pos = (p: Point): [number, number, number] => {
     const t = transformPoint(p, plan.coordinateSystem.pivot, transform);
     return [
@@ -133,7 +138,7 @@ function Scene({
       const el = labels.current[i];
       if (!el) return;
       const p = pos(room.label);
-      vector.current.set(p[0], 0.12, p[2]).project(camera);
+      vector.current.set(p[0], detailed ? 1.15 : 0.12, p[2]).project(camera);
       el.style.transform = `translate(-50%, -50%) translate(${((vector.current.x + 1) * size.width) / 2}px,${((-vector.current.y + 1) * size.height) / 2}px)`;
       el.style.visibility = vector.current.z > 1 ? "hidden" : "visible";
     });
@@ -174,10 +179,18 @@ function Scene({
               <shapeGeometry args={[shapes[i]]} />
               <meshBasicMaterial
                 side={DoubleSide}
-                color={selected === room.id ? "#8ab6aa" : roomColor(room)}
+                map={detailed ? textures[referenceFinish(room.id)] : null}
+                color={
+                  selected === room.id
+                    ? "#8ab6aa"
+                    : detailed
+                      ? "#ffffff"
+                      : roomColor(room)
+                }
               />
             </mesh>
           ))}
+          {detailed && <ReferenceFixtures onSelect={onSelect} />}
           {plan.walls.flatMap((w) =>
             wallSolids(w, [...plan.doors, ...plan.windows]).map((s, i) => {
               const top = lowWalls ? Math.min(s.top, 0.6) : s.top;
@@ -305,6 +318,7 @@ export default function PlanThree(props: {
   lowWalls: boolean;
   topView: boolean;
   showRoute: boolean;
+  showLabels: boolean;
 }) {
   const labels = useRef<(HTMLSpanElement | null)[]>([]);
   return (
@@ -328,6 +342,7 @@ export default function PlanThree(props: {
           <span
             key={r.id}
             className={`${props.selected === r.id ? "is-selected" : ""} ${r.id === props.plan.entry?.roomId ? "is-entrance" : ""}`}
+            hidden={!props.showLabels && props.selected !== r.id}
             ref={(el) => {
               labels.current[i] = el;
             }}

@@ -9,6 +9,7 @@ import {
 } from "react";
 import { PlanSvg } from "./plan-svg";
 import { roomColor, type Plan, type Transform } from "./plan";
+import { hasReferenceFinishes } from "./hillstate-reference";
 const PlanThree = lazy(() => import("./plan-three"));
 class ThreeBoundary extends Component<
   { children: ReactNode; fallback: ReactNode },
@@ -36,6 +37,7 @@ export function PlanViewer({
     [lowWalls, setLowWalls] = useState(true),
     [topView, setTopView] = useState(false),
     [showRoute, setShowRoute] = useState(true),
+    [showLabels, setShowLabels] = useState(!hasReferenceFinishes(plan)),
     [failed, setFailed] = useState(false);
   const failure = useCallback(() => {
     setFailed(true);
@@ -124,6 +126,13 @@ export function PlanViewer({
           <>
             <button
               type="button"
+              aria-pressed={showLabels}
+              onClick={() => setShowLabels((v) => !v)}
+            >
+              방 이름 {showLabels ? "켜짐" : "꺼짐"}
+            </button>
+            <button
+              type="button"
               aria-pressed={lowWalls}
               onClick={() => setLowWalls((v) => !v)}
             >
@@ -147,7 +156,7 @@ export function PlanViewer({
             입구 안내선 {showRoute ? "켜짐" : "꺼짐"}
           </button>
         )}
-        <span>침실은 파랑 · 욕실은 청록 · 현관은 주황</span>
+        {mode === "2d" && <span>침실은 파랑 · 욕실은 청록 · 현관은 주황</span>}
       </div>
       <div className="structure-canvas">
         {mode === "2d" ? (
@@ -179,6 +188,7 @@ export function PlanViewer({
                 lowWalls={lowWalls}
                 topView={topView}
                 showRoute={showRoute}
+                showLabels={showLabels}
               />
             </Suspense>
           </ThreeBoundary>

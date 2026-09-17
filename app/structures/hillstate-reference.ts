@@ -1,4 +1,7 @@
 import type { Plan, Point, Wall, Opening, Room } from "./plan";
+export function hasReferenceFinishes(plan: Plan) {
+  return plan === HILLSTATE_109_REFERENCE;
+}
 
 export const HILLSTATE_SOURCE = {
   name: "검단힐스테이트",
