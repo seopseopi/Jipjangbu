@@ -5,7 +5,7 @@ import { Canvas, useThree, useFrame } from "@react-three/fiber";
 import { Shape, Vector3, DoubleSide } from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import {
-  ROOM_COLORS,
+  roomColor,
   transformPoint,
   wallSolids,
   wallPoint,
@@ -18,14 +18,21 @@ function Controls({
   reset,
   zoom,
   onFailure,
+  topView,
 }: {
   reset: number;
   zoom: number;
   onFailure: () => void;
+  topView: boolean;
 }) {
-  const { camera, gl, invalidate } = useThree();
+  const { camera, gl, invalidate, size } = useThree();
+  const fit = Math.max(1, 1.18 / (size.width / size.height));
   useEffect(() => {
-    camera.position.set(12 / zoom, 14 / zoom, 12 / zoom);
+    camera.position.set(
+      topView ? 0 : (7 * fit) / zoom,
+      topView ? (23 * fit) / zoom : (20 * fit) / zoom,
+      topView ? 0.01 : (12 * fit) / zoom,
+    );
     const controls = new OrbitControls(camera, gl.domElement);
     controls.target.set(0, 0, 0);
     controls.maxPolarAngle = Math.PI / 2 - 0.08;
@@ -45,7 +52,7 @@ function Controls({
       controls.dispose();
       gl.domElement.removeEventListener("webglcontextlost", lost);
     };
-  }, [camera, gl, invalidate, reset, zoom, onFailure]);
+  }, [camera, gl, invalidate, reset, zoom, onFailure, topView, fit]);
   return null;
 }
 function Scene({
@@ -54,12 +61,16 @@ function Scene({
   selected,
   onSelect,
   labels,
+  lowWalls,
+  showRoute,
 }: {
   plan: Plan;
   transform: Transform;
   selected: string;
   onSelect: (id: string) => void;
   labels: React.RefObject<(HTMLSpanElement | null)[]>;
+  lowWalls: boolean;
+  showRoute: boolean;
 }) {
   const { camera, size } = useThree();
   const pos = (p: Point): [number, number, number] => {
@@ -92,6 +103,15 @@ function Scene({
       el.style.transform = `translate(-50%, -50%) translate(${((vector.current.x + 1) * size.width) / 2}px,${((-vector.current.y + 1) * size.height) / 2}px)`;
       el.style.visibility = vector.current.z > 1 ? "hidden" : "visible";
     });
+    const entryEl = labels.current[plan.rooms.length];
+    if (plan.entry && entryEl) {
+      const p = pos(plan.entry.route[0]);
+      vector.current.set(p[0], 0.25, p[2]).project(camera);
+      entryEl.style.setProperty(
+        "transform",
+        `translate(-50%, -120%) translate(${((vector.current.x + 1) * size.width) / 2}px,${((-vector.current.y + 1) * size.height) / 2}px)`,
+      );
+    }
   });
   return (
     <>
@@ -118,23 +138,21 @@ function Scene({
               }}
             >
               <shapeGeometry args={[shapes[i]]} />
-              <meshStandardMaterial
+              <meshBasicMaterial
                 side={DoubleSide}
-                color={
-                  selected === room.id
-                    ? "#8ab6aa"
-                    : ROOM_COLORS[i % ROOM_COLORS.length]
-                }
+                color={selected === room.id ? "#8ab6aa" : roomColor(room)}
               />
             </mesh>
           ))}
           {plan.walls.flatMap((w) =>
             wallSolids(w, [...plan.doors, ...plan.windows]).map((s, i) => {
+              const top = lowWalls ? Math.min(s.top, 0.6) : s.top;
+              if (s.bottom >= top) return null;
               const p = wallPoint(w, (s.from + s.to) / 2);
               return (
                 <mesh
                   key={`${w.id}-${i}`}
-                  position={[p[0], (s.bottom + s.top) / 2, -p[1]]}
+                  position={[p[0], (s.bottom + top) / 2, -p[1]]}
                   rotation={[
                     0,
                     Math.atan2(w.end[1] - w.start[1], w.end[0] - w.start[0]),
@@ -142,9 +160,9 @@ function Scene({
                   ]}
                 >
                   <boxGeometry
-                    args={[s.to - s.from, s.top - s.bottom, w.thickness]}
+                    args={[s.to - s.from, top - s.bottom, w.thickness]}
                   />
-                  <meshStandardMaterial color="#e8e7e1" roughness={0.85} />
+                  <meshStandardMaterial color="#a5b0ba" roughness={0.85} />
                 </mesh>
               );
             }),
@@ -155,18 +173,28 @@ function Scene({
             return (
               <mesh
                 key={o.id}
-                position={[p[0], (o.sillHeight ?? 0) + o.height / 2, -p[1]]}
+                position={[
+                  p[0],
+                  lowWalls ? 0.62 : (o.sillHeight ?? 0) + o.height / 2,
+                  -p[1],
+                ]}
                 rotation={[
                   0,
                   Math.atan2(w.end[1] - w.start[1], w.end[0] - w.start[0]),
                   0,
                 ]}
               >
-                <boxGeometry args={[o.width, o.height, 0.025]} />
+                <boxGeometry
+                  args={[
+                    o.width,
+                    lowWalls ? 0.045 : o.height,
+                    lowWalls ? 0.12 : 0.025,
+                  ]}
+                />
                 <meshStandardMaterial
                   color="#88c7dd"
                   transparent
-                  opacity={0.3}
+                  opacity={lowWalls ? 1 : 0.3}
                 />
               </mesh>
             );
@@ -181,7 +209,7 @@ function Scene({
             return (
               <mesh
                 key={o.id}
-                position={[p[0], o.height / 2, -p[1]]}
+                position={[p[0], (lowWalls ? 0.45 : o.height) / 2, -p[1]]}
                 rotation={[
                   0,
                   Math.atan2(w.end[1] - w.start[1], w.end[0] - w.start[0]) +
@@ -189,11 +217,44 @@ function Scene({
                   0,
                 ]}
               >
-                <boxGeometry args={[o.width, o.height, 0.035]} />
-                <meshStandardMaterial color="#c7b797" />
+                <boxGeometry
+                  args={[o.width, lowWalls ? 0.45 : o.height, 0.035]}
+                />
+                <meshBasicMaterial
+                  color={plan.entry?.doorId === o.id ? "#b75b0b" : "#aa987a"}
+                />
               </mesh>
             );
           })}
+          {showRoute &&
+            plan.entry?.route.slice(1).map((p, i) => {
+              const a = plan.entry!.route[i],
+                dx = p[0] - a[0],
+                dy = p[1] - a[1];
+              return (
+                <mesh
+                  key={`route-${i}`}
+                  position={[(a[0] + p[0]) / 2, 0.045, -(a[1] + p[1]) / 2]}
+                  rotation={[0, Math.atan2(dy, dx), 0]}
+                >
+                  <boxGeometry args={[Math.hypot(dx, dy), 0.025, 0.09]} />
+                  <meshBasicMaterial color="#b75b0b" />
+                </mesh>
+              );
+            })}
+          {plan.entry && (
+            <mesh
+              position={[
+                plan.entry.route[0][0],
+                0.065,
+                -plan.entry.route[0][1],
+              ]}
+              rotation={[-Math.PI / 2, 0, 0]}
+            >
+              <ringGeometry args={[0.14, 0.23, 32]} />
+              <meshBasicMaterial color="#b75b0b" side={DoubleSide} />
+            </mesh>
+          )}
         </group>
       </group>
     </>
@@ -207,6 +268,9 @@ export default function PlanThree(props: {
   reset: number;
   zoom: number;
   onFailure: () => void;
+  lowWalls: boolean;
+  topView: boolean;
+  showRoute: boolean;
 }) {
   const labels = useRef<(HTMLSpanElement | null)[]>([]);
   return (
@@ -221,6 +285,7 @@ export default function PlanThree(props: {
           reset={props.reset}
           zoom={props.zoom}
           onFailure={props.onFailure}
+          topView={props.topView}
         />
         <Scene {...props} labels={labels} />
       </Canvas>
@@ -228,6 +293,7 @@ export default function PlanThree(props: {
         {props.plan.rooms.map((r, i) => (
           <span
             key={r.id}
+            className={`${props.selected === r.id ? "is-selected" : ""} ${r.id === props.plan.entry?.roomId ? "is-entrance" : ""}`}
             ref={(el) => {
               labels.current[i] = el;
             }}
@@ -235,6 +301,16 @@ export default function PlanThree(props: {
             {r.name}
           </span>
         ))}
+        {props.plan.entry && (
+          <span
+            className="structure-entry-pin"
+            ref={(el) => {
+              labels.current[props.plan.rooms.length] = el;
+            }}
+          >
+            ① 출입구
+          </span>
+        )}
       </div>
     </div>
   );

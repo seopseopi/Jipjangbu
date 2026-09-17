@@ -21,6 +21,7 @@ export type Plan = {
   schemaVersion: 1;
   isDemo: boolean;
   referenceOnly?: boolean;
+  entry?: { doorId: string; roomId: string; route: Point[]; note: string };
   scaleStatus: "proportional" | "verified";
   coordinateSystem: { unit: "m"; pivot: Point };
   dimensionEvidence: { note: string };
@@ -39,6 +40,15 @@ export const ROOM_COLORS = [
   "#f3ded5",
   "#e3eddb",
 ];
+export function roomColor(room: Room): string {
+  if (/현관/.test(room.name)) return "#f5c781";
+  if (/욕실/.test(room.name)) return "#a8d9dc";
+  if (/발코니/.test(room.name)) return "#e0e6ec";
+  if (/침실|안방|작은방/.test(room.name)) return "#b7cde9";
+  if (/주방/.test(room.name)) return "#c9ddad";
+  if (/드레스/.test(room.name)) return "#d8c9e3";
+  return "#efdbb7";
+}
 function inside(point: Point, polygon: Point[]) {
   let found = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -247,6 +257,17 @@ export function validatePlan(value: unknown): Plan {
       (o.sillHeight ?? 0) !== 0
     )
       return fail("문의 경첩과 열림 방향을 확인해 주세요.");
+  if (
+    p.entry &&
+    (!p.doors.some((d) => d.id === p.entry!.doorId) ||
+      !p.rooms.some((r) => r.id === p.entry!.roomId) ||
+      !Array.isArray(p.entry.route) ||
+      p.entry.route.length < 2 ||
+      p.entry.route.length > 30 ||
+      !p.entry.route.every(point) ||
+      typeof p.entry.note !== "string")
+  )
+    return fail("입구와 안내선 정보를 확인해 주세요.");
   return p;
 }
 

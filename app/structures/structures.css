@@ -1,3 +1,100 @@
+.structure-entry-guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: #fff3dd;
+  border-bottom: 1px solid #dfc293;
+  padding: 12px 16px;
+  color: #78420d;
+}
+.structure-entry-guide strong {
+  font-size: 15px;
+}
+.structure-entry-guide span {
+  font-size: 12px;
+  flex: 1;
+  min-width: 180px;
+}
+.structure-entry-guide button {
+  border: 1px solid #be813d;
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 10px;
+  color: #78420d;
+  font-size: 13px;
+}
+.structure-reading-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 13px;
+  border-bottom: 1px solid #d9e1e6;
+  background: #fff;
+}
+.structure-reading-tools button {
+  border: 1px solid #c4d0dc;
+  background: #fff;
+  color: #36546a;
+  padding: 7px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+.structure-reading-tools span {
+  font-size: 12px;
+  color: #596f80;
+  margin-left: auto;
+}
+.structure-labels span {
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border-color: #a4b5c3 !important;
+  background: #fffffff2 !important;
+  color: #263e50 !important;
+}
+.structure-labels .is-selected {
+  outline: 2px solid #284f77;
+}
+.structure-labels .is-entrance {
+  background: #ffebcd !important;
+  border-color: #bb7637 !important;
+  color: #77400f !important;
+}
+.structure-labels .structure-entry-pin {
+  background: #a84e0a !important;
+  color: #fff !important;
+  border: 2px solid #fff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  padding: 7px 12px !important;
+  z-index: 2;
+}
+.structure-entry-pin:after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: calc(50% - 6px);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #a84e0a;
+}
+@media (max-width: 700px) {
+  .structure-reading-tools span {
+    width: 100%;
+    margin-left: 0;
+  }
+  .structure-labels span {
+    font-size: 11px !important;
+    padding: 2px 4px !important;
+  }
+  .structure-labels .structure-entry-pin {
+    font-size: 12px !important;
+  }
+  .structure-entry-guide strong {
+    font-size: 14px;
+  }
+}
 .structure-real-preview {
   background: #fff;
   padding: 22px;

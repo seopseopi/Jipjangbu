@@ -7,12 +7,41 @@ import {
   validatePlan,
   transformPoint,
   wallSolids,
+  wallPoint,
+  roomColor,
 } from "../app/structures/plan.ts";
 import { STRUCTURE_SCHEMA, STRUCTURE_TABLES } from "../db/structure-schema.js";
 import {
   HILLSTATE_109_REFERENCE,
   HILLSTATE_SOURCE,
 } from "../app/structures/hillstate-reference.ts";
+
+test("입구 안내선은 실제 지정된 출입문 중앙을 지나며 미확인 입구를 허용하지 않는다", () => {
+  const p = HILLSTATE_109_REFERENCE,
+    d = p.doors.find((d) => d.id === p.entry.doorId),
+    w = p.walls.find((w) => w.id === d.wallId);
+  const center = wallPoint(w, d.offset + d.width / 2);
+  assert.ok(
+    Math.hypot(
+      center[0] - p.entry.route[1][0],
+      center[1] - p.entry.route[1][1],
+    ) < 1e-8,
+  );
+  assert.throws(() =>
+    validatePlan({ ...p, entry: { ...p.entry, doorId: "missing" } }),
+  );
+});
+test("방의 표시 순서와 무관하게 용도별 색이 일정하고 현관은 구분된다", () => {
+  const rooms = HILLSTATE_109_REFERENCE.rooms;
+  assert.equal(
+    roomColor(rooms.find((r) => r.id === "bed-master")),
+    roomColor(rooms.find((r) => r.id === "bed-small")),
+  );
+  assert.notEqual(
+    roomColor(rooms.find((r) => r.id === "entrance")),
+    roomColor(rooms.find((r) => r.id === "living")),
+  );
+});
 
 test("실제 KB 109 기본형은 가상 도면과 구분된 검증 전 타입 참고 자료다", () => {
   const p = validatePlan(HILLSTATE_109_REFERENCE);

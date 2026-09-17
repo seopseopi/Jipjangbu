@@ -1,8 +1,9 @@
 "use client";
+import { useId } from "react";
 import {
   transformPoint,
   wallPoint,
-  ROOM_COLORS,
+  roomColor,
   type Plan,
   type Point,
   type Transform,
@@ -14,18 +15,21 @@ export function PlanSvg({
   selected,
   onSelect,
   zoom,
+  showRoute = true,
 }: {
   plan: Plan;
   transform: Transform;
   selected: string;
   onSelect: (id: string) => void;
   zoom: number;
+  showRoute?: boolean;
 }) {
+  const arrowId = useId().replace(/:/g, "");
   const point = (p: Point): Point => {
     const [x, y] = transformPoint(p, plan.coordinateSystem.pivot, transform);
     return [x, -y];
   };
-  const corners = plan.outline.map(point),
+  const corners = [...plan.outline, ...(plan.entry?.route ?? [])].map(point),
     xs = corners.map((p) => p[0]),
     ys = corners.map((p) => p[1]);
   const width = Math.max(...xs) - Math.min(...xs) + 1.4,
@@ -47,15 +51,24 @@ export function PlanSvg({
       role="img"
       aria-label="집 구조 평면도. 아래 방 목록으로 방을 선택할 수 있습니다."
     >
-      {plan.rooms.map((room, i) => (
+      <defs>
+        <marker
+          id={arrowId}
+          viewBox="0 0 10 10"
+          refX="8"
+          refY="5"
+          markerWidth="5"
+          markerHeight="5"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#b75b0b" />
+        </marker>
+      </defs>
+      {plan.rooms.map((room) => (
         <g key={room.id}>
           <polygon
             points={room.polygon.map((p) => point(p).join(",")).join(" ")}
-            fill={
-              selected === room.id
-                ? "#99bcb4"
-                : ROOM_COLORS[i % ROOM_COLORS.length]
-            }
+            fill={selected === room.id ? "#99bcb4" : roomColor(room)}
             stroke={selected === room.id ? "#24564c" : "#fff"}
             strokeWidth={0.035}
             onClick={() => onSelect(room.id)}
@@ -124,7 +137,11 @@ export function PlanSvg({
               stroke="#fff"
               strokeWidth={w.thickness + 0.045}
             />
-            <line {...line(hinge, open)} stroke="#8b6d4c" strokeWidth={0.05} />
+            <line
+              {...line(hinge, open)}
+              stroke={plan.entry?.doorId === o.id ? "#b75b0b" : "#8b6d4c"}
+              strokeWidth={plan.entry?.doorId === o.id ? 0.1 : 0.05}
+            />
             <path
               d={`M ${c} A ${o.width} ${o.width} 0 0 ${sweep} ${p}`}
               fill="none"
@@ -135,6 +152,59 @@ export function PlanSvg({
           </g>
         );
       })}
+      {plan.entry && showRoute && (
+        <g>
+          <polyline
+            points={plan.entry.route.map((p) => point(p).join(",")).join(" ")}
+            fill="none"
+            stroke="#fff"
+            strokeWidth={0.17}
+          />
+          <polyline
+            points={plan.entry.route.map((p) => point(p).join(",")).join(" ")}
+            fill="none"
+            stroke="#b75b0b"
+            strokeWidth={0.08}
+            strokeDasharray=".16 .09"
+            markerEnd={`url(#${arrowId})`}
+          />
+        </g>
+      )}
+      {plan.entry &&
+        (() => {
+          const [x, y] = point(plan.entry.route[0]);
+          return (
+            <g>
+              <rect
+                x={x - 0.75}
+                y={y - 0.75}
+                width={1.5}
+                height={0.48}
+                rx={0.12}
+                fill="#a84e0a"
+              />
+              <text
+                x={x}
+                y={y - 0.5}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fill="white"
+                fontSize={0.27}
+                fontWeight={700}
+              >
+                출입구
+              </text>
+              <circle
+                cx={x}
+                cy={y}
+                r={0.12}
+                fill="#b75b0b"
+                stroke="#fff"
+                strokeWidth={0.04}
+              />
+            </g>
+          );
+        })()}
       {plan.rooms.map((room) => {
         const [x, y] = point(room.label);
         return (
@@ -144,9 +214,12 @@ export function PlanSvg({
             y={y}
             textAnchor="middle"
             dominantBaseline="middle"
-            fontSize={0.27}
-            fontWeight={550}
+            fontSize={room.id === plan.entry?.roomId ? 0.32 : 0.29}
+            fontWeight={650}
             fill="#263746"
+            stroke="#ffffffcc"
+            strokeWidth={0.065}
+            paintOrder="stroke"
             style={{ pointerEvents: "none" }}
           >
             {room.name}

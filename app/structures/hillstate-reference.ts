@@ -95,6 +95,20 @@ export const HILLSTATE_109_REFERENCE: Plan = {
   referenceOnly: true,
   scaleStatus: "proportional",
   coordinateSystem: { unit: "m", pivot: xy(300, 225) },
+  entry: {
+    doorId: "front-door",
+    roomId: "entrance",
+    route: polygon([
+      [427, 100.5],
+      [400, 100.5],
+      [366, 100.5],
+      [366, 181],
+      [360, 210],
+      [310, 210],
+      [310, 251],
+    ]),
+    note: "원본 오른쪽 위 출입문 → 현관 → 복도 → 거실. 안내선은 배치 이해용이며 피난·실측 동선이 아닙니다.",
+  },
   dimensionEvidence: {
     note: "KB부동산 109㎡ 기본형 원본의 배치·개구부를 수작업 재구성했습니다. 이미지 비례 사용, 벽 높이 2.4m·두께·문창 높이는 시각화 가정입니다. 치수·문 열림 방향은 현장 검증 전이며 측정/시공용이 아닙니다.",
   },
