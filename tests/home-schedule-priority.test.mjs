@@ -179,7 +179,9 @@ test("다시 연락할 일 메뉴는 없애되 홈의 할 일 전체보기와 �
   const navItems = evaluate(`const result = ${nav.initializer.getText(ast)};`);
   assert.deepEqual(navItems.map(([view]) => view), ["today", "calendar", "journal", "listings", "customers", "insights", "trash", "settings", "structures"]);
   assert.deepEqual(navItems[1], ["calendar", "업무 달력"]);
-  assert.deepEqual(navItems[6], ["insights", "업무 현황"]);
+  assert.deepEqual(navItems[5], ["insights", "업무 현황"]);
+  assert.deepEqual(navItems.at(-2), ["settings", "설정"]);
+  assert.deepEqual(navItems.at(-1), ["structures", "집 구조 보기"]);
   assert.doesNotMatch(JSON.stringify(navItems), /다시 연락할 일/);
   const title = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(ast) === "titles")[0];
   const titles = evaluate(`const result = ${title.initializer.getText(ast)};`, { dateLabel: "합성 날짜" });
