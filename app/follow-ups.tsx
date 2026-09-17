@@ -81,7 +81,7 @@ function dueText(item: FollowUpItem, today: string) {
   if (item.due_date === nextDay(today)) return "내일";
   const [year, month, day] = item.due_date.split("-");
   const label = `${year === today.slice(0, 4) ? "" : `${year}년 `}${Number(month)}월 ${Number(day)}일`;
-  return item.due_date < today ? `${label} · 기한 지남` : label;
+  return label;
 }
 
 function errorText(error: unknown) {
@@ -392,7 +392,7 @@ export function FollowUpsView({ compact = false, refreshKey = 0, onChange, onDir
       {visibleItems.map((item) => <article key={item.id} className={`followup-item${item.completed_at ? " is-completed" : ""}${!item.completed_at && item.due_date && item.due_date < today ? " is-overdue" : ""}`}>
         {editingId === item.id ? <p className="followup-editing-marker"><Icon name="edit" size={18} />위에서 수정 중 · {item.title}</p> : <>
           <div className="followup-item-top">
-            <span className={`followup-due${!item.completed_at && item.due_date === today ? " is-today" : ""}`}><Icon name={item.completed_at ? "check" : item.due_date && item.due_date < today ? "warning" : "calendar"} size={16} /><time dateTime={item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined}>{dueText(item, today)}</time></span>
+            <span className={`followup-due${!item.completed_at && item.due_date === today ? " is-today" : ""}`}><Icon name={item.completed_at ? "check" : item.due_date && item.due_date < today ? "warning" : "calendar"} size={16} /><time dateTime={item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined}>{dueText(item, today)}</time>{!item.completed_at && item.due_date && item.due_date < today && <small className="followup-overdue-label">기한 지남</small>}</span>
             <h3>{item.title}</h3>
           <button className="followup-check" title={item.completed_at ? "다시 진행하기" : "완료하기"} aria-label={`${item.title}: ${item.completed_at ? "다시 진행하기" : "완료하기"}`} aria-pressed={!!item.completed_at} disabled={!!busyId || !listReady || !!editingId} onClick={() => { if (!window.confirm(`“${item.title}” 할 일을 ${item.completed_at ? "다시 진행할까요?" : "완료 처리할까요?"}`)) return; void mutate(item.id, "PATCH", { completed: !item.completed_at }, `“${item.title}” ${item.completed_at ? "할 일을 다시 열었습니다. 전체 진행에서 확인할 수 있습니다." : "할 일을 완료했습니다. 완료 목록에서 다시 열 수 있습니다."}`); }}><span aria-hidden="true">{busyId === item.id ? <Icon name="clock" size={16} /> : item.completed_at ? <Icon name="check" size={18} /> : null}</span>{item.completed_at ? "다시 진행" : "완료"}</button>
           </div>

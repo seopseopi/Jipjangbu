@@ -3,10 +3,36 @@ import test from "node:test";
 
 import { safeReturnTo } from "../worker/return-to.js";
 import {
+  addSecurityHeaders,
   handleSecurityRequest,
+  isPublicAsset,
   listBackupSummaries,
   schedulePostMutationBackup,
 } from "../worker/security.ts";
+
+test("로컬 글꼴과 라이선스는 로그인 없이 읽되 API·다른 파일·쓰기 요청은 공개하지 않는다", async () => {
+  const env = { DB: { prepare() { throw new Error("Font requests must not touch business data"); } } };
+  for (const path of ["/fonts/pretendard/PretendardVariable.subset.0.woff2", "/fonts/pretendard/OFL.txt"]) {
+    for (const method of ["GET", "HEAD"]) {
+      assert.equal(isPublicAsset(path, method), true);
+      assert.equal(await handleSecurityRequest(new Request(`https://test.invalid${path}`, { method }), env, { waitUntil() {} }), null);
+    }
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) assert.equal(isPublicAsset(path, method), false);
+  }
+  for (const path of ["/api/work-logs", "/fonts/private.json", "/fonts/pretendard/backup.sql", "/fonts/pretendard/PretendardVariable.subset.0.woff2/private", "/fonts/pretendard/../private.json"]) {
+    assert.equal(isPublicAsset(path, "GET"), false);
+  }
+  const response = await handleSecurityRequest(new Request("https://test.invalid/api/work-logs"), env, { waitUntil() {} });
+  assert.equal(response.status, 401);
+});
+
+test("공개 글꼴의 캐시는 보존하지만 업무 응답은 저장하지 않는다", () => {
+  const response = new Response("font", { headers: { "Cache-Control": "public, max-age=31536000, immutable" } });
+  const font = addSecurityHeaders(response, false);
+  assert.equal(font.headers.get("Cache-Control"), "public, max-age=31536000, immutable");
+  assert.equal(font.headers.get("X-Content-Type-Options"), "nosniff");
+  assert.equal(addSecurityHeaders(response).headers.get("Cache-Control"), "no-store");
+});
 
 test("safeReturnTo는 같은 출처의 상대 경로만 허용한다", () => {
   for (const value of ["/", "/#customers", "/?q=hello#journal", "/customers?id=1", "/a/../settings"]) {

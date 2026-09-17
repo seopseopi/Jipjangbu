@@ -1,11 +1,11 @@
 .trash-view { min-width: 0; }
 .trash-help { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 20px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .trash-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; }
-.trash-search { display: flex; flex: 1 1 280px; align-items: center; gap: 10px; max-width: 660px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); }
+.trash-search { display: flex; flex: 1 1 280px; align-items: center; gap: 10px; max-width: 660px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
 .trash-search input { flex: 1; min-width: 0; width: 100%; border: 0; background: transparent; color: var(--ink); font-size: var(--text-base); outline-offset: 3px; }
 .trash-search button { display: grid; place-items: center; min-height: 38px; min-width: 32px; border: 0; background: transparent; color: var(--muted); }
 .trash-type { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: var(--text-small); }
-.trash-type select { min-height: 46px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: var(--text-base); }
+.trash-type select { min-height: 46px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); color: var(--ink); font-size: var(--text-base); }
 .trash-list-heading { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 18px; padding: 0 0 12px; border-bottom: 1px solid var(--line); }
 .trash-list-heading h2 { margin: 0; font-size: calc(var(--text-base) + 4px); }
 .trash-list-heading h2 span { margin-left: 5px; color: var(--muted); font-size: var(--text-small); font-weight: 500; }
@@ -18,7 +18,7 @@
 .trash-record-main strong { font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
 .trash-record-main > span { color: var(--muted); font-size: var(--text-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 .trash-record-action { display: grid; gap: 7px; text-align: right; font-size: var(--text-small); }
-.trash-record-action time, .trash-deleted-time { color: var(--muted); font-size: var(--text-small); font-variant-numeric: tabular-nums; }
+.trash-record-action time, .trash-deleted-time { color: var(--ink); font-size: var(--text-base); font-variant-numeric: tabular-nums; font-weight: 600; }
 .trash-record-action > span { display: flex; align-items: center; justify-content: flex-end; gap: 4px; color: var(--green-dark); }
 .trash-empty { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 48px 14px; color: var(--muted); text-align: center; }
 .trash-empty strong { color: var(--ink); font-size: var(--text-base); }
@@ -28,5 +28,5 @@
   .trash-record { grid-template-columns: 44px minmax(0, 1fr); gap: 8px 12px; padding: 18px 0; }
   .trash-record-action { grid-column: 2; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 7px 12px; text-align: left; }
   .trash-type { flex: 1 1 auto; }
-  .trash-type select { flex: 1; }
+  .trash-type select { flex: 1; border: 1px solid var(--line-strong); }
 }

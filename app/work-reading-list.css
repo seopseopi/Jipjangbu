@@ -5,9 +5,9 @@
 .work-record-meta { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 8px 14px; margin-bottom: 6px; }
 .work-record-meta > span { min-width: 0; }
 .work-record-date, .work-record-customer-link, .work-record-open { min-height: 36px; padding: 4px 0; border: 0; background: transparent; text-align: left; }
-.work-record-date { color: var(--muted); font-size: var(--text-small); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.work-record-date { color: var(--ink); font-size: var(--text-base); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .work-record-customer-link { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 9px; max-width: 100%; color: var(--ink); }
-.work-record-customer-link b { font-size: var(--text-base); font-weight: 700; overflow-wrap: anywhere; }
+.work-record-customer-link b { font-size: var(--text-base); font-weight: 600; overflow-wrap: anywhere; }
 .work-record-customer-link .work-customer-id { color: var(--muted); font-size: var(--text-caption); overflow-wrap: anywhere; }
 .work-record-open { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: var(--text-small); font-weight: 500; white-space: nowrap; }
 .work-record-date:hover, .work-record-customer-link:hover b, .work-record-open:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
@@ -17,7 +17,7 @@
 .work-reading-list .work-cell-button.work-record-note { padding: 1px 0; min-height: 44px; color: var(--ink); font-size: var(--text-base); line-height: 1.85; }
 .work-reading-list .work-record-note:hover { background: transparent; color: var(--green-dark); }
 .work-record-note-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
-.work-record-properties { display: block; padding: 10px 14px; border-radius: 6px; background: var(--wash); }
+.work-record-properties { display: block; padding: 10px 14px; border-radius: 6px; background: var(--wash); border: 1px solid var(--line); }
 .work-record-property-heading { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; color: var(--muted); }
 .work-record-property-heading .work-property-group-label { display: inline-flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: var(--text-caption); font-weight: 500; }
 .work-record-property-heading .work-property-group-label > span { color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 700; }
@@ -37,7 +37,7 @@
 .work-record-no-property, .work-record-legacy-note { color: var(--muted); font-size: var(--text-caption); }
 .work-record-legacy-note { display: block; margin-top: 6px; }
 .work-record-body:not(.has-properties) { grid-template-columns: minmax(0, 1fr) auto; }
-.work-record-body:not(.has-properties) .work-record-properties { padding: 0; background: transparent; }
+.work-record-body:not(.has-properties) .work-record-properties { padding: 0; background: transparent; border: 0; }
 .work-reading-list .work-record-row [data-label]::before { display: none; }
 /* Home shares the recent-work reading cards, with full-width notes. */
 .home-body-grid .work-record-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; }
@@ -54,10 +54,12 @@
 }
 @media (max-width: 560px) {
   .work-reading-list .work-record-row { padding: 16px; }
-  .work-record-meta { margin-bottom: 10px; }
+  .work-record-meta { display: flex; flex-wrap: wrap; margin-bottom: 10px; }
+  .work-record-customer { flex: 1 1 160px; }
+  .work-record-open { margin-left: auto; }
   .work-record-customer-link { gap: 2px 7px; }
   .work-record-customer-link .work-customer-id { flex-basis: 100%; }
-  .work-record-properties { padding: 11px 12px; }
+  .work-record-properties { padding: 11px 12px; border: 1px solid var(--line); }
   .work-property-groups { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .work-reading-list .work-property-list .history-link { min-height: 40px; }
   .work-record-body:not(.has-properties) { grid-template-columns: minmax(0, 1fr); gap: 0; }

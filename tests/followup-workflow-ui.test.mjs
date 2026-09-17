@@ -78,12 +78,13 @@ test("홈과 전체 할 일은 날짜·제목·완료 체크 순서이며 오늘
   const cases = [
     { due_date: today, expected: /^오늘$/, highlighted: true },
     { due_date: day(1), expected: /^내일$/ },
-    { due_date: day(-1), expected: /기한 지남$/ },
+    { due_date: day(-1), expected: /\d+월 \d+일$/, overdue: true },
+    { due_date: "2025-12-30", expected: /^2025년 12월 30일$/, overdue: true },
     { due_date: null, expected: /^날짜 미정$/ },
     { due_date: day(-1), completed_at: `${today} 03:00:00`, expected: /^완료$/ },
   ];
   for (const compact of [true, false]) {
-    for (const { expected, highlighted, ...values } of cases) {
+    for (const { expected, highlighted, overdue, ...values } of cases) {
       const item = { ...synthetic, ...values };
       const h = harness({ data: { ...response, items: [item] } }, { compact });
       const tree = h.render();
@@ -92,6 +93,7 @@ test("홈과 전체 할 일은 날짜·제목·완료 체크 순서이며 오늘
       assert.ok(date.props.className.startsWith("followup-due"), "the date is the first header column, before the title and checkbox");
       const time = find(date, (element) => element.type === "time");
       assert.match(time.props.children, expected);
+      assert.equal(descendants(date).some((element) => element.props.className === "followup-overdue-label" && element.props.children === "기한 지남"), !!overdue);
       assert.equal(time.props.dateTime, item.completed_at?.slice(0, 10) ?? item.due_date ?? undefined);
       assert.equal(date.props.className.includes("is-today"), !!highlighted);
       assert.equal(title.type, "h3");
@@ -106,16 +108,19 @@ test("홈과 전체 할 일은 날짜·제목·완료 체크 순서이며 오늘
   }
 });
 
-test("할 일 왼쪽 날짜는 좁은 화면에서도 줄바꿈하며 메모 전체 폭과 완료 버튼의 44px 영역을 유지한다", () => {
+test("할 일 날짜는 쪼개지지 않고 좁은 영역의 제목·메모는 전체 폭, 완료 버튼은 44px 영역을 유지한다", () => {
   const css = readFileSync(new URL("../app/follow-ups.css", import.meta.url), "utf8");
   assert.match(css, /\.followup-item\s*\{\s*display:\s*block/);
-  assert.match(css, /\.followup-item-top\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*fit-content\(120px\) minmax\(0,\s*1fr\) auto/);
-  assert.match(css, /\.followup-compact \.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) auto/);
+  assert.match(css, /\.followup-item-top\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*max-content minmax\(0,\s*1fr\) auto/);
+  assert.match(css, /\.followup-compact \.followup-item-top\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/);
+  assert.match(css, /\.followup-compact \.followup-item-top > h3\s*\{[^}]*order:\s*1;[^}]*flex-basis:\s*100%/);
   const mobile = css.slice(css.indexOf("@media (max-width: 700px)"));
-  assert.match(mobile, /\.followup-item-top\s*\{[^}]*grid-template-columns:\s*fit-content\(96px\) minmax\(0,\s*1fr\) auto/);
-  assert.match(css, /\.followup-due time\s*\{[^}]*min-width:\s*0;[^}]*overflow-wrap:\s*anywhere/);
+  assert.match(mobile, /\.followup-item-top\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap/);
+  assert.match(mobile, /\.followup-item-top > h3\s*\{[^}]*order:\s*1;[^}]*flex-basis:\s*100%/);
+  assert.match(css, /\.followup-due time\s*\{[^}]*min-width:\s*0;[^}]*white-space:\s*nowrap/);
   assert.match(css, /\.followup-check\s*\{[^}]*min-width:\s*72px;[^}]*min-height:\s*44px/);
-  assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-caption\)/);
+  assert.match(css, /\.followup-due\s*\{[^}]*font-size:\s*var\(--text-base\)/);
+  assert.match(css, /\.followup-due\s*\{[^}]*font-weight:\s*600/);
 });
 
 test("완료 글씨를 표시하며 확인 취소는 저장하지 않고 승인해야 완료 요청을 보낸다", async () => {

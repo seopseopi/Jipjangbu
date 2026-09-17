@@ -2,14 +2,14 @@
 .history-list-guide { margin: 20px 0 4px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .history-entry-open { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; color: var(--green); font-size: var(--text-caption); white-space: nowrap; }
 .history-entry-context { display: grid; gap: 6px; min-width: 0; color: var(--ink-2); font-size: var(--text-small); line-height: 1.7; }
-.history-entry-context > span:not(.work-summary-properties) { display: flex; align-items: flex-start; gap: 7px; min-width: 0; }
+.history-entry-context > span:not(.work-summary-properties) { display: flex; align-items: flex-start; gap: 7px; min-width: 0; font-size: var(--text-base); font-weight: 600; }
 .history-entry-context .ui-icon { flex: 0 0 auto; margin-top: 5px; }
 .history-entry-context > span > span { min-width: 0; overflow-wrap: anywhere; }
 .history-entry-context small { color: var(--muted); font-size: inherit; }
-.history-list .history-entry-saved { margin: 0; color: var(--muted); font-size: var(--text-caption); line-height: 1.7; white-space: normal; overflow-wrap: anywhere; }
+.history-list .history-entry-saved { margin: 0; color: var(--ink); font-size: var(--text-base); line-height: 1.7; white-space: normal; overflow-wrap: anywhere; font-weight: 600; }
 .listing-work-details { min-width: 0; border-top: 1px solid var(--line); }
 .listing-work-details > summary { display: flex; align-items: center; gap: 6px; min-height: 44px; padding-block: 10px; color: var(--green-dark); font-size: var(--text-small); font-weight: 600; cursor: pointer; }
-.listing-work-details > summary > span { margin-left: auto; color: var(--muted); font-weight: 400; }
+.listing-work-details > summary > span { margin-left: auto; color: var(--muted); font-weight: 500; }
 .listing-work-details > summary::marker, .listing-work-details > summary::-webkit-details-marker { display: none; content: ""; }
 .listing-work-details[open] > summary > .ui-icon { transform: rotate(90deg); }
 .history-list > button:disabled .history-entry-open { color: var(--muted); }

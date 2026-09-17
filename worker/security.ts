@@ -133,6 +133,7 @@ export function isPublicAsset(pathname: string, method: string): boolean {
   if (method !== "GET" && method !== "HEAD") return false;
   return pathname.startsWith("/_next/")
     || pathname.startsWith("/_vinext/")
+    || /^\/fonts\/pretendard\/(?:PretendardVariable\.subset\.\d{1,2}\.woff2|OFL\.txt)$/.test(pathname)
     || pathname === "/favicon.ico"
     || pathname === "/jipjangbu-logo.png"
     || pathname === "/jipjangbu-icon.png"

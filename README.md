@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://jipjangbu.minseop0920370667.chatgpt.site">
-    <img src="docs/assets/jipjangbu-mark.svg" alt="집장부" width="64" />
+    <img src="docs/assets/jipjangbu-mark-tile.svg" alt="집장부" width="64" />
   </a>
 </p>
 

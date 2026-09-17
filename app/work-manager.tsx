@@ -1302,7 +1302,7 @@ export function WorkManager() {
         <header className="topbar">
           <div className="title-stack">
             <h1>{titles[view]}</h1>
-            {view === "today" && <p className="view-purpose">{dateLabel}</p>}
+            {view === "today" && <p className="view-purpose"><span className="record-date">{dateLabel}</span></p>}
           </div>
           <div className="topbar-actions">
             <button
@@ -1708,7 +1708,7 @@ function DashboardView({
             {metrics.today_count}
             <small>건</small>
           </strong>
-          <button className="attention" onClick={onOpenToday}>업무일이 오늘인 기록</button>
+          <button className="attention" title="업무일이 오늘인 기록" onClick={onOpenToday}>오늘 업무 보기</button>
         </article>
         <article className="metric-card">
           <p className="metric-label">다가오는 일정</p>
@@ -2221,10 +2221,10 @@ function ListingsView({
                   <Price item={item} />
                 </span>
                 <span data-label="등록·말소">
-                  {displayDate(item.registered_at)}
+                  <time className="record-date" dateTime={item.registered_at || undefined}>{displayDate(item.registered_at)}</time>
                   <small>
                     {item.closed_at
-                      ? `말소 ${displayDate(item.closed_at)}`
+                      ? <time className="record-date" dateTime={item.closed_at}>말소 {displayDate(item.closed_at)}</time>
                       : "진행 중"}
                   </small>
                 </span>
@@ -2384,7 +2384,7 @@ function CustomersView({
                 </button>
                 <span className="customer-notes" data-label="비고">{item.notes || "-"}</span>
                 <span data-label="최근 업무">
-                  {displayDate(item.last_work_date)}
+                  <time className="record-date" dateTime={item.last_work_date || undefined}>{displayDate(item.last_work_date)}</time>
                   <small>이력 {item.history_count}건</small>
                 </span>
                 <span className="row-actions" data-label="빠른 관리">
@@ -2945,7 +2945,7 @@ function BackupPanel() {
               <div>
                 <strong>{kindLabel(backup)}</strong>
                 <span>
-                  {dateTime(backup.createdAt)} ·{" "}
+                  <time className="record-date" dateTime={backup.createdAt}>{dateTime(backup.createdAt)}</time> ·{" "}
                   {Math.max(1, Math.round(backup.size / 1024)).toLocaleString(
                     "ko-KR",
                   )}
