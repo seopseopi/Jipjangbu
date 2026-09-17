@@ -13,6 +13,7 @@ import { clientJsonFetch, clearClientReadCache } from "../client-api";
 import { PlanViewer } from "./plan-viewer";
 import { DEMO_PLAN } from "./plan";
 import { StructureManager } from "./structure-manager";
+import { RealPlanPreview } from "./real-plan-preview";
 import type { Catalog, History, PropertyRow, RevisionData } from "./contracts";
 import "./structures.css";
 const natural = new Intl.Collator("ko", { numeric: true });
@@ -40,6 +41,7 @@ export function StructureView({
     [dong, setDong] = useState(""),
     [key, setKey] = useState(initialKey),
     [demo, setDemo] = useState(false),
+    [reference, setReference] = useState(!initialKey),
     [demoUnit, setDemoUnit] = useState("체험 A"),
     [manager, setManager] = useState(false),
     [generation, setGeneration] = useState(0);
@@ -129,9 +131,22 @@ export function StructureView({
         <div className="structure-intro-actions">
           <button
             type="button"
+            className="primary-button"
+            onClick={() => {
+              setReference(!reference);
+              setDemo(false);
+              setManager(false);
+            }}
+          >
+            <FileCheck2 size={17} />
+            {reference ? "매물·세대 목록" : "실제 도면 보기"}
+          </button>
+          <button
+            type="button"
             className="secondary-button"
             onClick={() => {
               setDemo(!demo);
+              setReference(false);
               setManager(false);
             }}
           >
@@ -143,6 +158,7 @@ export function StructureView({
             className="secondary-button"
             onClick={() => {
               setManager(!manager);
+              setReference(false);
               setDemo(false);
             }}
           >
@@ -167,6 +183,8 @@ export function StructureView({
           unit={unit}
           onSaved={saved}
         />
+      ) : reference ? (
+        <RealPlanPreview />
       ) : demo ? (
         <>
           <div className="structure-notice">

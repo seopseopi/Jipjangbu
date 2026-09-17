@@ -161,9 +161,9 @@ export function StructureManager({
                       const result = validatePlan(
                         JSON.parse(await file.text()),
                       );
-                      if (result.isDemo)
+                      if (result.isDemo || result.referenceOnly)
                         throw new Error(
-                          "가상 도면은 실단지에 등록할 수 없습니다.",
+                          "가상 또는 검증 전 참고 도면은 실세대용 도면으로 등록할 수 없습니다.",
                         );
                       setPlan(result);
                     } catch (err) {

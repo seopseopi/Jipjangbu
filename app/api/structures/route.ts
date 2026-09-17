@@ -70,8 +70,8 @@ export async function POST(request: Request) {
     const db = getD1();
     if (input.action === "revision") {
       const plan = validatePlan(input.plan);
-      if (plan.isDemo)
-        throw new Error("가상 도면은 실제 단지에 등록할 수 없습니다.");
+      if (plan.isDemo || plan.referenceOnly)
+        throw new Error("가상 또는 검증 전 참고 도면은 실세대용 도면으로 등록할 수 없습니다.");
       const name = required(input.complexName, "공식 단지명"),
         address = required(input.address, "공식 주소"),
         typeName = required(input.typeName, "타입 이름"),

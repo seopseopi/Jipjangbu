@@ -20,6 +20,7 @@ export type Room = { id: string; name: string; polygon: Point[]; label: Point };
 export type Plan = {
   schemaVersion: 1;
   isDemo: boolean;
+  referenceOnly?: boolean;
   scaleStatus: "proportional" | "verified";
   coordinateSystem: { unit: "m"; pivot: Point };
   dimensionEvidence: { note: string };

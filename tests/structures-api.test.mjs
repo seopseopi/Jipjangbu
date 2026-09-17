@@ -5,6 +5,7 @@ import { registerHooks } from "node:module";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import ts from "typescript";
 import { DEMO_PLAN } from "../app/structures/plan.ts";
+import { HILLSTATE_109_REFERENCE } from "../app/structures/hillstate-reference.ts";
 const root = new URL("../", import.meta.url),
   symbol = Symbol.for("structure-test-db");
 const hook = registerHooks({
@@ -113,6 +114,7 @@ test("도면 등록은 근거·동의가 필요하고 데모를 실단지에 연
   const db = database(t);
   for (const value of [
     { ...revisionInput(), plan: DEMO_PLAN },
+    { ...revisionInput(), plan: HILLSTATE_109_REFERENCE },
     { ...revisionInput(), confirmed: false },
     { ...revisionInput(), permissionEvidence: "" },
   ])

@@ -9,6 +9,22 @@ import {
   wallSolids,
 } from "../app/structures/plan.ts";
 import { STRUCTURE_SCHEMA, STRUCTURE_TABLES } from "../db/structure-schema.js";
+import {
+  HILLSTATE_109_REFERENCE,
+  HILLSTATE_SOURCE,
+} from "../app/structures/hillstate-reference.ts";
+
+test("실제 KB 109 기본형은 가상 도면과 구분된 검증 전 타입 참고 자료다", () => {
+  const p = validatePlan(HILLSTATE_109_REFERENCE);
+  assert.equal(p.isDemo, false);
+  assert.equal(p.referenceOnly, true);
+  assert.equal(p.rooms.filter((r) => r.id.startsWith("bed-")).length, 3);
+  assert.equal(p.rooms.filter((r) => r.id.startsWith("bath-")).length, 2);
+  assert.equal(p.rooms.filter((r) => r.id.startsWith("balcony-")).length, 2);
+  assert.ok(p.outline.length > 4);
+  assert.equal(p.scaleStatus, "proportional");
+  assert.equal(new URL(HILLSTATE_SOURCE.page).hostname, "kbland.kr");
+});
 
 test("가상 구조는 명시적으로 분리되고 정상적인 구조 계약을 따른다", () => {
   assert.equal(validatePlan(DEMO_PLAN).isDemo, true);

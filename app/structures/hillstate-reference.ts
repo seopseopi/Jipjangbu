@@ -1,0 +1,287 @@
+import type { Plan, Point, Wall, Opening, Room } from "./plan";
+
+export const HILLSTATE_SOURCE = {
+  name: "검단힐스테이트",
+  type: "109㎡ 기본형",
+  page: "https://kbland.kr/se/c/14727",
+  image:
+    "https://file.kbland.kr/image/kbstar/land/img/alian/kms/complex/plane/basic/objctidnfr/KBM016418/16418_2_20210113194503.jpg",
+  checkedAt: "2026-09-17",
+  permission: "원본 재배포 권한 미확인 · 외부 원본 참조 / 로컬 검토용",
+};
+
+// Manually traced from the linked 600×449 source, not an invented apartment.
+// The source's bottom 12570 dimension spans approximately pixels 126..475.
+// Raster rounding and assumed wall/opening heights mean this is NOT a measured model.
+const scale = 12.57 / 349;
+const xy = (x: number, y: number): Point => [
+  (x - 126) * scale,
+  (400 - y) * scale,
+];
+const polygon = (points: Point[]) => points.map(([x, y]) => xy(x, y));
+const room = (
+  id: string,
+  name: string,
+  points: Point[],
+  label: Point,
+): Room => ({ id, name, polygon: polygon(points), label: xy(...label) });
+const wall = (
+  id: string,
+  start: Point,
+  end: Point,
+  exterior = false,
+): Wall => ({
+  id,
+  start: xy(...start),
+  end: xy(...end),
+  thickness: exterior ? 0.18 : 0.12,
+  height: 2.4,
+});
+const door = (
+  id: string,
+  wallId: string,
+  offset: number,
+  width: number,
+  hinge: "start" | "end" = "start",
+  opensTo: "left" | "right" = "left",
+): Opening => ({
+  id,
+  wallId,
+  offset: offset * scale,
+  width: width * scale,
+  height: 2.05,
+  hinge,
+  opensTo,
+});
+const windowOpening = (
+  id: string,
+  wallId: string,
+  offset: number,
+  width: number,
+): Opening => ({
+  id,
+  wallId,
+  offset: offset * scale,
+  width: width * scale,
+  height: 1.3,
+  sillHeight: 0.7,
+});
+const outline: Point[] = [
+  [128, 84],
+  [245, 84],
+  [245, 51],
+  [335, 51],
+  [335, 64],
+  [349, 64],
+  [349, 77],
+  [400, 77],
+  [400, 130],
+  [435, 130],
+  [435, 217],
+  [474, 217],
+  [474, 348],
+  [376, 348],
+  [376, 384],
+  [249, 384],
+  [249, 398],
+  [165, 398],
+  [165, 382],
+  [128, 382],
+];
+
+export const HILLSTATE_109_REFERENCE: Plan = {
+  schemaVersion: 1,
+  isDemo: false,
+  referenceOnly: true,
+  scaleStatus: "proportional",
+  coordinateSystem: { unit: "m", pivot: xy(300, 225) },
+  dimensionEvidence: {
+    note: "KB부동산 109㎡ 기본형 원본의 배치·개구부를 수작업 재구성했습니다. 이미지 비례 사용, 벽 높이 2.4m·두께·문창 높이는 시각화 가정입니다. 치수·문 열림 방향은 현장 검증 전이며 측정/시공용이 아닙니다.",
+  },
+  outline: polygon(outline),
+  rooms: [
+    room(
+      "living",
+      "거실·복도",
+      [
+        [213, 196],
+        [418, 196],
+        [418, 217],
+        [376, 217],
+        [376, 332],
+        [249, 332],
+        [249, 235],
+        [213, 235],
+      ],
+      [310, 274],
+    ),
+    room(
+      "kitchen",
+      "주방·식당",
+      [
+        [245, 95],
+        [337, 95],
+        [337, 196],
+        [245, 196],
+      ],
+      [289, 147],
+    ),
+    room(
+      "bed-small",
+      "침실 1",
+      [
+        [174, 116],
+        [245, 116],
+        [245, 196],
+        [174, 196],
+      ],
+      [207, 151],
+    ),
+    room(
+      "bath-master",
+      "욕실 1",
+      [
+        [128, 116],
+        [174, 116],
+        [174, 196],
+        [128, 196],
+      ],
+      [151, 158],
+    ),
+    room(
+      "dress",
+      "드레스룸",
+      [
+        [128, 196],
+        [213, 196],
+        [213, 235],
+        [128, 235],
+      ],
+      [169, 216],
+    ),
+    room(
+      "bed-master",
+      "안방",
+      [
+        [128, 235],
+        [249, 235],
+        [249, 340],
+        [128, 340],
+      ],
+      [188, 282],
+    ),
+    room(
+      "bed-right",
+      "침실 2",
+      [
+        [376, 217],
+        [474, 217],
+        [474, 315],
+        [376, 315],
+      ],
+      [426, 264],
+    ),
+    room(
+      "bath-common",
+      "욕실 2",
+      [
+        [386, 130],
+        [435, 130],
+        [435, 200],
+        [386, 200],
+      ],
+      [411, 161],
+    ),
+    room(
+      "entrance",
+      "현관",
+      [
+        [337, 77],
+        [400, 77],
+        [400, 130],
+        [386, 130],
+        [386, 196],
+        [337, 196],
+      ],
+      [365, 123],
+    ),
+    room(
+      "balcony-back",
+      "후면 발코니",
+      [
+        [128, 84],
+        [245, 84],
+        [245, 51],
+        [335, 51],
+        [335, 64],
+        [349, 64],
+        [349, 95],
+        [245, 95],
+        [245, 116],
+        [128, 116],
+      ],
+      [289, 73],
+    ),
+    room(
+      "balcony-front",
+      "전면 발코니",
+      [
+        [128, 340],
+        [249, 340],
+        [249, 332],
+        [376, 332],
+        [376, 315],
+        [474, 315],
+        [474, 348],
+        [376, 348],
+        [376, 384],
+        [249, 384],
+        [249, 398],
+        [165, 398],
+        [165, 382],
+        [128, 382],
+      ],
+      [307, 358],
+    ),
+  ],
+  walls: [
+    ...outline.map((p, i) =>
+      wall(`outer-${i}`, p, outline[(i + 1) % outline.length], true),
+    ),
+    wall("back-divider", [128, 116], [245, 116]),
+    wall("kitchen-back", [245, 95], [349, 95]),
+    wall("kitchen-side", [337, 95], [337, 196]),
+    wall("entry-bottom", [337, 169], [386, 169]),
+    wall("bath2-west", [386, 130], [386, 200]),
+    wall("bath2-bottom", [386, 200], [435, 200]),
+    wall("bath1-east", [174, 116], [174, 196]),
+    wall("bed1-east", [245, 116], [245, 196]),
+    wall("bed1-bottom", [174, 196], [245, 196]),
+    wall("bath1-bottom", [128, 196], [174, 196]),
+    wall("dress-east", [213, 196], [213, 235]),
+    wall("master-top", [128, 235], [249, 235]),
+    wall("master-east", [249, 235], [249, 340]),
+    wall("master-bottom", [128, 340], [249, 340]),
+    wall("living-bottom", [249, 332], [376, 332]),
+    wall("bed2-west", [376, 217], [376, 315]),
+    wall("bed2-bottom", [376, 315], [474, 315]),
+  ],
+  doors: [
+    door("front-door", "outer-7", 14, 19, "end", "right"),
+    door("inner-entry", "entry-bottom", 22, 18, "end"),
+    door("bed1-door", "bed1-east", 58, 22, "end", "right"),
+    door("master-door", "master-top", 92, 24, "end", "right"),
+    door("bed2-door", "bed2-west", 16, 23, "start"),
+    door("bath1-door", "bath1-bottom", 20, 18, "end", "right"),
+    door("bath2-door", "bath2-bottom", 9, 20, "start", "right"),
+    door("kitchen-balcony-door", "kitchen-back", 5, 20, "start", "right"),
+  ],
+  windows: [
+    windowOpening("bed1-window", "back-divider", 51, 53),
+    windowOpening("master-window", "master-bottom", 12, 90),
+    windowOpening("living-window", "living-bottom", 12, 103),
+    windowOpening("bed2-window", "bed2-bottom", 12, 71),
+    windowOpening("front-balcony-window", "outer-14", 13, 95),
+    windowOpening("back-balcony-window", "outer-2", 8, 70),
+  ],
+};
