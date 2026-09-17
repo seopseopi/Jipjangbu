@@ -122,10 +122,12 @@ export function StructureView({
     <div className="structures">
       <div className="structure-intro">
         <div>
-          <span className="structure-eyebrow">SPACE & RECORDS</span>
+          <span className="structure-eyebrow">
+            <span className="structure-test-badge">TEST</span> 집 구조 미리보기
+          </span>
           <h2>집의 구조와 기록을 한곳에서</h2>
           <p>
-            단지와 세대를 선택하고, 확인된 구조와 업무 기록을 함께 살펴보세요.
+            도면을 살펴보거나 매물·세대 목록에서 기존 업무 기록을 확인하세요.
           </p>
         </div>
         <div className="structure-intro-actions">

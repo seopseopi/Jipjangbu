@@ -1288,6 +1288,7 @@ export function WorkManager() {
                 size={21}
               />
               {label}
+              {key === "structures" && <span className="nav-test-badge">TEST</span>}
             </button>
           ))}
         </nav>

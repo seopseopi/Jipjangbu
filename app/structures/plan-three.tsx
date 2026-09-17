@@ -27,13 +27,16 @@ function Controls({
 }) {
   const { camera, gl, invalidate, size } = useThree();
   const fit = Math.max(1, 1.05 / (size.width / size.height));
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const previousView = useRef<{
+    zoom: number;
+    reset: number;
+    topView: boolean;
+    fit: number;
+  } | null>(null);
   useEffect(() => {
-    camera.position.set(
-      topView ? 0 : (7 * fit) / zoom,
-      topView ? (23 * fit) / zoom : (20 * fit) / zoom,
-      topView ? 0.01 : (12 * fit) / zoom,
-    );
     const controls = new OrbitControls(camera, gl.domElement);
+    controlsRef.current = controls;
     controls.target.set(0, 0, 0);
     controls.maxPolarAngle = Math.PI / 2 - 0.08;
     controls.minDistance = 4;
@@ -50,9 +53,38 @@ function Controls({
     return () => {
       controls.removeEventListener("change", changed);
       controls.dispose();
+      controlsRef.current = null;
+      previousView.current = null;
       gl.domElement.removeEventListener("webglcontextlost", lost);
     };
-  }, [camera, gl, invalidate, reset, zoom, onFailure, topView, fit]);
+  }, [camera, gl, invalidate, onFailure]);
+  useEffect(() => {
+    const controls = controlsRef.current,
+      previous = previousView.current;
+    if (!controls) return;
+    if (
+      !previous ||
+      previous.reset !== reset ||
+      previous.topView !== topView ||
+      previous.fit !== fit
+    ) {
+      controls.target.set(0, 0, 0);
+      camera.position.set(
+        topView ? 0 : (7 * fit) / zoom,
+        topView ? (23 * fit) / zoom : (20 * fit) / zoom,
+        topView ? 0.01 : (12 * fit) / zoom,
+      );
+    } else if (previous.zoom !== zoom) {
+      // Dolly along the current line of sight; do not discard the user's orbit or pan.
+      camera.position
+        .sub(controls.target)
+        .multiplyScalar(previous.zoom / zoom)
+        .add(controls.target);
+    }
+    previousView.current = { zoom, reset, topView, fit };
+    controls.update();
+    invalidate();
+  }, [camera, fit, zoom, reset, topView, invalidate]);
   return null;
 }
 function Scene({
@@ -95,6 +127,8 @@ function Scene({
   );
   const vector = useRef(new Vector3());
   useFrame(() => {
+    // Demand rendering may stop after this frame; project labels with the current camera.
+    camera.updateMatrixWorld();
     plan.rooms.forEach((room, i) => {
       const el = labels.current[i];
       if (!el) return;

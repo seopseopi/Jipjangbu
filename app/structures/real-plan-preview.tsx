@@ -29,9 +29,8 @@ export function RealPlanPreview() {
         </a>
       </div>
       <div className="structure-notice">
-        <strong>특정 세대가 아닌 타입 참고도입니다.</strong> 동·호수별 타입,
-        확장·반전·방위는 미확인입니다. 3D의 벽 높이·두께와 문창 높이는 시각화
-        가정이며 측정·시공용이 아닙니다.
+        <strong>실세대와 연결되지 않은 테스트 도면입니다.</strong> 타입 배치를
+        살펴보는 참고용이며, 확장·방위·실측 치수는 확인 전입니다.
       </div>
       <div className="structure-segment structure-reference-tabs">
         <button
@@ -93,7 +92,7 @@ export function RealPlanPreview() {
           {HILLSTATE_SOURCE.permission}
         </p>
         <p>
-          로컬 참고 화면이며 검증 도면 DB에는 등록하지 않았습니다. 원본
+          테스트 참고 화면이며 검증 도면 DB에는 등록하지 않았습니다. 원본
           저장·공개 재배포 및 실세대 연결은 사용 범위와 자료를 확인한 뒤
           진행해야 합니다.
         </p>

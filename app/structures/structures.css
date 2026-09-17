@@ -711,3 +711,36 @@
     padding: 50px 15px;
   }
 }
+.structure-test-badge {
+  padding: 3px 7px;
+  border: 1px solid #cbd6e5;
+  border-radius: 5px;
+  background: #f0f4fa;
+  color: #49617e;
+  font-size: 11px;
+  font-weight: 650;
+}
+.structure-selection-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  padding: 10px 12px;
+  color: #475569;
+  background: #f4f7fa;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.structure-selection-status strong {
+  color: #25364c;
+}
+.structure-selection-status button {
+  margin-left: auto;
+  color: #25364c;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.structure-tools button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

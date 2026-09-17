@@ -73,6 +73,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .nav-item.active { background: var(--green-soft); color: var(--green); font-weight: 700; box-shadow: inset 3px 0 0 var(--green); }
 .nav-item.active .nav-icon { color: var(--green); }
 .nav-icon { display: block; flex: 0 0 auto; width: 18px; height: 18px; }
+.nav-test-badge { margin-left:auto; flex:none; padding:2px 5px; border:1px solid #cbd6e5; border-radius:4px; background:#f0f4fa; color:#49617e; font-size:9px; font-weight:650; line-height:1.4; letter-spacing:.03em; }
+@media(max-width:700px){.nav-test-badge{margin-left:0;font-size:8px;padding:0 4px}.nav-item:has(.nav-test-badge){gap:2px}}
 .sidebar-foot { display: grid; gap: 10px; margin-top: auto; padding-top: 24px; }
 .logout-link { display: inline-flex; align-items: center; justify-content: flex-start; gap: 11px; width: 100%; min-height: 40px; padding: 8px 10px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: var(--text-small); font-weight: 500; }
 .logout-link:hover { background: var(--wash); color: var(--ink); }

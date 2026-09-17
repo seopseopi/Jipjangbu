@@ -92,12 +92,14 @@ export function PlanViewer({
         <div className="structure-tools">
           <button
             type="button"
+            disabled={zoom >= 2}
             onClick={() => setZoom((z) => Math.min(2, z + 0.2))}
           >
             확대 +
           </button>
           <button
             type="button"
+            disabled={zoom <= 0.6}
             onClick={() => setZoom((z) => Math.max(0.6, z - 0.2))}
           >
             축소 −
@@ -106,10 +108,14 @@ export function PlanViewer({
             type="button"
             onClick={() => {
               setZoom(1);
+              setTopView(false);
+              setLowWalls(true);
+              setShowRoute(true);
+              setSelected("");
               setReset((r) => r + 1);
             }}
           >
-            초기화
+            보기 초기화
           </button>
         </div>
       </div>
@@ -190,6 +196,25 @@ export function PlanViewer({
             {r.name}
           </button>
         ))}
+      </div>
+      <div
+        className="structure-selection-status"
+        role="status"
+        aria-live="polite"
+      >
+        {selected ? (
+          <>
+            <strong>
+              {plan.rooms.find((room) => room.id === selected)?.name}
+            </strong>
+            <span>선택한 공간을 도면에서 강조하고 있습니다.</span>
+            <button type="button" onClick={() => setSelected("")}>
+              선택 해제
+            </button>
+          </>
+        ) : (
+          <span>방 이름이나 도면의 바닥을 누르면 해당 공간이 강조됩니다.</span>
+        )}
       </div>
       <p className="structure-help">
         {mode === "3d"
