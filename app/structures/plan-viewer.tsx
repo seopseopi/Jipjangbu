@@ -164,7 +164,7 @@ export function PlanViewer({
                 reset={reset}
                 zoom={zoom}
                 onFailure={failure}
-                lowWalls={true}
+                lowWalls={false}
                 topView={topView}
                 showRoute={showRoute}
                 showLabels={showLabels}

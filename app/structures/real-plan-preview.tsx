@@ -29,8 +29,7 @@ export function RealPlanPreview() {
         </a>
       </div>
       <div className="structure-notice">
-        <strong>실세대와 연결되지 않은 테스트 도면입니다.</strong> 타입 배치를
-        살펴보는 참고용이며, 확장·방위·실측 치수는 확인 전입니다.
+        <strong>테스트용입니다.</strong>
       </div>
       <div className="structure-segment structure-reference-tabs">
         <button
