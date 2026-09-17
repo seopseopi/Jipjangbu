@@ -256,11 +256,11 @@ const navItems: Array<[View, string]> = [
   ["calendar", "업무 달력"],
   ["journal", "업무일지"],
   ["listings", "매물 관리"],
-  ["structures", "집 구조 보기"],
   ["customers", "고객 관리"],
   ["insights", "업무 현황"],
   ["trash", "휴지통"],
   ["settings", "설정"],
+  ["structures", "집 구조 보기"],
 ];
 let nextModalId = 0;
 const openModalIds: number[] = [];
