@@ -152,6 +152,41 @@ test("복구된 휴지통 항목에 뒤늦게 영구 삭제를 요청해도 복�
   assert.deepEqual(db.snapshot(),before);
 });
 
+test("휴지통 일괄 삭제는 선택한 기록만 삭제하고 잘못된 확인은 전부 보존한다", async t => {
+  const db = database(t), entries = [];
+  for (let i = 0; i < 3; i++) {
+    const work = await createWork({ content: `일괄 삭제 합성 ${i}` });
+    const removed = await move(db, "work", work.id);
+    const detail = await deletion.getTrashDetail(db.db, removed.trashId);
+    entries.push({ id: removed.trashId, revision: detail.preview.revision });
+  }
+  const before = db.snapshot();
+  await rejectsStatus(deletion.permanentlyDeleteTrashBatch(db.db, []), 400);
+  await rejectsStatus(deletion.permanentlyDeleteTrashBatch(db.db, [entries[0], entries[0]]), 400);
+  await rejectsStatus(deletion.permanentlyDeleteTrashBatch(db.db, [entries[0], { ...entries[1], revision: "stale" }]), 409);
+  await rejectsStatus(deletion.permanentlyDeleteTrashBatch(db.db, [entries[0], { id: "missing", revision: "missing" }]), 409);
+  assert.deepEqual(db.snapshot(), before);
+  const racingDb = { prepare(sql) {
+    const statement = db.db.prepare(sql);
+    if (sql.startsWith("WITH targets")) {
+      const run = statement.run;
+      statement.run = async () => {
+        db.sqlite.prepare("UPDATE trash_records SET deleted_at = ? WHERE id = ?").run("changed", entries[1].id);
+        return run.call(statement);
+      };
+    }
+    return statement;
+  } };
+  await rejectsStatus(deletion.permanentlyDeleteTrashBatch(racingDb, entries.slice(0, 2)), 409);
+  assert.equal(db.snapshot().trash_records.length, 3);
+  db.sqlite.prepare("UPDATE trash_records SET deleted_at = ? WHERE id = ?").run(before.trash_records.find(r => r.id === entries[1].id).deleted_at, entries[1].id);
+  const response = await trashRoute.DELETE(new Request("https://synthetic.invalid/api/trash", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries: entries.slice(0, 2) }) }));
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).deletedCount, 2);
+  assert.deepEqual(db.snapshot().trash_records.map(r => r.id), [entries[2].id]);
+  assert.deepEqual({ ...db.snapshot(), trash_records: before.trash_records }, before);
+});
+
 test("삭제 미리보기는 저장된 내용·모든 연결 매물·영향을 읽기 전용으로 제공한다", async (t) => {
   const db = database(t);
   const second = property({ buildingDong: "202", unitNumber: "303" });

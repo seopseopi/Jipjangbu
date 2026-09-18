@@ -34,6 +34,11 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
   const [purgeMode, setPurgeMode] = useState(false);
   const [purgeConfirmed, setPurgeConfirmed] = useState(false);
   const [purging, setPurging] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<string[]>([]);
+  const [bulkDetails, setBulkDetails] = useState<TrashDetailResponse[] | null>(null);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+  const [bulkConfirmed, setBulkConfirmed] = useState(false);
   const listRequest = useRef<AbortController | null>(null);
   const detailRequest = useRef<AbortController | null>(null);
   const pageLock = useRef(false);
@@ -47,6 +52,7 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
   useEffect(() => { const timer = window.setTimeout(() => setSearch(query.trim()), 250); return () => window.clearTimeout(timer); }, [query]);
 
   const load = useCallback(async () => {
+    setCheckedIds([]);
     listRequest.current?.abort();
     const controller = new AbortController();
     listRequest.current = controller;
@@ -88,6 +94,30 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
     } finally {
       if (listRequest.current === controller) { pageLock.current = false; setLoadingMore(false); }
     }
+  }
+
+  async function openBulk() {
+    if (restoreLock.current || !checkedIds.length || !showingCurrent) return;
+    restoreLock.current = true;
+    setBulkLoading(true); setBulkError(""); setBulkConfirmed(false); setBulkDetails([]);
+    busyCallback.current?.(true);
+    try {
+      const details: TrashDetailResponse[] = [];
+      for (let offset = 0; offset < checkedIds.length; offset += 10) details.push(...await Promise.all(checkedIds.slice(offset, offset + 10).map(id => clientJsonFetch<TrashDetailResponse>(`/api/trash/${encodeURIComponent(id)}`, { cache: "no-store" }))));
+      setBulkDetails(details);
+    } catch (failure) { setBulkError(trashError(failure)); }
+    finally { restoreLock.current = false; setBulkLoading(false); busyCallback.current?.(false); }
+  }
+
+  async function purgeBulk() {
+    if (restoreLock.current || !bulkConfirmed || !bulkDetails?.length || bulkError) return;
+    restoreLock.current = true; setPurging(true); busyCallback.current?.(true);
+    try {
+      const result = await clientJsonFetch<{ deletedCount: number }>("/api/trash", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ entries: bulkDetails.map(d => ({ id: d.item.id, revision: d.preview.revision })) }) });
+      setBulkDetails(null); setCheckedIds([]); setNotice(`${result.deletedCount}건을 휴지통에서 영구 삭제했습니다. 휴지통에서는 복구할 수 없습니다.`);
+      void load();
+    } catch (failure) { setBulkError(trashError(failure)); setBulkConfirmed(false); }
+    finally { restoreLock.current = false; setPurging(false); busyCallback.current?.(false); }
   }
 
   async function openDetail(id: string) {
@@ -177,8 +207,13 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
     {error && <div className="deletion-error" role="alert"><p>휴지통 목록을 불러오지 못했습니다. {error}</p><button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>다시 불러오기</button></div>}
     {loading || (!showingCurrent && !error) ? <p className="trash-empty" role="status">휴지통을 불러오고 있습니다…</p> : showingCurrent && data ? <>
       <div className="trash-list-heading"><h2>삭제한 기록 <span>{data.total.toLocaleString("ko-KR")}건</span></h2><p>삭제일 최신순 · 내용 확인 후 복구 또는 영구 삭제</p></div>
+      {data.items.length > 0 && <div className="trash-bulk-controls">
+        <label><input type="checkbox" checked={data.items.every(item => checkedIds.includes(item.id))} onChange={event => setCheckedIds(event.target.checked ? data.items.map(item => item.id) : [])} /> 현재 표시된 {data.items.length}건 전체 선택</label>
+        <button type="button" className="danger-button" disabled={!checkedIds.length || checkedIds.length > 500} onClick={() => void openBulk()}>선택한 {checkedIds.length}건 영구 삭제</button>
+        <small>더 보기로 불러온 기록도 선택할 수 있습니다. 한 번에 최대 500건.</small>
+      </div>}
       {data.items.length === 0 ? <div className="trash-empty"><Icon name={query || type ? "search" : "empty"} size={28} /><strong>{query || type ? "조건에 맞는 삭제 기록이 없습니다." : "휴지통이 비어 있습니다."}</strong>{(query || type) && <button type="button" className="secondary-button" onClick={() => { setQuery(""); setSearch(""); setType(""); }}>검색 조건 초기화</button>}</div>
-        : <ol className="trash-list">{data.items.map((item) => <li key={item.id}><button type="button" className="trash-record" onClick={() => void openDetail(item.id)}>
+        : <ol className="trash-list">{data.items.map((item) => <li key={item.id} className="trash-selectable"><input type="checkbox" aria-label={`${item.title} 삭제 선택`} checked={checkedIds.includes(item.id)} onChange={event => setCheckedIds(ids => event.target.checked ? [...ids, item.id] : ids.filter(id => id !== item.id))} /><button type="button" className="trash-record" onClick={() => void openDetail(item.id)}>
           <span className="trash-kind">{deletionTypeLabel(item.type)}</span><span className="trash-record-main"><strong>{item.title}</strong><span>{item.subtitle}</span></span>
           <span className="trash-record-action"><time dateTime={item.deletedAt}>삭제 · {formatHistoryTimestamp(item.deletedAt)}</time><span>내용 확인 · 복구 · 영구 삭제</span></span>
         </button></li>)}</ol>}
@@ -195,6 +230,12 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
       {detailLoading && <p role="status">삭제한 내용을 불러오고 있습니다…</p>}
       {detail && <><p className="trash-deleted-time">삭제 · {formatHistoryTimestamp(detail.item.deletedAt)}</p><DeletionPreviewContent preview={purgeMode ? { ...detail.preview, warnings: [] } : detail.preview} restoring /></>}
       {detailError && <div className="deletion-error" role="alert"><p>{detailError}</p><button type="button" className="secondary-button" disabled={restoring || purging || detailLoading} onClick={() => void openDetail(selectedId)}>내용 다시 확인</button></div>}
+    </SafetyDialog>}
+    {bulkDetails !== null && <SafetyDialog title="선택한 기록 영구 삭제" busy={bulkLoading || purging} onClose={() => { if (!restoreLock.current) setBulkDetails(null); }} actions={<button type="button" className="danger-button" disabled={bulkLoading || purging || !bulkConfirmed || !bulkDetails.length || !!bulkError} onClick={() => void purgeBulk()}>{purging ? "삭제 중…" : `${bulkDetails.length}건 영구 삭제 확정`}</button>}>
+      <p>선택한 기록만 삭제합니다. 현재 업무·고객·매물은 삭제하지 않으며, 기존 암호화 백업은 보관 기간 동안 유지됩니다.</p>
+      {bulkLoading ? <p role="status">선택한 기록을 확인하고 있습니다…</p> : <ul className="trash-bulk-preview">{bulkDetails.map(({ item }) => <li key={item.id}><strong>{deletionTypeLabel(item.type)} · {item.title}</strong><span>{item.subtitle}</span></li>)}</ul>}
+      {bulkError && <p className="deletion-error" role="alert">{bulkError} 취소 후 목록을 새로고침하고 다시 선택해 주세요.</p>}
+      <label><input type="checkbox" checked={bulkConfirmed} disabled={bulkLoading || purging || !!bulkError} onChange={event => setBulkConfirmed(event.target.checked)} /> 선택한 {bulkDetails.length}건을 휴지통에서 복구할 수 없음을 확인했습니다.</label>
     </SafetyDialog>}
   </section>;
 }

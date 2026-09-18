@@ -201,6 +201,24 @@ export async function getTrashDetail(db: D1Database, id: string): Promise<TrashD
 }
 
 /** Permanently remove only the archived entry. Live entities are never touched. */
+export async function permanentlyDeleteTrashBatch(db: D1Database, entries: unknown) {
+  if (!Array.isArray(entries) || !entries.length || entries.length > 500 || entries.some(e => !e || typeof e.id !== "string" || typeof e.revision !== "string") || new Set(entries.map(e => e.id)).size !== entries.length) {
+    throw new DeletionError("삭제할 기록을 1~500개 선택해 주세요.");
+  }
+  const found = await db.prepare("SELECT * FROM trash_records WHERE id IN (SELECT value FROM json_each(?))").bind(JSON.stringify(entries.map(e => e.id))).all<StoredTrash>();
+  const records = [];
+  for (const entry of entries) {
+    const record = found.results.find(record => record.id === entry.id);
+    if (!record) throw new DeletionError("이미 복구 또는 삭제된 기록이 있습니다. 다시 확인해 주세요.", 409);
+    if (entry.revision !== await fingerprint(JSON.stringify(record))) throw new DeletionError("기록이 변경되었습니다. 다시 확인해 주세요.", 409);
+    records.push({ id: record.id, snapshot: record.snapshot, deletedAt: record.deleted_at });
+  }
+  // One atomic statement: a concurrent restore/change prevents the entire deletion.
+  const result = await db.prepare(`WITH targets AS MATERIALIZED (SELECT json_extract(value, '$.id') AS id, json_extract(value, '$.snapshot') AS snapshot, json_extract(value, '$.deletedAt') AS deleted_at FROM json_each(?)), matched AS MATERIALIZED (SELECT t.id FROM trash_records t JOIN targets s ON t.id = s.id AND t.snapshot = s.snapshot AND t.deleted_at = s.deleted_at) DELETE FROM trash_records WHERE id IN (SELECT id FROM matched) AND (SELECT COUNT(*) FROM matched) = ?`).bind(JSON.stringify(records), records.length).run();
+  if (result.meta.changes !== records.length) throw new DeletionError("이미 복구 또는 변경된 기록이 있습니다. 아무 기록도 삭제하지 않았습니다. 다시 확인해 주세요.", 409);
+  return { ok: true, deletedCount: records.length };
+}
+
 export async function permanentlyDeleteTrash(db: D1Database, id: string, revision: unknown) {
   const record = await trashRecord(db, id);
   if (typeof revision !== "string" || revision !== await fingerprint(JSON.stringify(record))) {

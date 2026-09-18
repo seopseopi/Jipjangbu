@@ -1,4 +1,13 @@
 .trash-view { min-width: 0; }
+.trash-bulk-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; padding: 16px 0; }
+.trash-bulk-controls label { display: flex; align-items: center; gap: 8px; }
+.trash-bulk-controls small { flex-basis: 100%; color: var(--muted); }
+.trash-selectable { display: flex; align-items: center; gap: 12px; }
+.trash-selectable > input, .trash-bulk-controls input { width: 20px; height: 20px; flex-shrink: 0; }
+.trash-selectable .trash-record { min-width: 0; }
+.trash-bulk-preview { max-height: 280px; overflow: auto; padding-left: 24px; }
+.trash-bulk-preview li { padding: 8px 0; overflow-wrap: anywhere; }
+.trash-bulk-preview li span { display: block; color: var(--muted); }
 .trash-help { display: flex; align-items: flex-start; gap: 9px; margin: 0 0 20px; color: var(--muted); font-size: var(--text-small); line-height: 1.7; }
 .trash-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 24px; }
 .trash-search { display: flex; flex: 1 1 280px; align-items: center; gap: 10px; max-width: 660px; min-width: 0; min-height: 46px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--paper); }
