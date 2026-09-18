@@ -14,6 +14,12 @@ export async function GET(request: Request) {
     const state = params.get("state") ?? "all";
     const type = params.get("type")?.trim() ?? "";
     const sort = params.get("sort") ?? "type";
+    const status = params.get("status")?.trim() ?? "";
+    const prices = [...new Set(params.getAll("price"))];
+    const priceColumns: Record<string, string> = { sale: "sale_price", jeonse: "jeonse_price", monthly: "monthly_rent" };
+    if (prices.some(price => !Object.hasOwn(priceColumns, price)) || status.length > 100 || params.getAll("status").length > 1) {
+      return Response.json({ error: "매물 조회 조건을 확인해 주세요." }, { status: 400 });
+    }
     const orderBy = sort === "recent" ? LISTING_RECENT_ORDER
       : sort === "updated" ? LISTING_UPDATED_ORDER
       : sort === "oldest" ? LISTING_OLDEST_ORDER
@@ -22,6 +28,8 @@ export async function GET(request: Request) {
       : sort === "type-desc" ? LISTING_TYPE_DESC_ORDER : LISTING_TYPE_ORDER;
     const where: string[] = [];
     const binds: unknown[] = [];
+    if (status) { where.push("status = ?"); binds.push(status); }
+    if (prices.length) where.push(`(${prices.map(price => `LENGTH(TRIM(COALESCE(${priceColumns[price]}, ''), char(9)||char(10)||char(13)||' ')) > 0`).join(" OR ")})`);
     if (type) {
       where.push("property_type = ?");
       binds.push(type);

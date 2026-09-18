@@ -904,3 +904,7 @@ button.table-row:hover { background: var(--wash); }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.listing-price-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.listing-price-filters strong { font-size: 14px; margin-right: 4px; }
+.listing-price-filters button[aria-pressed="true"], .listing-price-filters button[aria-pressed="true"]:hover:not(:disabled) { background: var(--green); color: #fff; border-color: var(--green); }
+.listing-price-filters > span { color: var(--muted); font-size: 12px; }

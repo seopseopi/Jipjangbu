@@ -437,6 +437,7 @@ export function WorkManager() {
   const [workPeriod, setWorkPeriod] = useState("");
   const [calendarWorkType, setCalendarWorkType] = useState("");
   const [listingState, setListingState] = useState("all");
+  const [listingPrices, setListingPrices] = useState<string[]>([]);
   const [propertyTypeFilter, setPropertyTypeFilter] = useState("");
   const [listingSort, setListingSort] = useState("type");
   const [customerSort, setCustomerSort] = useState("recent");
@@ -485,7 +486,7 @@ export function WorkManager() {
     queries.journal !== journalSearch,
     workSearchError,
   );
-  const listingQueryKey = JSON.stringify([queries.listings, listingState, propertyTypeFilter, listingSort]);
+  const listingQueryKey = JSON.stringify([queries.listings, listingState, propertyTypeFilter, listingSort, listingPrices]);
   const customerQueryKey = JSON.stringify([queries.customers, customerSort]);
   const calendarQueryKey = JSON.stringify([calendarMonth, calendarWorkType]);
   const listingStatus = journalSearchStatus(managedReads.listings.loadedQuery, listingQueryKey, managedReads.listings.loading, queries.listings !== listingsSearch, managedReads.listings.error);
@@ -636,12 +637,14 @@ export function WorkManager() {
   const loadListings = useCallback(
     async (signal?: AbortSignal) => {
       const version = ++requestVersion.current.listings;
-      const queryKey = JSON.stringify([listingsSearch, listingState, propertyTypeFilter, listingSort]);
+      const queryKey = JSON.stringify([listingsSearch, listingState, propertyTypeFilter, listingSort, listingPrices]);
       setManagedReads((current) => ({ ...current, listings: { ...current.listings, loading: true, error: null } }));
       const params = new URLSearchParams({
-        state: listingState,
+        state: "all",
         sort: listingSort,
       });
+      if (listingState !== "all") params.set("status", listingState);
+      listingPrices.forEach(price => params.append("price", price));
       if (listingsSearch) params.set("q", listingsSearch);
       if (propertyTypeFilter) params.set("type", propertyTypeFilter);
       try {
@@ -657,7 +660,7 @@ export function WorkManager() {
         throw error;
       }
     },
-    [listingState, propertyTypeFilter, listingSort, listingsSearch],
+    [listingState, propertyTypeFilter, listingSort, listingsSearch, listingPrices],
   );
   const loadCustomers = useCallback(
     async (signal?: AbortSignal) => {
@@ -1193,7 +1196,7 @@ export function WorkManager() {
     if (!navigate(next)) return;
     if (next === "listings") {
       setQueries((current) => ({ ...current, listings: "" }));
-      setListingState("all"); setPropertyTypeFilter(""); setListingSort("type");
+      setListingState("all"); setListingPrices([]); setPropertyTypeFilter(""); setListingSort("type");
     } else if (next === "customers") {
       setQueries((current) => ({ ...current, customers: "" })); setCustomerSort("recent");
     } else if (next === "journal") {
@@ -1407,13 +1410,6 @@ export function WorkManager() {
                   <InsightsView
                     refreshKey={insightsRefreshKey}
                     onOpenSchedule={() => openSchedule(30)}
-                    onReviewStale={() => {
-                      setQueries((current) => ({ ...current, listings: "" }));
-                      setListingState("stale");
-                      setListingSort("oldest");
-                      setPropertyTypeFilter("");
-                      navigate("listings");
-                    }}
                     onOpenWork={(id) => {
                       void readWork(id);
                     }}
@@ -1470,6 +1466,8 @@ export function WorkManager() {
                   setQuery={setQuery}
                   state={listingState}
                   setState={setListingState}
+                  prices={listingPrices}
+                  setPrices={setListingPrices}
                   propertyType={propertyTypeFilter}
                   setPropertyType={setPropertyTypeFilter}
                   sort={listingSort}
@@ -1477,6 +1475,7 @@ export function WorkManager() {
                   onReset={() => {
                     setQuery("");
                     setListingState("all");
+                    setListingPrices([]);
                     setPropertyTypeFilter("");
                     setListingSort("type");
                   }}
@@ -2028,6 +2027,8 @@ function ListingsView({
   setQuery,
   state,
   setState,
+  prices,
+  setPrices,
   propertyType,
   setPropertyType,
   sort,
@@ -2042,6 +2043,8 @@ function ListingsView({
   setQuery: (v: string) => void;
   state: string;
   setState: (v: string) => void;
+  prices: string[];
+  setPrices: (v: string[]) => void;
   propertyType: string;
   setPropertyType: (v: string) => void;
   sort: string;
@@ -2052,7 +2055,7 @@ function ListingsView({
 }) {
   const resultsVisible = status === "ready" || status === "refreshing";
   const filtered = Boolean(
-    query || state !== "all" || propertyType || sort !== "type",
+    query || state !== "all" || propertyType || sort !== "type" || prices.length,
   );
   const dateSorted = ["recent", "updated", "oldest"].includes(sort);
   const sortDescription = ({
@@ -2089,18 +2092,10 @@ function ListingsView({
         <select
           aria-label="매물 상태 필터"
           value={state}
-          onChange={(event) => {
-            const next = event.target.value;
-            setState(next);
-            if (next === "stale") setSort("oldest");
-            else if (state === "stale" && sort === "oldest")
-              setSort("type");
-          }}
+          onChange={(event) => setState(event.target.value)}
         >
-          <option value="active">진행 중</option>
-          <option value="stale">90일 이상 확인 필요</option>
-          <option value="closed">종료</option>
           <option value="all">전체</option>
+          {[...new Set([...LISTING_WORK_TYPES, ...items.map(item => item.status)])].filter(Boolean).map(value => <option key={value} value={value}>{value}</option>)}
         </select>
         <select
           aria-label="매물종류 필터"
@@ -2169,7 +2164,13 @@ function ListingsView({
           <Icon name="download" size={18} /> CSV 저장
         </button>
       </Toolbar>
-      <div className="active-filter-row" aria-label="현재 매물 조회 조건"><strong>{status === "loading" ? "조회 중" : "조회 조건"}</strong><span>{({ active: "진행 중", closed: "종료", stale: "90일 이상 확인 필요", all: "전체 상태" } as Record<string, string>)[state]}</span>{propertyType && <span>{propertyType}</span>}{query && <span>검색: {query}</span>}</div>
+      <div className="listing-price-filters" role="group" aria-label="가격 입력 여부 필터">
+        <strong>가격 입력</strong>
+        <button type="button" className="secondary-button" aria-pressed={!prices.length} onClick={() => setPrices([])}>전체</button>
+        {[["sale", "매매가 있음"], ["jeonse", "전세가 있음"], ["monthly", "월세가 있음"]].map(([value, label]) => <button key={value} type="button" className="secondary-button" aria-pressed={prices.includes(value)} onClick={() => setPrices(prices.includes(value) ? prices.filter(item => item !== value) : [...prices, value].sort())}>{label}</button>)}
+        <span>복수 선택 · 선택한 가격 중 하나라도 있는 매물</span>
+      </div>
+      <div className="active-filter-row" aria-label="현재 매물 조회 조건"><strong>{status === "loading" ? "조회 중" : "조회 조건"}</strong><span>{state === "all" ? "전체 상태" : state}</span>{prices.map(price => <span key={price}>{({sale:"매매가 있음",jeonse:"전세가 있음",monthly:"월세가 있음"} as Record<string,string>)[price]}</span>)}{propertyType && <span>{propertyType}</span>}{query && <span>검색: {query}</span>}</div>
       <section className="panel data-panel" aria-busy={status === "loading" || status === "refreshing"}>
         <div className="panel-head">
           <div>
@@ -2182,7 +2183,6 @@ function ListingsView({
               {!dateSorted ? " · 동·호수는 숫자순" : ""}
             </p>
           </div>
-          {state === "stale" && <span className="helper-text">마지막 갱신 후 90일이 지난 진행 중 매물</span>}
         </div>
         <div className="listing-mobile-sort" role="group" aria-label="매물 정렬 기준">
           {sortButton("type", "매물종류")}

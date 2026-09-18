@@ -190,6 +190,26 @@ test("휴지통 목록은 삭제 시각·유형과 원문 확인 동작을 표�
   assert.equal(h.calls.length, 0);
 });
 
+test("영구 삭제는 별도 확인과 동의가 필요하고 중복 요청을 막는다", async () => {
+  const pending=deferred();
+  const h=harness("trash",{selectedId:trashItem.id,detail},{},(url,options)=>options?.method==="DELETE"?pending.promise:Promise.resolve({...trashData,items:[],total:0}));
+  descendants(h.render()).find(e=>e.type==="button" && e.props.children==="영구 삭제").props.onClick();
+  assert.equal(h.calls.length,0);
+  assert.equal(control(h.render(),"영구 삭제 확정").props.disabled,true);
+  control(h.render(),"영구 삭제 확정").props.onClick();
+  assert.equal(h.calls.length,0);
+  descendants(h.render()).find(e=>e.type==="input"&&e.props.type==="checkbox").props.onChange({target:{checked:true}});
+  const button=control(h.render(),"영구 삭제 확정");
+  button.props.onClick();button.props.onClick();
+  assert.equal(h.calls.length,1);
+  assert.equal(h.calls[0][1].method,"DELETE");
+  assert.equal(JSON.parse(h.calls[0][1].body).revision,preview.revision);
+  pending.resolve({ok:true});await flush();
+  assert.equal(h.state.selectedId,null);
+  assert.match(h.state.notice,/영구 삭제/);
+  assert.deepEqual(h.busy,[true,false]);
+});
+
 test("휴지통 행을 누르면 읽기 요청만 보내고 복구를 명시적으로 눌러야 변경한다", async () => {
   const h = harness("trash", {}, {}, async () => detail);
   control(h.render(), "내용 확인 · 복구").props.onClick(); await flush();

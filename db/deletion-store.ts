@@ -194,10 +194,22 @@ async function trashRecord(db: D1Database, id: string) {
 
 export async function getTrashDetail(db: D1Database, id: string): Promise<TrashDetailResponse> {
   const record = await trashRecord(db, id);
-  const preview = previewFor(record.entity_type, record.entity_id, JSON.parse(record.snapshot), "");
+  const preview = previewFor(record.entity_type, record.entity_id, JSON.parse(record.snapshot), await fingerprint(JSON.stringify(record)));
   preview.warnings = ["삭제 전 업무일·내용·연결 관계로 복구합니다. 다른 기록은 덮어쓰지 않습니다."];
   preview.blockedReason = null;
   return { item: trashItem(record), preview };
+}
+
+/** Permanently remove only the archived entry. Live entities are never touched. */
+export async function permanentlyDeleteTrash(db: D1Database, id: string, revision: unknown) {
+  const record = await trashRecord(db, id);
+  if (typeof revision !== "string" || revision !== await fingerprint(JSON.stringify(record))) {
+    throw new DeletionError("삭제할 기록을 다시 확인해 주세요. 확인 후 내용이 변경되었을 수 있습니다.", 409);
+  }
+  const result = await db.prepare("DELETE FROM trash_records WHERE id = ? AND snapshot = ? AND deleted_at = ?")
+    .bind(id, record.snapshot, record.deleted_at).run();
+  if (result.meta.changes !== 1) throw new DeletionError("이미 복구 또는 삭제된 기록입니다. 휴지통을 다시 확인해 주세요.", 409);
+  return { ok: true, trashId: id };
 }
 
 function insertRow(db: D1Database, table: Table, row: Row, guard?: { sql: string; bindings: (string | number | null)[] }) {

@@ -31,6 +31,9 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
   const [restoring, setRestoring] = useState(false);
+  const [purgeMode, setPurgeMode] = useState(false);
+  const [purgeConfirmed, setPurgeConfirmed] = useState(false);
+  const [purging, setPurging] = useState(false);
   const listRequest = useRef<AbortController | null>(null);
   const detailRequest = useRef<AbortController | null>(null);
   const pageLock = useRef(false);
@@ -96,6 +99,8 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
     setDetail(null);
     setDetailLoading(true);
     setDetailError("");
+    setPurgeMode(false);
+    setPurgeConfirmed(false);
     try {
       const response = await clientJsonFetch<TrashDetailResponse>(`/api/trash/${encodeURIComponent(id)}`, { signal: controller.signal, cache: "no-store" });
       if (!controller.signal.aborted) setDetail(response);
@@ -137,6 +142,30 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
     void load();
   }
 
+  async function purge() {
+    if (restoreLock.current || !detail || detailLoading || !purgeMode || !purgeConfirmed) return;
+    restoreLock.current = true;
+    setPurging(true);
+    busyCallback.current?.(true);
+    setDetailError("");
+    try {
+      await clientJsonFetch(`/api/trash/${encodeURIComponent(detail.item.id)}`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision: detail.preview.revision }),
+      });
+    } catch (failure) {
+      setDetailError(trashError(failure));
+      return;
+    } finally {
+      restoreLock.current = false;
+      setPurging(false);
+      busyCallback.current?.(false);
+    }
+    closeDetail();
+    setNotice("선택한 기록을 휴지통에서 영구 삭제했습니다. 휴지통에서는 복구할 수 없습니다.");
+    void load();
+  }
+
   return <section className="trash-view" aria-label="휴지통">
     <p className="trash-help">휴지통은 자동으로 비워지지 않습니다.</p>
     <div className="trash-controls">
@@ -147,19 +176,25 @@ export function TrashView({ refreshKey = 0, onRestored, onBusyChange }: {
     {notice && <p className="trash-notice" role="status">{notice}</p>}
     {error && <div className="deletion-error" role="alert"><p>휴지통 목록을 불러오지 못했습니다. {error}</p><button type="button" className="secondary-button" onClick={() => void load()} disabled={loading}>다시 불러오기</button></div>}
     {loading || (!showingCurrent && !error) ? <p className="trash-empty" role="status">휴지통을 불러오고 있습니다…</p> : showingCurrent && data ? <>
-      <div className="trash-list-heading"><h2>삭제한 기록 <span>{data.total.toLocaleString("ko-KR")}건</span></h2><p>삭제일 최신순 · 기록을 눌러 내용 확인 후 복구</p></div>
+      <div className="trash-list-heading"><h2>삭제한 기록 <span>{data.total.toLocaleString("ko-KR")}건</span></h2><p>삭제일 최신순 · 내용 확인 후 복구 또는 영구 삭제</p></div>
       {data.items.length === 0 ? <div className="trash-empty"><Icon name={query || type ? "search" : "empty"} size={28} /><strong>{query || type ? "조건에 맞는 삭제 기록이 없습니다." : "휴지통이 비어 있습니다."}</strong>{(query || type) && <button type="button" className="secondary-button" onClick={() => { setQuery(""); setSearch(""); setType(""); }}>검색 조건 초기화</button>}</div>
         : <ol className="trash-list">{data.items.map((item) => <li key={item.id}><button type="button" className="trash-record" onClick={() => void openDetail(item.id)}>
           <span className="trash-kind">{deletionTypeLabel(item.type)}</span><span className="trash-record-main"><strong>{item.title}</strong><span>{item.subtitle}</span></span>
-          <span className="trash-record-action"><time dateTime={item.deletedAt}>삭제 · {formatHistoryTimestamp(item.deletedAt)}</time><span>내용 확인 · 복구</span></span>
+          <span className="trash-record-action"><time dateTime={item.deletedAt}>삭제 · {formatHistoryTimestamp(item.deletedAt)}</time><span>내용 확인 · 복구 · 영구 삭제</span></span>
         </button></li>)}</ol>}
       {data.items.length < data.total && <button type="button" className="secondary-button trash-more" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "불러오는 중…" : `이전 삭제 기록 더 보기 (${data.items.length.toLocaleString("ko-KR")} / ${data.total.toLocaleString("ko-KR")})`}</button>}
     </> : null}
-    {selectedId && <SafetyDialog title="삭제한 기록 확인 · 복구" busy={restoring} onClose={closeDetail} actions={<button type="button" className="primary-button" disabled={restoring || detailLoading || !detail} onClick={() => void restore()}><Icon name={restoring ? "clock" : "restore"} size={18} />{restoring ? "복구 중…" : "이 기록 복구"}</button>}>
-      <p className="deletion-explanation">내용을 확인하고 복구해 주세요. 업무는 원래 업무일로 돌아가며, 다른 업무나 현재 고객 정보를 덮어쓰지 않습니다.</p>
+    {selectedId && <SafetyDialog title={purgeMode ? "영구 삭제 확인" : "삭제한 기록 확인 · 복구"} busy={restoring || purging} onClose={closeDetail} actions={purgeMode ? <>
+      <button type="button" className="secondary-button" disabled={purging} onClick={() => { setPurgeMode(false); setPurgeConfirmed(false); }}>돌아가기</button>
+      <button type="button" className="danger-button" disabled={purging || !purgeConfirmed || !detail || detailLoading} onClick={() => void purge()}>{purging ? "삭제 중…" : "영구 삭제 확정"}</button>
+    </> : <>
+      <button type="button" className="danger-button" disabled={restoring || detailLoading || !detail} onClick={() => { setPurgeMode(true); setPurgeConfirmed(false); }}>영구 삭제</button>
+      <button type="button" className="primary-button" disabled={restoring || detailLoading || !detail} onClick={() => void restore()}><Icon name={restoring ? "clock" : "restore"} size={18} />{restoring ? "복구 중…" : "이 기록 복구"}</button>
+    </>}>
+      {purgeMode ? <div className="deletion-error"><p>이 기록을 휴지통에서 영구 삭제합니다. 휴지통에서는 다시 복구할 수 없습니다. 현재 업무·고객·매물은 삭제하지 않습니다.</p><p>기존 암호화 안전 백업은 보관 기간 동안 유지됩니다.</p><label><input type="checkbox" checked={purgeConfirmed} disabled={purging} onChange={event => setPurgeConfirmed(event.target.checked)} /> 복구할 수 없음을 확인했습니다.</label></div> : <p className="deletion-explanation">내용을 확인하고 복구해 주세요. 업무는 원래 업무일로 돌아가며, 다른 업무나 현재 고객 정보를 덮어쓰지 않습니다.</p>}
       {detailLoading && <p role="status">삭제한 내용을 불러오고 있습니다…</p>}
-      {detail && <><p className="trash-deleted-time">삭제 · {formatHistoryTimestamp(detail.item.deletedAt)}</p><DeletionPreviewContent preview={detail.preview} restoring /></>}
-      {detailError && <div className="deletion-error" role="alert"><p>{detailError}</p><button type="button" className="secondary-button" disabled={restoring || detailLoading} onClick={() => void openDetail(selectedId)}>내용 다시 확인</button></div>}
+      {detail && <><p className="trash-deleted-time">삭제 · {formatHistoryTimestamp(detail.item.deletedAt)}</p><DeletionPreviewContent preview={purgeMode ? { ...detail.preview, warnings: [] } : detail.preview} restoring /></>}
+      {detailError && <div className="deletion-error" role="alert"><p>{detailError}</p><button type="button" className="secondary-button" disabled={restoring || purging || detailLoading} onClick={() => void openDetail(selectedId)}>내용 다시 확인</button></div>}
     </SafetyDialog>}
   </section>;
 }

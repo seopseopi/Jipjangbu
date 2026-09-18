@@ -341,6 +341,28 @@ test("매물 종류를 지정하면 기존 종류 인덱스로 탐색하며 전�
   assert.deepEqual((await read("state=all&type=없음")).listings, []);
 });
 
+test("매물 상태와 가격 입력 여부는 AND로 조합하고 복수 가격은 OR로 조회한다", async (t) => {
+  const { sqlite } = database(t);
+  const insert = sqlite.prepare("INSERT INTO listings(id,identity_key,status,property_type,building_name,sale_price,jeonse_price,monthly_rent) VALUES (?,?,?,?,?,?,?,?)");
+  insert.run("sale","sale","매물등록","아파트","합성가","3억","","");
+  insert.run("jeonse","jeonse","매물수정","아파트","합성나","","2억","");
+  insert.run("monthly","monthly","매물수정","아파트","합성다","","","1000/50");
+  insert.run("both","both","가계약","빌라","합성라","4억","3억","");
+  insert.run("blank","blank","잔금","빌라","합성마"," ","\t","");
+  const read = async query => listingRoute.GET(new Request(`https://test.invalid/api/listings?${query}`));
+  const found = async query => ids((await (await read(query)).json()).listings).sort();
+  assert.equal((await found("")).length,5);
+  assert.deepEqual(await found("status=매물수정"),["jeonse","monthly"]);
+  assert.deepEqual(await found("price=jeonse"),["both","jeonse"]);
+  assert.deepEqual(await found("price=jeonse&price=monthly"),["both","jeonse","monthly"]);
+  assert.deepEqual(await found("status=매물수정&price=jeonse&price=monthly&type=아파트&q=합성나"),["jeonse"]);
+  assert.deepEqual(await found("price=sale&price=jeonse&price=monthly"),["both","jeonse","monthly","sale"]);
+  assert.deepEqual(await found("status=' OR 1=1 --"),[]);
+  assert.equal((await read("price=__proto__")).status,400);
+  assert.equal((await read("price=sale_price")).status,400);
+  assert.equal((await read("status=매물등록&status=잔금")).status,400);
+});
+
 test("고객 명부 4,000명·업무 160,000건은 반환할 1,000명만 집계하고 기존 결과·ID 커서를 보존한다", async (t) => {
   const { sqlite, statements, plan } = database(t);
   const customer = sqlite.prepare("INSERT INTO customers(id,name,notes,created_at) VALUES (?,?,?,'2020-01-01 00:00:00')");

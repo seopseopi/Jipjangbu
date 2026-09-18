@@ -123,6 +123,35 @@ async function history(identity = key(), status = 200) {
   return body;
 }
 
+test("휴지통 영구 삭제는 확인한 스냅샷만 제거하며 현재 기록과 다른 휴지통은 보존한다", async (t) => {
+  const db = database(t);
+  const first = await createWork();
+  const removed = await move(db,"work",first.id);
+  const second = await createWork({content:"보존할 업무"});
+  const before = db.snapshot();
+  const detail = await deletion.getTrashDetail(db.db, removed.trashId);
+  await rejectsStatus(deletion.permanentlyDeleteTrash(db.db,removed.trashId,"wrong"),409);
+  assert.deepEqual(db.snapshot(),before);
+  const params = {params:Promise.resolve({id:removed.trashId})};
+  const request = revision => new Request("https://synthetic.invalid/api/trash/example", {method:"DELETE",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision})});
+  assert.equal((await trashDetailRoute.DELETE(request(undefined),params)).status,409);
+  assert.equal((await trashDetailRoute.DELETE(request(detail.preview.revision),params)).status,200);
+  assert.ok(row(db,"work_logs",second.id));
+  assert.deepEqual({...db.snapshot(),trash_records:before.trash_records},before);
+  assert.equal(db.snapshot().trash_records.length,0);
+  await rejectsStatus(deletion.restoreTrash(db.db,removed.trashId),404);
+  assert.equal((await trashDetailRoute.DELETE(request(detail.preview.revision),params)).status,404);
+});
+
+test("복구된 휴지통 항목에 뒤늦게 영구 삭제를 요청해도 복구된 원본은 지우지 않는다", async t => {
+  const db=database(t), work=await createWork(), removed=await move(db,"work",work.id);
+  const detail=await deletion.getTrashDetail(db.db,removed.trashId);
+  await deletion.restoreTrash(db.db,removed.trashId);
+  const before=db.snapshot();
+  await rejectsStatus(deletion.permanentlyDeleteTrash(db.db,removed.trashId,detail.preview.revision),404);
+  assert.deepEqual(db.snapshot(),before);
+});
+
 test("삭제 미리보기는 저장된 내용·모든 연결 매물·영향을 읽기 전용으로 제공한다", async (t) => {
   const db = database(t);
   const second = property({ buildingDong: "202", unitNumber: "303" });
@@ -565,11 +594,11 @@ test("삭제·휴지통·복구는 로그인과 동일 출처를 검사하며 �
   const work = await createWork();
   const { env, writes, request, ctx } = securityFixture(db);
   const before = db.snapshot();
-  for (const [path, method] of [["/api/deletions/preview?type=work&id=missing", "GET"], ["/api/trash", "GET"], ["/api/trash/example", "GET"], ["/api/trash/example/restore", "POST"], [`/api/work-logs/${work.id}`, "DELETE"]]) {
+  for (const [path, method] of [["/api/deletions/preview?type=work&id=missing", "GET"], ["/api/trash", "GET"], ["/api/trash/example", "GET"], ["/api/trash/example", "DELETE"], ["/api/trash/example/restore", "POST"], [`/api/work-logs/${work.id}`, "DELETE"]]) {
     const response = await handleSecurityRequest(new Request(`https://synthetic.invalid${path}`, { method }), env, ctx);
     assert.equal(response.status, 401, path);
   }
-  for (const [path, method] of [[`/api/work-logs/${work.id}`, "DELETE"], ["/api/trash/example/restore", "POST"]]) {
+  for (const [path, method] of [[`/api/work-logs/${work.id}`, "DELETE"], ["/api/trash/example", "DELETE"], ["/api/trash/example/restore", "POST"]]) {
     for (const headers of [{ Origin: "https://different.invalid" }, { "Sec-Fetch-Site": "cross-site" }]) {
       assert.equal((await handleSecurityRequest(request(path, method, headers), env, ctx)).status, 403);
     }
@@ -578,5 +607,6 @@ test("삭제·휴지통·복구는 로그인과 동일 출처를 검사하며 �
   env.BACKUPS.put = async () => { throw new Error("Synthetic backup unavailable"); };
   assert.equal((await handleSecurityRequest(request(`/api/work-logs/${work.id}`, "DELETE"), env, ctx)).status, 503);
   assert.equal((await handleSecurityRequest(request("/api/trash/example/restore", "POST"), env, ctx)).status, 503);
+  assert.equal((await handleSecurityRequest(request("/api/trash/example", "DELETE"), env, ctx)).status, 503);
   assert.deepEqual(db.snapshot(), before);
 });

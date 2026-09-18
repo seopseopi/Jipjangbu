@@ -57,7 +57,7 @@ function button(tree, label) {
   assert.ok(element, `${label} exists`);
   return element;
 }
-const environment = { React, Icon: () => null, useMemo: (callback) => callback(), seoulDate: () => "2026-09-13", calendarWorkPresentation, CalendarSubjects };
+const environment = { React, LISTING_WORK_TYPES: new Set(["매물등록", "매물수정", "가계약", "잔금"]), Icon: () => null, useMemo: (callback) => callback(), seoulDate: () => "2026-09-13", calendarWorkPresentation, CalendarSubjects };
 const common = ["displayDate", "targetText", "statusTone", "EmptyState", "Toolbar", "ListReadFeedback"];
 const Feedback = compile(["ListReadFeedback"], environment);
 const Listings = compile([...common, "Price", "ListingsView"], environment);
@@ -67,7 +67,7 @@ const lookups = { workTypes: ["계약예정", "전화"], propertyTypes: ["아파
 const listing = { id: "listing", identity_key: "synthetic", property_type: "아파트", building_name: "이전결과 합성단지", building_dong: "106", unit_number: "1503", status: "매물등록" };
 const customer = { id: "synthetic-customer", name: "이전결과 합성고객", notes: "확인 메모", history_count: 1 };
 const work = { id: "work", work_date: "2026-09-13", work_type: "계약예정", content: "이전결과 합성업무", customer_name: "예시 고객", building_name: "예시단지", property_count: 1 };
-const listingProps = { items: [listing], lookups, query: "새 검색", setQuery: noop, state: "active", setState: noop, propertyType: "", setPropertyType: noop, sort: "building", setSort: noop, onReset: noop, onHistory: noop };
+const listingProps = { items: [listing], lookups, query: "새 검색", setQuery: noop, state: "all", setState: noop, prices: [], setPrices: noop, propertyType: "", setPropertyType: noop, sort: "building", setSort: noop, onReset: noop, onHistory: noop };
 const customerProps = { items: [customer], query: "새 검색", setQuery: noop, sort: "recent", setSort: noop, onReset: noop, onEdit: noop, onNew: noop, onNewWork: noop, onCopy: noop, onHistory: noop };
 const calendarProps = { month: "2026-09", setMonth: noop, workType: "", setWorkType: noop, items: [work], lookups, onOpen: noop, onShowDay: noop };
 
@@ -155,19 +155,21 @@ test("매물 정렬 선택·요약·모바일 제목 버튼은 같은 정렬 상
   assert.match(mobileCss, /\.listing-mobile-sort\s*\{[^}]*display:\s*flex/);
 });
 
-test("매물관리 초기화·오래된 매물 필터 복귀는 종류→이름 기본 정렬로 돌아온다", () => {
+test("매물관리 초기화는 상태·가격을 전체로 되돌리고 상태 변경은 정렬을 유지한다", () => {
   assert.match(source, /\[listingSort, setListingSort\] = useState\("type"\)/);
   const changes = [];
-  callback("ListingsView", "onReset", Object.fromEntries(["setQuery", "setListingState", "setPropertyTypeFilter", "setListingSort"].map((name) => [name, (value) => changes.push([name, value])])) )();
-  assert.deepEqual(changes, [["setQuery", ""], ["setListingState", "all"], ["setPropertyTypeFilter", ""], ["setListingSort", "type"]]);
+  callback("ListingsView", "onReset", Object.fromEntries(["setQuery", "setListingState", "setListingPrices", "setPropertyTypeFilter", "setListingSort"].map((name) => [name, (value) => changes.push([name, value])])) )();
+  assert.deepEqual(changes, [["setQuery", ""], ["setListingState", "all"], ["setListingPrices", []], ["setPropertyTypeFilter", ""], ["setListingSort", "type"]]);
   assert.match(source, /\[listingState, setListingState\] = useState\("all"\)/);
   const base = Listings({ ...listingProps, query: "", sort: "type", state: "all" });
   assert.equal(descendants(base).some((item) => item.props.className === "filter-reset"), false);
   const sorted = [], states = [];
-  const stale = Listings({ ...listingProps, state: "stale", sort: "oldest", setState: (value) => states.push(value), setSort: (value) => sorted.push(value) });
-  descendants(stale).find((item) => item.props["aria-label"] === "매물 상태 필터").props.onChange({ target: { value: "active" } });
-  assert.deepEqual(states, ["active"]);
-  assert.deepEqual(sorted, ["type"]);
+  const view = Listings({ ...listingProps, state: "매물등록", sort: "oldest", setState: (value) => states.push(value), setSort: (value) => sorted.push(value) });
+  const select = descendants(view).find((item) => item.props["aria-label"] === "매물 상태 필터");
+  assert.doesNotMatch(renderToStaticMarkup(select), /value="active"|value="closed"|value="stale"/);
+  select.props.onChange({ target: { value: "잔금" } });
+  assert.deepEqual(states, ["잔금"]);
+  assert.deepEqual(sorted, []);
 });
 
 test("정렬 변경 뒤 CSV는 화면에 받은 순서를 보존하며 이름·종류·상태 셀이 올바르게 대응한다", () => {
@@ -205,13 +207,13 @@ function navigationHarness(allow = true) {
   const props = {
     navigate: (next) => { changes.push(next); return allow; }, setQueries: queries.set,
     seoulDate: () => "2026-09-13",
-    ...Object.fromEntries(["ListingState", "PropertyTypeFilter", "ListingSort", "CustomerSort", "WorkTypeFilter", "WorkPeriod", "CalendarMonth", "CalendarWorkType"].map((name) => [`set${name}`, (value) => { values[name] = value; }])),
+    ...Object.fromEntries(["ListingState", "ListingPrices", "PropertyTypeFilter", "ListingSort", "CustomerSort", "WorkTypeFilter", "WorkPeriod", "CalendarMonth", "CalendarWorkType"].map((name) => [`set${name}`, (value) => { values[name] = value; }])),
   };
   return { queries, values, changes, navigate: compile(["navigateFromDashboard"], props) };
 }
 test("홈의 의미형 바로가기는 해당 화면 필터만 초기화하고 사용자가 이동을 취소하면 그대로 둔다", () => {
   const expected = {
-    listings: { ListingState: "all", PropertyTypeFilter: "", ListingSort: "type" },
+    listings: { ListingState: "all", ListingPrices: [], PropertyTypeFilter: "", ListingSort: "type" },
     customers: { CustomerSort: "recent" },
     journal: { WorkTypeFilter: "", WorkPeriod: "" },
     calendar: { CalendarMonth: "2026-09", CalendarWorkType: "" },
@@ -332,7 +334,7 @@ function managedLoadHarness(key) {
   const expression = node.initializer.arguments[0].getText(ast);
   const loader = (pending, query = "current") => evaluate(`const result = ${expression};`, {
     requestVersion: version, setManagedReads: managed.set,
-    listingsSearch: query, listingState: "active", propertyTypeFilter: "", listingSort: "building",
+    listingsSearch: query, listingState: "all", listingPrices: [], propertyTypeFilter: "", listingSort: "building",
     customersSearch: query, customerSort: "recent", calendarMonth: "2026-09", calendarWorkType: query,
     jsonFetch: () => pending.promise, fetchAllWorkLogs: () => pending.promise,
     setListings: rows.set, setCustomerResults: rows.set, setCalendarLogs: rows.set,
