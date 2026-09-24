@@ -353,6 +353,8 @@ test("매물 상태와 가격 입력 여부는 AND로 조합하고 복수 가격
   const found = async query => ids((await (await read(query)).json()).listings).sort();
   assert.equal((await found("")).length,5);
   assert.deepEqual(await found("status=매물수정"),["jeonse","monthly"]);
+  assert.deepEqual(await found("status=매물등록&status=매물수정"),["jeonse","monthly","sale"]);
+  assert.deepEqual(await found("status=매물등록&status=가계약&price=jeonse"),["both"]);
   assert.deepEqual(await found("price=jeonse"),["both","jeonse"]);
   assert.deepEqual(await found("price=jeonse&price=monthly"),["both","jeonse","monthly"]);
   assert.deepEqual(await found("status=매물수정&price=jeonse&price=monthly&type=아파트&q=합성나"),["jeonse"]);
@@ -360,7 +362,8 @@ test("매물 상태와 가격 입력 여부는 AND로 조합하고 복수 가격
   assert.deepEqual(await found("status=' OR 1=1 --"),[]);
   assert.equal((await read("price=__proto__")).status,400);
   assert.equal((await read("price=sale_price")).status,400);
-  assert.equal((await read("status=매물등록&status=잔금")).status,400);
+  assert.deepEqual(await found("status=매물등록&status=잔금"),["blank","sale"]);
+  assert.equal((await read("status=%20")).status,400);
 });
 
 test("고객 명부 4,000명·업무 160,000건은 반환할 1,000명만 집계하고 기존 결과·ID 커서를 보존한다", async (t) => {
