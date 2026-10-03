@@ -183,6 +183,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .customer-table .table-head, .customer-table .table-row { grid-template-columns: minmax(125px, .75fr) minmax(148px, .9fr) minmax(180px, 1.2fr) 112px 177px; }
 .responsive-table .table-head { min-height: 44px; border-bottom: 1px solid var(--line); background: var(--wash); color: var(--muted); font-size: var(--text-caption); font-weight: 600; }
 .responsive-table .table-row { width: 100%; min-height: 72px; padding-block: 14px; border: 0; border-bottom: 1px solid var(--line); background: var(--paper); color: var(--ink-2); text-align: left; font-size: var(--text-small); }
+.listing-table .table-row { min-height: 70px; padding-block: 10px; }
 .responsive-table .table-row:last-child { border-bottom: 0; }
 button.table-row:hover { background: var(--wash); }
 .table-row > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
